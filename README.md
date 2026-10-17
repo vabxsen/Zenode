@@ -2,7 +2,16 @@
 
 A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.md` files in a folder you choose (a "vault"), so they stay readable by any editor, including Obsidian.
 
-## Phase 2 (current)
+## Phase 3 (current)
+
+- Graph view (Ctrl+G): every note as a node, links as edges; tags, attachments and missing notes as optional node kinds; orphans toggle; filter with the search syntax
+- Force-directed layout (d3-force) in a Web Worker, so the UI never blocks; positions stay stable as notes change
+- WebGL2 rendering (instanced, antialiased nodes and edges) with labels that fade in as you zoom; tested at 1,500 notes
+- Hover highlights a note and its neighbours; drag nodes, pan, zoom around the cursor, click to open, double-click to fit
+- Local graph in the right sidebar, following the open note (depth 1–4)
+- Settings panel: filters, node size, center/repel/link forces and link distance
+
+## Phase 2
 
 - `[[Wikilinks]]`, `[[Note#Heading|alias]]` and `![[embeds]]`, rendered in Live Preview; links to missing notes are dimmed, and clicking one creates it
 - `[[` autocomplete with fuzzy matching; inserts the shortest unique link text
@@ -33,7 +42,8 @@ A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab |
 | Ctrl+O | Quick switcher |
 | Ctrl+Shift+F | Search |
-| Ctrl+Shift+B | Toggle backlinks panel |
+| Ctrl+G | Graph view |
+| Ctrl+Shift+B | Toggle right sidebar (backlinks, local graph) |
 | Ctrl+Shift+O | Open another vault |
 | Ctrl+\\ | Toggle left sidebar |
 
@@ -43,7 +53,7 @@ A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.
 npm install
 npm run dev        # run with hot reload
 npm run typecheck  # TypeScript checks for main, preload and renderer
-npm test           # unit tests: parser, link resolution, rename edits, search, fuzzy
+npm test           # unit tests: parser, link resolution, rename edits, search, fuzzy, graph
 npm run build      # production bundles in out/
 npm run dist       # Windows installer in dist/
 ```
@@ -63,5 +73,5 @@ Security: the page runs with `contextIsolation`, `sandbox` and no Node integrati
 ## Roadmap
 
 2. ~~`[[wikilinks]]`, backlinks, quick switcher, full-text search~~ (done)
-3. Graph view (d3-force physics in a worker, WebGL rendering)
+3. ~~Graph view (d3-force physics in a worker, WebGL rendering)~~ (done)
 4. Canvas, database views (Bases-style), plugin API

@@ -230,6 +230,10 @@ export class MetadataCache {
     return this.files.has(path.toLowerCase())
   }
 
+  allFiles(): string[] {
+    return [...this.files.values()]
+  }
+
   getBacklinks(target: string): Backlink[] {
     const out: Backlink[] = []
     for (const source of this.backlinkIndex.get(target) ?? []) {

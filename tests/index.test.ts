@@ -2,6 +2,7 @@ import { parseNote } from '../src/renderer/src/index/parser'
 import { MetadataCache, applyEdits } from '../src/renderer/src/index/metadataCache'
 import { matchNote, parseQuery } from '../src/renderer/src/search/query'
 import { fuzzyMatch } from '../src/renderer/src/fuzzy'
+import { buildGraph } from '../src/renderer/src/graph/graphData'
 
 let fails = 0
 const eq = (name: string, got: unknown, want: unknown) => {
@@ -70,7 +71,9 @@ contents['Projects/Note B2.md'] = contents['Note B.md']; delete contents['Note B
 const tree2 = tree.filter((e) => e.path !== 'Note B.md'); tree2.push({ name: 'Projects', path: 'Projects', kind: 'folder', ext: '', children: [{ name: 'Note B2.md', path: 'Projects/Note B2.md', kind: 'file', ext: 'md' }] })
 await cache.sync(tree2)
 const edits = cache.buildRenameEdits(pending, 'Note B.md', 'Projects/Note B2.md')
-eq('rename edit text', applyEdits(contents['Home.md'], edits.get('Home.md') ?? []), 'Go to [[Note B2]] and [[Dup]] and [[Missing]] and [[Folder/Note C]].')
+const renamedHome = applyEdits(contents['Home.md'], edits.get('Home.md') ?? [])
+await cache.setContent('Home.md', renamedHome)
+eq('rename edit text', renamedHome, 'Go to [[Note B2]] and [[Dup]] and [[Missing]] and [[Folder/Note C]].')
 
 // Search query language.
 const note = { path: 'Projects/Launch plan.md', content: 'We ship the beta on Friday.\nThe Beta has bugs.', tags: ['#work/launch'] }
@@ -96,6 +99,31 @@ const tight = fuzzyMatch('plan', 'Plan')!.score > fuzzyMatch('plan', 'Pale lante
 eq('fuzzy ranks a tight match above a scattered one', tight, true)
 const initials = fuzzyMatch('pl', 'people list')!.score > fuzzyMatch('pl', 'apple')!.score
 eq('fuzzy ranks word initials above mid-word letters', initials, true)
+
+// Graph builder (vault state after the rename above).
+const base = { showTags: false, showAttachments: false, showOrphans: true, showUnresolved: false, search: '' }
+const g = buildGraph(cache, base)
+const name = (i: number) => g.nodes[i].id
+const edges = g.links.map(([a, b]) => [name(a), name(b)].sort().join(' <-> ')).sort()
+eq('graph: one node per note', g.nodes.length, 6)
+eq('graph: resolved links become edges', edges, [
+  'Folder/Dup.md <-> Folder/Note C.md',
+  'Folder/Note C.md <-> Folder/Sub/Deep.md',
+  'Folder/Note C.md <-> Home.md',
+  'Home.md <-> Other/Dup.md',
+  'Home.md <-> Projects/Note B2.md'
+])
+eq('graph: degree counts', g.nodes.find((n) => n.id === 'Folder/Note C.md')?.degree, 3)
+eq('graph: unresolved nodes', buildGraph(cache, { ...base, showUnresolved: true }).nodes.filter((n) => n.kind === 'unresolved').map((n) => n.label), ['Missing'])
+eq('graph: attachments', buildGraph(cache, { ...base, showAttachments: true }).nodes.filter((n) => n.kind === 'attachment').length, 1)
+const local1 = buildGraph(cache, base, { center: 'Folder/Sub/Deep.md', depth: 1 })
+eq('graph: local depth 1', local1.nodes.map((n) => n.id).sort(), ['Folder/Note C.md', 'Folder/Sub/Deep.md'])
+const local2 = buildGraph(cache, base, { center: 'Folder/Sub/Deep.md', depth: 2 })
+eq('graph: local depth 2', local2.nodes.length, 4)
+await cache.setContent('Lonely.md', 'no links here')
+eq('graph: orphans shown by default', buildGraph(cache, base).nodes.some((n) => n.id === 'Lonely.md'), true)
+eq('graph: hide orphans', buildGraph(cache, { ...base, showOrphans: false }).nodes.some((n) => n.id === 'Lonely.md'), false)
+eq('graph: search filter', buildGraph(cache, { ...base, search: 'path:Folder' }).nodes.length, 3)
 
 cache.dispose()
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED')

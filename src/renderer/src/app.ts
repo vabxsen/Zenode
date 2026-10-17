@@ -3,21 +3,25 @@ import { BacklinksPanel } from './backlinks'
 import { Component, el } from './component'
 import type { LinkTarget } from './editor/linkCompletion'
 import { displayName, FileTree } from './fileTree'
+import { GraphView } from './graph/graphView'
 import { icon, type IconName } from './icons'
 import { applyEdits, MetadataCache } from './index/metadataCache'
 import { splitLinktext } from './index/parser'
 import { baseName, isMarkdown, joinPath, parentDir, stripMd } from './paths'
 import { SearchPane } from './search/searchPane'
 import { openSwitcher } from './switcher'
-import { noteTitle, Workspace, type OpenPosition } from './workspace'
+import { VIEW_PREFIX, Workspace, type OpenPosition, type WorkspaceView } from './workspace'
 
 const api = window.zenode
 const EXTERNAL = /^(https?:|mailto:)/i
 const SIDEBAR_KEY = 'zenode.sidebarWidth'
 const RIGHTBAR_KEY = 'zenode.rightbarHidden'
+const RIGHT_PANE_KEY = 'zenode.rightPane'
+const GRAPH_ID = `${VIEW_PREFIX}graph`
 const MAX_RECENT = 30
 
 type LeftPane = 'files' | 'search'
+type RightPane = 'backlinks' | 'localGraph'
 
 export class App extends Component {
   private vault: VaultInfo | null = null
@@ -27,6 +31,11 @@ export class App extends Component {
   private cache: MetadataCache | null = null
   private search: SearchPane | null = null
   private backlinks: BacklinksPanel | null = null
+  private localGraph: GraphView | null = null
+  private globalGraph: GraphView | null = null
+  private rightPaneEls: Record<RightPane, HTMLElement> | null = null
+  private rightTabButtons: Record<RightPane, HTMLElement> | null = null
+  private rightPane: RightPane = 'backlinks'
   private statusEl: HTMLElement | null = null
   private titleEl: HTMLElement | null = null
   private paneEls: Record<LeftPane, HTMLElement> | null = null
@@ -119,8 +128,8 @@ export class App extends Component {
     const settings = await api.getSettings()
     const ws = settings.workspaces[info.root]
     if (ws) {
-      for (const path of ws.openFiles) await this.workspace!.open(path)
-      if (ws.activeFile) await this.workspace!.open(ws.activeFile)
+      for (const path of ws.openFiles) await this.openTabPath(path)
+      if (ws.activeFile) await this.openTabPath(ws.activeFile)
     }
   }
 
@@ -133,6 +142,8 @@ export class App extends Component {
     this.cache = null
     this.search = null
     this.backlinks = null
+    this.localGraph = null
+    this.globalGraph = null
   }
 
   private buildShell(): void {
@@ -154,10 +165,11 @@ export class App extends Component {
     this.ribbonButton(ribbon, 'sidebar', 'Toggle left sidebar (Ctrl+\\)', () => this.root.classList.toggle('is-sidebar-hidden'))
     this.ribbonButton(ribbon, 'switcher', 'Quick switcher (Ctrl+O)', () => this.openQuickSwitcher())
     this.ribbonButton(ribbon, 'search', 'Search (Ctrl+Shift+F)', () => this.showSearch())
+    this.ribbonButton(ribbon, 'graph', 'Graph view (Ctrl+G)', () => this.openGraph())
     this.ribbonButton(ribbon, 'filePlus', 'New note (Ctrl+N)', () => void this.newNote(this.currentDir()))
     this.ribbonButton(ribbon, 'folderPlus', 'New folder', () => void this.newFolder(this.currentDir()))
     el('div', 'zn-ribbon-spacer', ribbon)
-    this.ribbonButton(ribbon, 'link', 'Toggle backlinks (Ctrl+Shift+B)', () => this.toggleRightbar())
+    this.ribbonButton(ribbon, 'link', 'Toggle right sidebar (Ctrl+Shift+B)', () => this.toggleRightbar())
     this.ribbonButton(ribbon, 'folderOpen', 'Open another vault (Ctrl+Shift+O)', () => void this.chooseVault())
 
     // Left sidebar: Files and Search panes.
@@ -198,11 +210,15 @@ export class App extends Component {
     const main = el('div', 'zn-main', body)
     this.workspace = shell.addChild(
       new Workspace(main, {
-        onActiveChange: (path) => {
+        onActiveChange: (path, title) => {
           this.tree?.setActive(path)
-          this.backlinks?.setTarget(path)
-          this.titleEl!.textContent = path ? noteTitle(path) : ''
+          this.titleEl!.textContent = title
           if (path) this.recent = [path, ...this.recent.filter((p) => p !== path)].slice(0, MAX_RECENT)
+          // Side panels keep showing the last note while a view tab (like the graph) is in front.
+          const context = path ?? this.recent[0] ?? null
+          this.backlinks?.setTarget(context)
+          this.localGraph?.setActive(context)
+          this.globalGraph?.setActive(context)
         },
         onOpenLink: (href, from) => void this.openLink(href, from),
         onOpenWikiLink: (target, from) => void this.openWikiLink(target, from),
@@ -218,9 +234,31 @@ export class App extends Component {
       })
     )
 
-    // Right sidebar: backlinks.
+    // Right sidebar: backlinks and the local graph.
     const rightbar = el('div', 'zn-rightbar', body)
-    this.backlinks = shell.addChild(new BacklinksPanel(rightbar, cache, (path, pos) => void this.openPath(path, pos)))
+    const rtabs = el('div', 'zn-sidebar-tabs', rightbar)
+    const blTab = el('button', 'zn-sidebar-tab', rtabs)
+    blTab.title = 'Backlinks'
+    blTab.appendChild(icon('link', 16))
+    const lgTab = el('button', 'zn-sidebar-tab', rtabs)
+    lgTab.title = 'Local graph'
+    lgTab.appendChild(icon('graph', 16))
+    blTab.addEventListener('click', () => this.showRightPane('backlinks'))
+    lgTab.addEventListener('click', () => this.showRightPane('localGraph'))
+    const blPane = el('div', 'zn-pane', rightbar)
+    const lgPane = el('div', 'zn-pane zn-pane-graph', rightbar)
+    this.backlinks = shell.addChild(new BacklinksPanel(blPane, cache, (path, pos) => void this.openPath(path, pos)))
+    this.localGraph = shell.addChild(
+      new GraphView(lgPane, {
+        cache,
+        mode: 'local',
+        getActive: () => this.workspace?.activePath ?? this.recent[0] ?? null,
+        onOpen: (path) => void this.openPath(path)
+      })
+    )
+    this.rightPaneEls = { backlinks: blPane, localGraph: lgPane }
+    this.rightTabButtons = { backlinks: blTab, localGraph: lgTab }
+    this.showRightPane(safeGet(RIGHT_PANE_KEY) === 'localGraph' ? 'localGraph' : 'backlinks', false)
 
     // Live link styling follows the index.
     shell.register(cache.onChange(() => this.workspace?.refreshLinks()))
@@ -247,6 +285,72 @@ export class App extends Component {
   private toggleRightbar(): void {
     const hidden = this.root.classList.toggle('is-rightbar-hidden')
     safeSet(RIGHTBAR_KEY, hidden ? '1' : '0')
+    this.localGraph?.setVisible(!hidden && this.rightPane === 'localGraph')
+  }
+
+  private showRightPane(pane: RightPane, reveal = true): void {
+    if (!this.rightPaneEls || !this.rightTabButtons) return
+    this.rightPane = pane
+    safeSet(RIGHT_PANE_KEY, pane)
+    if (reveal && this.root.classList.contains('is-rightbar-hidden')) {
+      this.root.classList.remove('is-rightbar-hidden')
+      safeSet(RIGHTBAR_KEY, '0')
+    }
+    for (const key of ['backlinks', 'localGraph'] as RightPane[]) {
+      this.rightPaneEls[key].style.display = key === pane ? '' : 'none'
+      this.rightTabButtons[key].classList.toggle('is-active', key === pane)
+    }
+    const shown = !this.root.classList.contains('is-rightbar-hidden')
+    this.localGraph?.setVisible(shown && pane === 'localGraph')
+  }
+
+  // ---------- Graph view tab ----------
+
+  private openGraph(): void {
+    const shell = this.shell
+    const cache = this.cache
+    if (!shell || !cache || !this.workspace) return
+    // openView reuses an existing graph tab (and discards the spare view).
+    this.workspace.openView(this.makeGraphTab(shell, cache))
+  }
+
+  // The graph component is created lazily, the first time its tab is shown.
+  private makeGraphTab(shell: Component, cache: MetadataCache): WorkspaceView {
+    const host = document.createElement('div')
+    host.className = 'zn-view-host'
+    let graph: GraphView | null = null
+    const ensure = (): GraphView => {
+      if (!graph) {
+        graph = shell.addChild(
+          new GraphView(host, {
+            cache,
+            mode: 'global',
+            getActive: () => this.workspace?.activePath ?? this.recent[0] ?? null,
+            onOpen: (path) => void this.openPath(path)
+          })
+        )
+        this.globalGraph = graph
+      }
+      return graph
+    }
+    return {
+      id: GRAPH_ID,
+      title: 'Graph view',
+      el: host,
+      show: () => ensure().setVisible(true),
+      hide: () => graph?.setVisible(false),
+      destroy: () => {
+        if (graph) shell.removeChild(graph)
+        if (this.globalGraph === graph) this.globalGraph = null
+        graph = null
+        host.remove()
+      }
+    }
+  }
+
+  private async openTabPath(path: string): Promise<void> {
+    if (path === GRAPH_ID) this.openGraph()
+    else if (!path.startsWith(VIEW_PREFIX)) await this.workspace?.open(path)
   }
 
   private ribbonButton(parent: HTMLElement, name: IconName, label: string, action: () => void): void {
@@ -535,6 +639,7 @@ export class App extends Component {
     }
     if (key === 'o') return handled(() => this.openQuickSwitcher())
     if (key === 'f' && e.shiftKey) return handled(() => this.showSearch())
+    if (key === 'g' && !e.shiftKey) return handled(() => this.openGraph())
     if (key === 'b' && e.shiftKey) return handled(() => this.toggleRightbar())
     if (key === 'n' && !e.shiftKey) return handled(() => void this.newNote(this.currentDir()))
     if (key === 's') return handled(() => void this.workspace!.save())

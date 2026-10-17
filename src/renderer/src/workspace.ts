@@ -9,13 +9,27 @@ import { icon } from './icons'
 
 const SAVE_DELAY = 600
 
+// A non-note tab (e.g. the graph). The workspace mounts `el` and shows/hides it.
+export interface WorkspaceView {
+  readonly id: string
+  readonly title: string
+  readonly el: HTMLElement
+  show(): void
+  hide(): void
+  destroy(): void
+}
+
 interface Tab {
   path: string
-  state: EditorState
+  kind: 'note' | 'view'
+  state: EditorState | null
+  view: WorkspaceView | null
   lastSaved: string
   dirty: boolean
   timer: number | null
 }
+
+export const VIEW_PREFIX = 'zenode:'
 
 export interface OpenPosition {
   from: number
@@ -23,7 +37,8 @@ export interface OpenPosition {
 }
 
 export interface WorkspaceHost {
-  onActiveChange(path: string | null): void
+  // `path` is the active note (null for view tabs); `title` is what the tab shows.
+  onActiveChange(path: string | null, title: string): void
   onOpenLink(href: string, fromPath: string): void
   onOpenWikiLink(target: string, fromPath: string): void
   onOpenTag(tag: string): void
@@ -46,6 +61,7 @@ export class Workspace extends Component {
   private readonly view: EditorView
   private readonly tabbarEl: HTMLElement
   private readonly editorEl: HTMLElement
+  private readonly viewsEl: HTMLElement
   private readonly emptyEl: HTMLElement
   private statsTimer: number | null = null
 
@@ -56,6 +72,7 @@ export class Workspace extends Component {
     super()
     this.tabbarEl = el('div', 'zn-tabbar', container)
     this.editorEl = el('div', 'zn-editor', container)
+    this.viewsEl = el('div', 'zn-views', container)
     this.emptyEl = el('div', 'zn-empty', container)
     const inner = el('div', 'zn-empty-inner', this.emptyEl)
     inner.appendChild(icon('note', 40))
@@ -69,12 +86,32 @@ export class Workspace extends Component {
     this.view.destroy()
   }
 
+  // The active note's path (null when a view tab or nothing is active).
   get activePath(): string | null {
-    return this.active?.path ?? null
+    return this.active?.kind === 'note' ? this.active.path : null
   }
 
   focus(): void {
-    if (this.active) this.view.focus()
+    if (this.active?.kind === 'note') this.view.focus()
+  }
+
+  openView(view: WorkspaceView): void {
+    const existing = this.tabs.find((t) => t.path === view.id)
+    if (existing) {
+      view.destroy()
+      this.activate(existing)
+      return
+    }
+    this.viewsEl.appendChild(view.el)
+    view.hide()
+    const tab: Tab = { path: view.id, kind: 'view', state: null, view, lastSaved: '', dirty: false, timer: null }
+    const at = this.active ? this.tabs.indexOf(this.active) + 1 : this.tabs.length
+    this.tabs.splice(at, 0, tab)
+    this.activate(tab)
+  }
+
+  hasView(id: string): boolean {
+    return this.tabs.some((t) => t.path === id)
   }
 
   async open(path: string, pos?: OpenPosition): Promise<void> {
@@ -91,7 +128,7 @@ export class Workspace extends Component {
       this.host.onError(`Could not open ${path}: ${(e as Error).message}`)
       return
     }
-    const tab: Tab = { path, state: null as unknown as EditorState, lastSaved: content, dirty: false, timer: null }
+    const tab: Tab = { path, kind: 'note', state: null, view: null, lastSaved: content, dirty: false, timer: null }
     tab.state = createEditorState(content, {
       onChange: () => this.onEdited(tab),
       onOpenLink: (href) => this.host.onOpenLink(href, tab.path),
@@ -108,6 +145,7 @@ export class Workspace extends Component {
 
   // Select a range in the active note and scroll it to the middle of the view.
   private reveal(pos: OpenPosition): void {
+    if (this.active?.kind !== 'note') return
     const len = this.view.state.doc.length
     const from = Math.min(pos.from, len)
     const to = Math.min(pos.to ?? pos.from, len)
@@ -120,7 +158,7 @@ export class Workspace extends Component {
 
   // Re-run link styling after the vault's links changed (e.g. a missing note was created).
   refreshLinks(): void {
-    if (this.active) this.view.dispatch({ effects: linksChanged.of(null) })
+    if (this.active?.kind === 'note') this.view.dispatch({ effects: linksChanged.of(null) })
   }
 
   isOpen(path: string): boolean {
@@ -128,14 +166,23 @@ export class Workspace extends Component {
   }
 
   private activate(tab: Tab): void {
-    if (this.active && this.active !== tab) this.active.state = this.view.state
+    const prev = this.active
+    if (prev && prev !== tab) {
+      if (prev.kind === 'note') prev.state = this.view.state
+      else prev.view?.hide()
+    }
     this.active = tab
-    this.view.setState(tab.state)
+    if (tab.kind === 'note') this.view.setState(tab.state!)
     this.render()
+    if (tab.kind === 'view') tab.view!.show()
     this.updateStats()
-    this.host.onActiveChange(tab.path)
+    this.host.onActiveChange(this.activePath, this.titleOf(tab))
     this.host.onLayoutChange()
-    requestAnimationFrame(() => this.view.focus())
+    if (tab.kind === 'note') requestAnimationFrame(() => this.view.focus())
+  }
+
+  private titleOf(tab: Tab): string {
+    return tab.view ? tab.view.title : noteTitle(tab.path)
   }
 
   async close(tab: Tab | null = this.active): Promise<void> {
@@ -146,6 +193,7 @@ export class Workspace extends Component {
 
   private dispose(tab: Tab): void {
     if (tab.timer !== null) window.clearTimeout(tab.timer)
+    tab.view?.destroy()
     const i = this.tabs.indexOf(tab)
     if (i === -1) return
     this.tabs.splice(i, 1)
@@ -156,7 +204,7 @@ export class Workspace extends Component {
         this.activate(next)
         return
       }
-      this.host.onActiveChange(null)
+      this.host.onActiveChange(null, '')
       this.host.onStats(0, 0)
     }
     this.render()
@@ -170,7 +218,7 @@ export class Workspace extends Component {
   }
 
   private docOf(tab: Tab): string {
-    return (tab === this.active ? this.view.state : tab.state).doc.toString()
+    return (tab === this.active ? this.view.state : tab.state!).doc.toString()
   }
 
   private onEdited(tab: Tab): void {
@@ -184,7 +232,7 @@ export class Workspace extends Component {
   }
 
   async save(tab: Tab | null = this.active): Promise<void> {
-    if (!tab) return
+    if (!tab || tab.kind !== 'note') return
     if (tab.timer !== null) {
       window.clearTimeout(tab.timer)
       tab.timer = null
@@ -220,17 +268,19 @@ export class Workspace extends Component {
   // A file or folder was renamed: retarget every tab under it.
   renamed(from: string, to: string): void {
     for (const tab of this.tabs) {
+      if (tab.kind !== 'note') continue
       if (tab.path === from) tab.path = to
       else if (tab.path.startsWith(`${from}/`)) tab.path = to + tab.path.slice(from.length)
     }
     this.render()
-    if (this.active) this.host.onActiveChange(this.active.path)
+    if (this.active) this.host.onActiveChange(this.activePath, this.titleOf(this.active))
     this.host.onLayoutChange()
   }
 
   // A file or folder was deleted: close its tabs without saving.
   removed(path: string): void {
     for (const tab of this.tabs.slice()) {
+      if (tab.kind !== 'note') continue
       if (tab.path === path || tab.path.startsWith(`${path}/`)) this.dispose(tab)
     }
   }
@@ -239,7 +289,7 @@ export class Workspace extends Component {
   async reloadChanged(paths: string[]): Promise<void> {
     const changed = new Set(paths)
     for (const tab of this.tabs.slice()) {
-      if (!changed.has(tab.path) || tab.dirty) continue
+      if (tab.kind !== 'note' || !changed.has(tab.path) || tab.dirty) continue
       let content: string
       try {
         content = await window.zenode.read(tab.path)
@@ -249,7 +299,7 @@ export class Workspace extends Component {
       }
       if (content === tab.lastSaved) continue
       tab.lastSaved = content
-      const state = tab === this.active ? this.view.state : tab.state
+      const state = tab === this.active ? this.view.state : tab.state!
       const spec = { changes: { from: 0, to: state.doc.length, insert: content }, annotations: fromDisk.of(true) }
       if (tab === this.active) {
         this.view.dispatch(spec)
@@ -267,7 +317,7 @@ export class Workspace extends Component {
   private updateStats(): void {
     if (this.statsTimer !== null) window.clearTimeout(this.statsTimer)
     this.statsTimer = window.setTimeout(() => {
-      const text = this.active ? this.view.state.doc.toString() : ''
+      const text = this.active?.kind === 'note' ? this.view.state.doc.toString() : ''
       const words = text.trim() ? text.trim().split(/\s+/).length : 0
       this.host.onStats(words, text.length)
     }, 150)
@@ -279,8 +329,9 @@ export class Workspace extends Component {
       const tabEl = el('div', 'zn-tab', this.tabbarEl)
       if (tab === this.active) tabEl.classList.add('is-active')
       if (tab.dirty) tabEl.classList.add('is-dirty')
-      el('span', 'zn-tab-title', tabEl, noteTitle(tab.path))
-      tabEl.title = tab.path
+      if (tab.kind === 'view') tabEl.classList.add('is-view')
+      el('span', 'zn-tab-title', tabEl, this.titleOf(tab))
+      tabEl.title = tab.kind === 'view' ? this.titleOf(tab) : tab.path
       const closeBtn = el('span', 'zn-tab-close', tabEl)
       closeBtn.appendChild(icon('close', 12))
       closeBtn.addEventListener('click', (e) => {
@@ -295,9 +346,10 @@ export class Workspace extends Component {
       })
       tabEl.addEventListener('click', () => this.activate(tab))
     }
-    const hasTab = this.active !== null
-    this.editorEl.style.display = hasTab ? '' : 'none'
-    this.emptyEl.style.display = hasTab ? 'none' : ''
+    const kind = this.active?.kind
+    this.editorEl.style.display = kind === 'note' ? '' : 'none'
+    this.viewsEl.style.display = kind === 'view' ? '' : 'none'
+    this.emptyEl.style.display = kind ? 'none' : ''
     this.tabbarEl.classList.toggle('is-empty', this.tabs.length === 0)
   }
 }
