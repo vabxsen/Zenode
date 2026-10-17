@@ -3,6 +3,8 @@ import { MetadataCache, applyEdits } from '../src/renderer/src/index/metadataCac
 import { matchNote, parseQuery } from '../src/renderer/src/search/query'
 import { fuzzyMatch } from '../src/renderer/src/fuzzy'
 import { buildGraph } from '../src/renderer/src/graph/graphData'
+import { CanvasParseError, canvasRefs, contains, facingSide, parseCanvas, serializeCanvas, stackOrder } from '../src/renderer/src/canvas/model'
+import { parseCanvasMeta } from '../src/renderer/src/index/canvasMeta'
 
 let fails = 0
 const eq = (name: string, got: unknown, want: unknown) => {
@@ -124,6 +126,52 @@ await cache.setContent('Lonely.md', 'no links here')
 eq('graph: orphans shown by default', buildGraph(cache, base).nodes.some((n) => n.id === 'Lonely.md'), true)
 eq('graph: hide orphans', buildGraph(cache, { ...base, showOrphans: false }).nodes.some((n) => n.id === 'Lonely.md'), false)
 eq('graph: search filter', buildGraph(cache, { ...base, search: 'path:Folder' }).nodes.length, 3)
+
+// Canvas model (JSON Canvas 1.0, Obsidian-style output).
+const board = `{
+	"nodes":[
+		{"id":"a1","type":"text","text":"See [[Home]] #plan","x":0,"y":0,"width":250,"height":60},
+		{"id":"b2","type":"file","file":"Folder/Sub/Deep.md","x":400.4,"y":0,"width":400,"height":400,"color":"3"},
+		{"id":"c3","type":"widget","x":0,"y":300,"width":100,"height":100,"custom":{"k":1}},
+		{"id":"g4","type":"group","label":"Area","x":-50,"y":-50,"width":900,"height":600}
+	],
+	"edges":[
+		{"id":"e1","fromNode":"a1","fromSide":"right","toNode":"b2","toSide":"left","toEnd":"arrow"},
+		{"id":"e2","fromNode":"a1","toNode":"gone"}
+	]
+}`
+const parsed = parseCanvas(board)
+eq('canvas: unknown node types are kept', parsed.nodes.map((n) => n.type), ['text', 'file', 'widget', 'group'])
+eq('canvas: unknown keys are kept', (parsed.nodes[2] as any).custom, { k: 1 })
+eq('canvas: coordinates rounded', parsed.nodes[1].x, 400)
+eq('canvas: edges to missing nodes dropped', parsed.edges.map((e) => e.id), ['e1'])
+const out = serializeCanvas(parsed)
+eq('canvas: one line per node', out.split('\n').filter((l) => l.includes('"id"')).length, 5)
+eq('canvas: round-trip is stable', serializeCanvas(parseCanvas(out)), out)
+eq('canvas: empty file is an empty canvas', parseCanvas('  '), { nodes: [], edges: [] })
+let threw = false
+try { parseCanvas('{nope') } catch (e) { threw = e instanceof CanvasParseError }
+eq('canvas: invalid JSON throws', threw, true)
+const r = (x: number, y: number) => ({ x, y, width: 100, height: 100 })
+eq('canvas: facing sides', [r(300, 0), r(0, 300), r(-300, 0), r(0, -300)].map((t) => facingSide(r(0, 0), t)), ['right', 'bottom', 'left', 'top'])
+eq('canvas: refs', canvasRefs(parsed).files.map((f) => f.file), ['Folder/Sub/Deep.md'])
+const nested = parseCanvas('{"nodes":[{"id":"t","type":"text","text":"","x":0,"y":0,"width":10,"height":10},{"id":"small","type":"group","x":0,"y":0,"width":100,"height":100},{"id":"big","type":"group","x":0,"y":0,"width":500,"height":500}]}')
+eq('canvas: stacking puts big groups behind small ones, cards on top', stackOrder(nested.nodes).map((n) => n.id), ['big', 'small', 't'])
+eq('canvas: group contains card', contains(parsed.nodes[3], parsed.nodes[0]), true)
+
+// Canvases in the link index.
+const cm = parseCanvasMeta(board)
+eq('canvas meta: links', cm.meta.links.map((l) => [l.kind, l.link, l.canvasNode]), [['wiki', 'Home', 'a1'], ['canvas', 'Folder/Sub/Deep.md', 'b2']])
+eq('canvas meta: tags', cm.meta.tags.map((t) => t.tag), ['#plan'])
+eq('canvas meta: search text', cm.searchText, 'See [[Home]] #plan')
+await cache.setContent('Board.canvas', board)
+eq('canvas: backlinks from a canvas', cache.getBacklinks('Folder/Sub/Deep.md').map((b) => b.source).includes('Board.canvas'), true)
+eq('canvas: graph node label', buildGraph(cache, base).nodes.find((n) => n.id === 'Board.canvas')?.label, 'Board')
+const canvasPending = cache.collectRenameRefs('Folder/Sub/Deep.md', false)
+const canvasEdits = cache.buildCanvasRenames(canvasPending, 'Folder/Sub/Deep.md', 'Folder/Sub/Deeper.md')
+const renamedBoard = parseCanvas(canvasEdits.get('Board.canvas') ?? '{}')
+eq('canvas rename: file card updated', (renamedBoard.nodes[1] as any).file, 'Folder/Sub/Deeper.md')
+eq('canvas rename: markdown edits skip canvases', cache.buildRenameEdits(canvasPending, 'Folder/Sub/Deep.md', 'Folder/Sub/Deeper.md').has('Board.canvas'), false)
 
 cache.dispose()
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED')

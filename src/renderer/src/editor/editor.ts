@@ -2,7 +2,7 @@ import { closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirro
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { HighlightStyle, indentOnInput, syntaxHighlighting } from '@codemirror/language'
-import { Annotation, EditorState } from '@codemirror/state'
+import { Annotation, EditorState, type Extension } from '@codemirror/state'
 import { drawSelection, dropCursor, EditorView, highlightActiveLine, keymap } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
 import { wikiLinkCompletion, type LinkTarget } from './linkCompletion'
@@ -67,7 +67,7 @@ export interface EditorCallbacks {
   linkTargets(): LinkTarget[]
 }
 
-export function createEditorState(doc: string, cb: EditorCallbacks): EditorState {
+export function createEditorState(doc: string, cb: EditorCallbacks, extra: Extension[] = []): EditorState {
   return EditorState.create({
     doc,
     extensions: [
@@ -93,7 +93,8 @@ export function createEditorState(doc: string, cb: EditorCallbacks): EditorState
       EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }),
       EditorView.updateListener.of((u) => {
         if (u.docChanged && !u.transactions.some((tr) => tr.annotation(fromDisk))) cb.onChange()
-      })
+      }),
+      ...extra
     ]
   })
 }

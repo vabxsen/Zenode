@@ -1,11 +1,21 @@
 import type { TreeEntry } from '../../../shared/api'
 import { baseName, isMarkdown, joinPath, parentDir, relativePath, stripMd } from '../paths'
+import { parseCanvas, serializeCanvas } from '../canvas/model'
+import { isCanvasPath, parseCanvasMeta } from './canvasMeta'
 import { parseNote, type LinkRef, type NoteMeta } from './parser'
 
 export interface IndexedNote {
   path: string
+  // The file's raw text.
   content: string
+  // What search looks at: the note itself, or a canvas's card texts.
+  searchText: string
   meta: NoteMeta
+}
+
+// Notes and canvases are indexed; everything else is just a file.
+export function isIndexable(path: string): boolean {
+  return isMarkdown(path) || isCanvasPath(path)
 }
 
 export interface Backlink {
@@ -37,13 +47,13 @@ export class MetadataCache {
   unresolvedLinks: Record<string, Record<string, number>> = {}
   private worker: Worker | null = null
   private requestId = 0
-  private pending = new Map<number, (results: Array<[string, NoteMeta]>) => void>()
+  private pending = new Map<number, (results: Array<[string, NoteMeta, string]>) => void>()
   private listeners = new Set<(path: string | null) => void>()
 
   constructor() {
     try {
       this.worker = new Worker(new URL('./indexer.worker.ts', import.meta.url), { type: 'module', name: 'Zenode Indexer' })
-      this.worker.onmessage = (e: MessageEvent<{ id: number; results: Array<[string, NoteMeta]> }>) => {
+      this.worker.onmessage = (e: MessageEvent<{ id: number; results: Array<[string, NoteMeta, string]> }>) => {
         this.pending.get(e.data.id)?.(e.data.results)
         this.pending.delete(e.data.id)
       }
@@ -67,8 +77,16 @@ export class MetadataCache {
     for (const cb of this.listeners) cb(path)
   }
 
-  private parse(files: Array<[string, string]>): Promise<Array<[string, NoteMeta]>> {
-    if (!this.worker) return Promise.resolve(files.map(([p, t]) => [p, parseNote(t)]))
+  private parse(files: Array<[string, string]>): Promise<Array<[string, NoteMeta, string]>> {
+    if (!this.worker) {
+      return Promise.resolve(
+        files.map(([p, t]): [string, NoteMeta, string] => {
+          if (!isCanvasPath(p)) return [p, parseNote(t), t]
+          const { meta, searchText } = parseCanvasMeta(t)
+          return [p, meta, searchText]
+        })
+      )
+    }
     const id = ++this.requestId
     return new Promise((resolve) => {
       this.pending.set(id, resolve)
@@ -81,12 +99,12 @@ export class MetadataCache {
   async build(tree: TreeEntry[]): Promise<void> {
     this.notes.clear()
     this.setFiles(tree)
-    const mdPaths = [...this.files.values()].filter(isMarkdown)
+    const mdPaths = [...this.files.values()].filter(isIndexable)
     for (let i = 0; i < mdPaths.length; i += READ_BATCH) {
       const contents = await window.zenode.readMany(mdPaths.slice(i, i + READ_BATCH))
       const batch = Object.entries(contents).filter((e): e is [string, string] => e[1] !== null)
-      for (const [path, meta] of await this.parse(batch)) {
-        this.notes.set(path, { path, content: contents[path]!, meta })
+      for (const [path, meta, searchText] of await this.parse(batch)) {
+        this.notes.set(path, { path, content: contents[path]!, searchText, meta })
       }
     }
     this.resolveAll()
@@ -98,12 +116,12 @@ export class MetadataCache {
     this.setFiles(tree)
     const present = new Set(this.files.values())
     for (const path of [...this.notes.keys()]) if (!present.has(path)) this.notes.delete(path)
-    const added = [...present].filter((p) => isMarkdown(p) && !this.notes.has(p))
+    const added = [...present].filter((p) => isIndexable(p) && !this.notes.has(p))
     if (added.length) {
       const contents = await window.zenode.readMany(added)
       const batch = Object.entries(contents).filter((e): e is [string, string] => e[1] !== null)
-      for (const [path, meta] of await this.parse(batch)) {
-        this.notes.set(path, { path, content: contents[path]!, meta })
+      for (const [path, meta, searchText] of await this.parse(batch)) {
+        this.notes.set(path, { path, content: contents[path]!, searchText, meta })
       }
     }
     this.resolveAll()
@@ -112,7 +130,7 @@ export class MetadataCache {
 
   // Re-read notes that changed on disk.
   async refresh(paths: string[]): Promise<void> {
-    const targets = paths.filter((p) => isMarkdown(p) && this.files.has(p.toLowerCase()))
+    const targets = paths.filter((p) => isIndexable(p) && this.files.has(p.toLowerCase()))
     if (!targets.length) return
     const contents = await window.zenode.readMany(targets)
     for (const path of targets) {
@@ -124,8 +142,8 @@ export class MetadataCache {
 
   // The app saved a note: update it without touching the disk again.
   async setContent(path: string, content: string): Promise<void> {
-    const [[, meta]] = await this.parse([[path, content]])
-    this.notes.set(path, { path, content, meta })
+    const [[, meta, searchText]] = await this.parse([[path, content]])
+    this.notes.set(path, { path, content, searchText, meta })
     this.resolveSource(path)
     this.emit(path)
   }
@@ -265,6 +283,7 @@ export class MetadataCache {
     const move = (p: string): string => (p === from ? to : p.startsWith(`${from}/`) ? to + p.slice(from.length) : p)
     const edits = new Map<string, TextEdit[]>()
     for (const { source, ref, target } of pending) {
+      if (ref.canvasNode) continue // canvases are rewritten as JSON by buildCanvasRenames
       const newSource = move(source)
       const newTarget = move(target)
       let text: string
@@ -281,6 +300,47 @@ export class MetadataCache {
       edits.set(newSource, list)
     }
     return edits
+  }
+
+  // Canvases store links in JSON (file cards, group backgrounds, card text): rewrite those.
+  // Returns the new file text for every canvas that changed.
+  buildCanvasRenames(pending: PendingRename[], from: string, to: string): Map<string, string> {
+    const move = (p: string): string => (p === from ? to : p.startsWith(`${from}/`) ? to + p.slice(from.length) : p)
+    const bySource = new Map<string, PendingRename[]>()
+    for (const p of pending) {
+      if (!p.ref.canvasNode) continue
+      const list = bySource.get(p.source) ?? []
+      list.push(p)
+      bySource.set(p.source, list)
+    }
+    const out = new Map<string, string>()
+    for (const [source, refs] of bySource) {
+      const newSource = move(source)
+      const note = this.notes.get(newSource)
+      if (!note) continue
+      let data
+      try {
+        data = parseCanvas(note.content)
+      } catch {
+        continue
+      }
+      for (const { ref, target } of refs) {
+        const node = data.nodes.find((n) => n.id === ref.canvasNode)
+        if (!node) continue
+        const newTarget = move(target)
+        if (ref.kind === 'canvas') {
+          if (node.type === 'file') node.file = newTarget
+          else if (node.type === 'group') node.background = newTarget
+        } else if (node.type === 'text' && typeof node.text === 'string') {
+          const alias = ref.alias ? `|${ref.alias}` : ''
+          const text = `${ref.embed ? '!' : ''}[[${this.linktext(newTarget, newSource)}${ref.subpath}${alias}]]`
+          node.text = (node.text as string).replace(ref.original, text)
+        }
+      }
+      const updated = serializeCanvas(data)
+      if (updated !== note.content) out.set(newSource, updated)
+    }
+    return out
   }
 }
 

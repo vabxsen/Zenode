@@ -2,7 +2,17 @@
 
 A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.md` files in a folder you choose (a "vault"), so they stay readable by any editor, including Obsidian.
 
-## Phase 3 (current)
+## Phase 4 (current)
+
+- Canvas: `.canvas` files in the open [JSON Canvas 1.0](https://jsoncanvas.org) format, compatible with Obsidian
+- Cards: text (a full Live Preview editor), notes and images from the vault, web links, and labelled groups with optional backgrounds
+- Connect cards from their side handles (drop on empty space to create a connected card); edges with arrows, labels and colours
+- Move (groups carry their cards), resize, marquee and Shift selection, colours, grouping, delete, undo/redo (100 steps)
+- Pan with space-drag, middle-drag or scroll; zoom around the cursor with Ctrl+scroll; zoom to fit
+- Saves in Obsidian's layout (one line per card, so diffs stay small). Opening a canvas never rewrites it, unknown card types and fields are kept, and a damaged file is shown read-only and reloads once repaired
+- Canvases are part of the link index: backlinks, graph, search and tags include them, and renaming a file updates the canvases that use it
+
+## Phase 3
 
 - Graph view (Ctrl+G): every note as a node, links as edges; tags, attachments and missing notes as optional node kinds; orphans toggle; filter with the search syntax
 - Force-directed layout (d3-force) in a Web Worker, so the UI never blocks; positions stay stable as notes change
@@ -47,13 +57,15 @@ A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.
 | Ctrl+Shift+O | Open another vault |
 | Ctrl+\\ | Toggle left sidebar |
 
+On a canvas: double-click empty space to add a card, double-click a card to edit it (Esc to stop), Enter to edit the selected card, Delete to remove, Ctrl+Z / Ctrl+Shift+Z to undo and redo, Ctrl+A to select all.
+
 ## Development
 
 ```bash
 npm install
 npm run dev        # run with hot reload
 npm run typecheck  # TypeScript checks for main, preload and renderer
-npm test           # unit tests: parser, link resolution, rename edits, search, fuzzy, graph
+npm test           # unit tests: parser, link resolution, rename edits, search, fuzzy, graph, canvas
 npm run build      # production bundles in out/
 npm run dist       # Windows installer in dist/
 ```
@@ -74,4 +86,5 @@ Security: the page runs with `contextIsolation`, `sandbox` and no Node integrati
 
 2. ~~`[[wikilinks]]`, backlinks, quick switcher, full-text search~~ (done)
 3. ~~Graph view (d3-force physics in a worker, WebGL rendering)~~ (done)
-4. Canvas, database views (Bases-style), plugin API
+4. ~~Canvas (JSON Canvas files with cards, links and groups)~~ (done)
+5. Database views (Bases-style), plugin API

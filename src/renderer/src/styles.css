@@ -1300,3 +1300,454 @@ button {
 .zn-tab.is-view .zn-tab-title {
   color: var(--zn-accent);
 }
+
+/* ---------- Phase 4: canvas ---------- */
+
+.zn-canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--zn-bg);
+}
+
+.zn-canvas-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  outline: none;
+  cursor: default;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.07) 1px, transparent 1.2px);
+}
+
+.zn-canvas-viewport.is-zoomed-out {
+  background-image: none;
+}
+
+.zn-canvas-viewport.is-panning,
+.zn-canvas-viewport.is-panning * {
+  cursor: grab !important;
+}
+
+.zn-canvas-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+}
+
+.zn-canvas-edges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.zn-canvas-nodes {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* Edges are drawn above groups but below cards. */
+.zn-canvas-edges {
+  z-index: 0;
+}
+
+.zn-cedge {
+  --edge-color: #6e6e80;
+  pointer-events: auto;
+}
+
+.zn-cedge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14px;
+  cursor: pointer;
+  pointer-events: stroke;
+}
+
+.zn-cedge-line {
+  fill: none;
+  stroke: var(--edge-color);
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+}
+
+.zn-cedge-head {
+  fill: var(--edge-color);
+  stroke: none;
+}
+
+.zn-cedge:hover .zn-cedge-line {
+  stroke-width: 3.5px;
+}
+
+.zn-cedge.is-selected .zn-cedge-line {
+  stroke: var(--zn-accent);
+  stroke-width: 3.5px;
+}
+
+.zn-cedge.is-selected .zn-cedge-head {
+  fill: var(--zn-accent);
+}
+
+.zn-cedge-line.is-temp {
+  stroke: var(--zn-accent);
+  stroke-dasharray: 6 6;
+}
+
+.zn-cedge-head.is-temp {
+  fill: var(--zn-accent);
+}
+
+.zn-canvas-labels {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5000;
+}
+
+.zn-cedge-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: var(--zn-bg);
+  border: 1px solid var(--zn-border);
+  color: var(--zn-text);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.zn-cedge-label.is-selected {
+  border-color: var(--zn-accent-strong);
+}
+
+/* Cards */
+
+.zn-cnode {
+  --card-color: #3a3a48;
+  position: absolute;
+  border-radius: 10px;
+  background: #121219;
+  border: 1.5px solid #2a2a36;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+
+.zn-cnode.has-color {
+  border-color: var(--card-color);
+  background: color-mix(in srgb, var(--card-color) 8%, #121219);
+}
+
+.zn-cnode.is-selected {
+  outline: 2px solid var(--zn-accent);
+  outline-offset: 2px;
+}
+
+.zn-cnode.is-editing {
+  outline: 2px solid var(--zn-accent-strong);
+  cursor: text;
+}
+
+.zn-cnode-content {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.zn-cnode-text .zn-cnode-content .cm-editor {
+  height: 100%;
+}
+
+.zn-cnode .cm-content {
+  padding: 10px 0 !important;
+}
+
+.zn-cnode .cm-line {
+  padding: 0 14px !important;
+}
+
+.zn-cnode .cm-scroller {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.zn-cnode:not(.is-editing) .cm-content {
+  cursor: default;
+}
+
+.zn-cnode-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-bottom: 1px solid #23232e;
+  color: var(--zn-text-strong);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.zn-cnode-header .zn-icon {
+  flex: none;
+  color: var(--zn-accent);
+}
+
+.zn-cnode-file {
+  position: absolute;
+  top: 30px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+.zn-cnode-file .cm-editor {
+  height: 100%;
+}
+
+.zn-cnode-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.zn-cnode-missing,
+.zn-cnode-hint {
+  padding: 12px 14px;
+  color: var(--zn-text-faint);
+  font-size: 12.5px;
+}
+
+.zn-cnode-url {
+  padding: 12px 14px 0;
+  color: var(--zn-accent);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.zn-cnode-unknown {
+  border-style: dashed;
+}
+
+/* Groups sit behind cards and are mostly transparent. */
+.zn-cnode-group {
+  background: rgba(255, 255, 255, 0.02);
+  border-style: solid;
+  box-shadow: none;
+}
+
+.zn-cnode-group.has-color {
+  background: color-mix(in srgb, var(--card-color) 7%, transparent);
+}
+
+.zn-cnode-group .zn-cnode-content {
+  overflow: visible;
+  background-size: cover;
+  background-position: center;
+}
+
+.zn-cnode-group .zn-cnode-content.bg-ratio {
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.zn-cnode-group .zn-cnode-content.bg-repeat {
+  background-size: auto;
+  background-repeat: repeat;
+}
+
+.zn-cgroup-label {
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  margin-bottom: 6px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: #1a1a24;
+  color: var(--zn-text-strong);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.zn-cgroup-label:empty {
+  display: none;
+}
+
+/* Handles */
+
+.zn-cnode-resize {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  z-index: 2;
+}
+
+.zn-cnode-port {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: var(--zn-accent-strong);
+  border: 2px solid var(--zn-bg);
+  opacity: 0;
+  cursor: crosshair;
+  z-index: 3;
+  transition: opacity 0.12s ease;
+}
+
+.zn-cnode:hover .zn-cnode-port,
+.zn-cnode.is-selected .zn-cnode-port {
+  opacity: 1;
+}
+
+.zn-cnode.is-editing .zn-cnode-port {
+  opacity: 0;
+}
+
+.zn-cnode-port.is-top {
+  left: 50%;
+  top: 0;
+}
+.zn-cnode-port.is-bottom {
+  left: 50%;
+  top: 100%;
+}
+.zn-cnode-port.is-left {
+  left: 0;
+  top: 50%;
+}
+.zn-cnode-port.is-right {
+  left: 100%;
+  top: 50%;
+}
+
+.zn-canvas-selbox {
+  position: absolute;
+  border: 1px solid var(--zn-accent);
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* Toolbar, colors, errors */
+
+.zn-canvas-toolbar,
+.zn-canvas-colors {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid #262632;
+  border-radius: 10px;
+  background: rgba(18, 18, 25, 0.95);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 10;
+}
+
+.zn-canvas-toolbar {
+  bottom: 16px;
+}
+
+.zn-canvas-colors {
+  top: 14px;
+  gap: 6px;
+  padding: 6px 8px;
+}
+
+.zn-canvas-btn {
+  width: 32px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--zn-text-muted);
+  cursor: pointer;
+}
+
+.zn-canvas-btn:hover {
+  background: var(--zn-bg-hover);
+  color: var(--zn-text-strong);
+}
+
+.zn-canvas-btn.is-danger:hover {
+  color: var(--zn-danger);
+}
+
+.zn-canvas-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--zn-border);
+}
+
+.zn-canvas-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.zn-canvas-swatch.is-clear {
+  background: linear-gradient(135deg, transparent 45%, var(--zn-danger) 45%, var(--zn-danger) 55%, transparent 55%);
+}
+
+.zn-canvas-swatch:hover {
+  border-color: #fff;
+}
+
+.zn-canvas-error {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 80%;
+  padding: 10px 16px;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  border-radius: 8px;
+  background: rgba(40, 14, 14, 0.95);
+  color: #fecaca;
+  font-size: 13px;
+  z-index: 20;
+}
+
+.zn-canvas-label-input {
+  position: fixed;
+  z-index: 300;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--zn-accent-strong);
+  border-radius: 6px;
+  background: var(--zn-bg);
+  color: var(--zn-text-strong);
+  font: inherit;
+  outline: none;
+}
+
+/* A canvas that failed to load is read-only: no editing tools. */
+.zn-canvas.has-error .zn-canvas-toolbar {
+  display: none;
+}

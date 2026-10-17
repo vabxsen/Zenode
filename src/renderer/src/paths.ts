@@ -13,6 +13,14 @@ export function stripMd(path: string): string {
   return path.toLowerCase().endsWith('.md') ? path.slice(0, -3) : path
 }
 
+// Note and canvas names are shown without their extension.
+export function stripExt(path: string): string {
+  const lower = path.toLowerCase()
+  if (lower.endsWith('.md')) return path.slice(0, -3)
+  if (lower.endsWith('.canvas')) return path.slice(0, -7)
+  return path
+}
+
 export function isMarkdown(path: string): boolean {
   return path.toLowerCase().endsWith('.md')
 }

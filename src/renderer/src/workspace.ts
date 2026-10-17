@@ -17,6 +17,13 @@ export interface WorkspaceView {
   show(): void
   hide(): void
   destroy(): void
+  // File-backed views (e.g. a canvas) follow renames, save and reload like notes.
+  readonly filePath?: string
+  setPath?(path: string): void
+  save?(): Promise<void>
+  reloadFromDisk?(): Promise<void>
+  // The file was deleted: close without writing it back.
+  discard?(): void
 }
 
 interface Tab {
@@ -88,7 +95,9 @@ export class Workspace extends Component {
 
   // The active note's path (null when a view tab or nothing is active).
   get activePath(): string | null {
-    return this.active?.kind === 'note' ? this.active.path : null
+    // Notes and file-backed views (canvases) count as the active file; the graph does not.
+    if (this.active?.kind === 'note') return this.active.path
+    return this.active?.view?.filePath ?? null
   }
 
   focus(): void {
@@ -108,6 +117,13 @@ export class Workspace extends Component {
     const at = this.active ? this.tabs.indexOf(this.active) + 1 : this.tabs.length
     this.tabs.splice(at, 0, tab)
     this.activate(tab)
+  }
+
+  // Switch to an open tab by its path or view id. Returns false if none is open.
+  activateById(id: string): boolean {
+    const tab = this.tabs.find((t) => t.path === id)
+    if (tab) this.activate(tab)
+    return !!tab
   }
 
   hasView(id: string): boolean {
@@ -232,7 +248,11 @@ export class Workspace extends Component {
   }
 
   async save(tab: Tab | null = this.active): Promise<void> {
-    if (!tab || tab.kind !== 'note') return
+    if (!tab) return
+    if (tab.kind === 'view') {
+      await tab.view?.save?.()
+      return
+    }
     if (tab.timer !== null) {
       window.clearTimeout(tab.timer)
       tab.timer = null
@@ -268,9 +288,13 @@ export class Workspace extends Component {
   // A file or folder was renamed: retarget every tab under it.
   renamed(from: string, to: string): void {
     for (const tab of this.tabs) {
-      if (tab.kind !== 'note') continue
-      if (tab.path === from) tab.path = to
-      else if (tab.path.startsWith(`${from}/`)) tab.path = to + tab.path.slice(from.length)
+      if (tab.kind === 'view' && tab.view?.filePath === undefined) continue
+      let next: string | null = null
+      if (tab.path === from) next = to
+      else if (tab.path.startsWith(`${from}/`)) next = to + tab.path.slice(from.length)
+      if (next === null) continue
+      tab.path = next
+      tab.view?.setPath?.(next)
     }
     this.render()
     if (this.active) this.host.onActiveChange(this.activePath, this.titleOf(this.active))
@@ -280,8 +304,11 @@ export class Workspace extends Component {
   // A file or folder was deleted: close its tabs without saving.
   removed(path: string): void {
     for (const tab of this.tabs.slice()) {
-      if (tab.kind !== 'note') continue
-      if (tab.path === path || tab.path.startsWith(`${path}/`)) this.dispose(tab)
+      if (tab.kind === 'view' && tab.view?.filePath === undefined) continue
+      if (tab.path === path || tab.path.startsWith(`${path}/`)) {
+        tab.view?.discard?.()
+        this.dispose(tab)
+      }
     }
   }
 
@@ -289,6 +316,10 @@ export class Workspace extends Component {
   async reloadChanged(paths: string[]): Promise<void> {
     const changed = new Set(paths)
     for (const tab of this.tabs.slice()) {
+      if (tab.kind === 'view') {
+        if (tab.view?.filePath !== undefined && changed.has(tab.path)) await tab.view.reloadFromDisk?.()
+        continue
+      }
       if (tab.kind !== 'note' || !changed.has(tab.path) || tab.dirty) continue
       let content: string
       try {

@@ -11,10 +11,13 @@ export interface LinkRef {
   // The full source text, e.g. "[[Note#Heading|alias]]".
   original: string
   embed: boolean
-  kind: 'wiki' | 'markdown'
+  kind: 'wiki' | 'markdown' | 'canvas'
   start: number
   end: number
   line: number
+  // Set for links found inside a canvas: the card they belong to and a line of its text.
+  canvasNode?: string
+  context?: string
 }
 
 export interface Heading {

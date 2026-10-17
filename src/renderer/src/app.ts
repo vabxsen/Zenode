@@ -1,10 +1,12 @@
 import type { TreeEntry, VaultInfo } from '../../shared/api'
 import { BacklinksPanel } from './backlinks'
+import { CanvasView, type CanvasHost } from './canvas/canvasView'
 import { Component, el } from './component'
 import type { LinkTarget } from './editor/linkCompletion'
 import { displayName, FileTree } from './fileTree'
 import { GraphView } from './graph/graphView'
 import { icon, type IconName } from './icons'
+import { isCanvasPath } from './index/canvasMeta'
 import { applyEdits, MetadataCache } from './index/metadataCache'
 import { splitLinktext } from './index/parser'
 import { baseName, isMarkdown, joinPath, parentDir, stripMd } from './paths'
@@ -168,6 +170,7 @@ export class App extends Component {
     this.ribbonButton(ribbon, 'graph', 'Graph view (Ctrl+G)', () => this.openGraph())
     this.ribbonButton(ribbon, 'filePlus', 'New note (Ctrl+N)', () => void this.newNote(this.currentDir()))
     this.ribbonButton(ribbon, 'folderPlus', 'New folder', () => void this.newFolder(this.currentDir()))
+    this.ribbonButton(ribbon, 'canvas', 'New canvas', () => void this.newCanvas(this.currentDir()))
     el('div', 'zn-ribbon-spacer', ribbon)
     this.ribbonButton(ribbon, 'link', 'Toggle right sidebar (Ctrl+Shift+B)', () => this.toggleRightbar())
     this.ribbonButton(ribbon, 'folderOpen', 'Open another vault (Ctrl+Shift+O)', () => void this.chooseVault())
@@ -193,6 +196,7 @@ export class App extends Component {
         onOpen: (entry) => void this.openEntry(entry),
         onNewNote: (dir) => void this.newNote(dir),
         onNewFolder: (dir) => void this.newFolder(dir),
+        onNewCanvas: (dir) => void this.newCanvas(dir),
         onRename: (entry, name) => this.rename(entry, name),
         onDelete: (entry) => void this.remove(entry),
         onReveal: (path) => void api.reveal(path)
@@ -350,6 +354,7 @@ export class App extends Component {
 
   private async openTabPath(path: string): Promise<void> {
     if (path === GRAPH_ID) this.openGraph()
+    else if (isCanvasPath(path)) this.openCanvas(path)
     else if (!path.startsWith(VIEW_PREFIX)) await this.workspace?.open(path)
   }
 
@@ -445,6 +450,10 @@ export class App extends Component {
   }
 
   private async openPath(path: string, pos?: OpenPosition): Promise<void> {
+    if (isCanvasPath(path)) {
+      this.openCanvas(path)
+      return
+    }
     if (isMarkdown(path)) {
       await this.workspace?.open(path, pos)
       return
@@ -489,6 +498,57 @@ export class App extends Component {
     await this.workspace?.open(path)
   }
 
+  private async newCanvas(dir: string): Promise<void> {
+    try {
+      const path = await api.createFile(dir, 'Untitled', 'canvas')
+      await this.refreshTree()
+      this.openCanvas(path)
+      this.tree?.startRename(path)
+    } catch (e) {
+      this.notice(`Could not create canvas: ${(e as Error).message}`)
+    }
+  }
+
+  // ---------- Canvas ----------
+
+  private openCanvas(path: string): void {
+    const shell = this.shell
+    if (!shell || !this.workspace) return
+    if (this.workspace.activateById(path)) return
+    const view = shell.addChild(new CanvasView(path, this.canvasHost()))
+    this.workspace.openView(view)
+  }
+
+  private canvasHost(): CanvasHost {
+    const cache = this.cache!
+    return {
+      editorCallbacks: (source) => ({
+        onOpenLink: (href) => void this.openLink(href, source),
+        onOpenWikiLink: (target) => void this.openWikiLink(target, source),
+        onOpenTag: (tag) => this.showSearch(`tag:${tag}`),
+        isResolved: (link) => !this.indexBuilt || cache.resolve(link, source) !== null,
+        linkTargets: () => this.linkTargets(source)
+      }),
+      openPath: (path) => void this.openPath(path),
+      openUrl: (url) => {
+        if (EXTERNAL.test(url)) void api.openUrl(url)
+        else this.notice(`Not a web link: ${url}`)
+      },
+      resolve: (link, from) => cache.resolve(link, from),
+      noteContent: (path) => cache.getNote(path)?.content ?? null,
+      pickNote: (onPick) =>
+        openSwitcher({
+          items: cache.allNotes().map((n) => ({ path: n.path, aliases: n.meta.aliases })),
+          recent: this.recent,
+          onOpen: (path) => onPick(path),
+          onCreate: (name) => this.notice(`No note named "${name}"`)
+        }),
+      notice: (message) => this.notice(message),
+      onSaved: (path, content) => void this.queueIndex(() => cache.setContent(path, content)),
+      release: (view) => this.shell?.removeChild(view)
+    }
+  }
+
   private async newFolder(dir: string): Promise<void> {
     try {
       const path = await api.createFolder(dir, 'Untitled folder')
@@ -522,7 +582,15 @@ export class App extends Component {
           await this.queueIndex(() => cache.setContent(path, updated))
           count += list.length
         }
-        if (count) this.notice(`Updated ${count} link${count === 1 ? '' : 's'} in ${edits.size} note${edits.size === 1 ? '' : 's'}.`)
+        // Links inside canvases live in JSON; rewrite those files too.
+        const canvasEdits = cache.buildCanvasRenames(pending, entry.path, to)
+        for (const [path, updated] of canvasEdits) {
+          await api.write(path, updated)
+          await this.queueIndex(() => cache.setContent(path, updated))
+          count++
+        }
+        const files = edits.size + canvasEdits.size
+        if (count) this.notice(`Updated ${count} link${count === 1 ? '' : 's'} in ${files} file${files === 1 ? '' : 's'}.`)
       }
       // Naming the open note moves you straight into writing it.
       if (wasActive) this.workspace?.focus()

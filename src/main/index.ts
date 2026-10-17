@@ -1,6 +1,7 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell, type IpcMainInvokeEvent } from 'electron'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { VaultInfo, WorkspaceState } from '../shared/api'
 import { loadSettings, rememberVault, saveSettings } from './settings'
 import { Vault } from './vault'
@@ -11,6 +12,27 @@ const EXTERNAL_URL = /^(https?:|mailto:)/i
 let win: BrowserWindow | null = null
 let vault: Vault | null = null
 let readyToClose = false
+
+// In development, never reuse cached renderer modules across reloads (stale code after edits).
+if (!app.isPackaged) app.commandLine.appendSwitch('disable-http-cache')
+
+// vault://file/<path> serves files from the open vault (images in canvases and notes).
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'vault', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+])
+
+function registerVaultProtocol(): void {
+  protocol.handle('vault', async (request) => {
+    if (!vault) return new Response('No vault is open', { status: 404 })
+    try {
+      const rel = decodeURIComponent(new URL(request.url).pathname.replace(/^\/+/, ''))
+      // Vault.abs() rejects anything that resolves outside the vault.
+      return await net.fetch(pathToFileURL(vault.abs(rel)).toString())
+    } catch {
+      return new Response('Not found', { status: 404 })
+    }
+  })
+}
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -134,6 +156,7 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
+  registerVaultProtocol()
   registerIpc()
   createWindow()
 })

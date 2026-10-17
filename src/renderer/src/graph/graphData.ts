@@ -1,5 +1,5 @@
 import type { MetadataCache } from '../index/metadataCache'
-import { baseName, isMarkdown, stripMd } from '../paths'
+import { baseName, isMarkdown, stripExt } from '../paths'
 import { matchNote, parseQuery } from '../search/query'
 
 export type NodeKind = 'note' | 'tag' | 'attachment' | 'unresolved'
@@ -65,15 +65,15 @@ export function buildGraph(cache: MetadataCache, filters: GraphFilters, local?: 
     const note = cache.getNote(path)
     if (!note) return query.terms.every((t) => t.negate) // attachments only pass pure exclusions
     const tags = [...note.meta.tags.map((t) => t.tag), ...note.meta.frontmatterTags]
-    return matchNote(query.terms, { path, content: note.content, tags }) !== null
+    return matchNote(query.terms, { path, content: note.searchText, tags }) !== null
   }
 
   const notes = cache.allNotes().filter((n) => passes(n.path))
-  for (const note of notes) add(note.path, 'note', stripMd(baseName(note.path)))
+  for (const note of notes) add(note.path, 'note', stripExt(baseName(note.path)))
 
   if (filters.showAttachments) {
     for (const path of cache.allFiles()) {
-      if (!isMarkdown(path) && passes(path)) add(path, 'attachment', baseName(path))
+      if (!isMarkdown(path) && !path.toLowerCase().endsWith('.canvas') && passes(path)) add(path, 'attachment', baseName(path))
     }
   }
 

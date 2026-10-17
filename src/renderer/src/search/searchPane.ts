@@ -1,6 +1,6 @@
 import { Component, el } from '../component'
 import type { MetadataCache } from '../index/metadataCache'
-import { baseName, parentDir, stripMd } from '../paths'
+import { baseName, parentDir, stripExt } from '../paths'
 import type { OpenPosition } from '../workspace'
 import { matchNote, parseQuery, type Hit } from './query'
 
@@ -80,11 +80,11 @@ export class SearchPane extends Component {
     const notes = this.cache.allNotes().sort((a, b) => a.path.localeCompare(b.path))
     for (const note of notes) {
       const tags = [...note.meta.tags.map((t) => t.tag), ...note.meta.frontmatterTags]
-      const hits = matchNote(terms, { path: note.path, content: note.content, tags })
+      const hits = matchNote(terms, { path: note.path, content: note.searchText, tags })
       if (!hits) continue
       noteCount++
       hitCount += hits.length
-      if (noteCount <= MAX_NOTES) this.renderNote(note.path, note.content, hits)
+      if (noteCount <= MAX_NOTES) this.renderNote(note.path, note.searchText, hits)
     }
     const ms = Math.round(performance.now() - started)
     this.summaryEl.textContent = noteCount
@@ -95,7 +95,7 @@ export class SearchPane extends Component {
   private renderNote(path: string, content: string, hits: Hit[]): void {
     const group = el('div', 'zn-search-note', this.resultsEl)
     const header = el('div', 'zn-search-note-header', group)
-    el('span', 'zn-search-note-title', header, stripMd(baseName(path)))
+    el('span', 'zn-search-note-title', header, stripExt(baseName(path)))
     const folder = parentDir(path)
     if (folder) el('span', 'zn-search-note-folder', header, folder)
     if (hits.length) el('span', 'zn-search-note-count', header, String(hits.length))
@@ -113,7 +113,9 @@ export class SearchPane extends Component {
     for (const g of groups.slice(0, LINES_PER_NOTE)) {
       const row = el('div', 'zn-search-line', lines)
       renderSnippet(row, content, g)
-      row.addEventListener('click', () => this.onOpen(path, { from: g.hits[0].start, to: g.hits[0].end }))
+      // Canvas hits point into the card text, not the file, so just open the canvas.
+      const isCanvas = path.toLowerCase().endsWith('.canvas')
+      row.addEventListener('click', () => this.onOpen(path, isCanvas ? undefined : { from: g.hits[0].start, to: g.hits[0].end }))
     }
     if (groups.length > LINES_PER_NOTE) {
       el('div', 'zn-search-more', lines, `+${groups.length - LINES_PER_NOTE} more lines`)

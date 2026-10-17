@@ -8,6 +8,7 @@ export interface FileTreeHandlers {
   onOpen(entry: TreeEntry): void
   onNewNote(dir: string): void
   onNewFolder(dir: string): void
+  onNewCanvas(dir: string): void
   onRename(entry: TreeEntry, newName: string): Promise<void>
   onDelete(entry: TreeEntry): void
   onReveal(path: string): void
@@ -17,9 +18,15 @@ const INDENT = 14
 
 export { parentDir }
 
+// Notes and canvases show without their extension.
 export function displayName(entry: TreeEntry): string {
-  return entry.kind === 'file' && entry.ext === 'md' ? entry.name.slice(0, -3) : entry.name
+  if (entry.kind !== 'file') return entry.name
+  if (entry.ext === 'md') return entry.name.slice(0, -3)
+  if (entry.ext === 'canvas') return entry.name.slice(0, -7)
+  return entry.name
 }
+
+const FIRST_CLASS = new Set(['md', 'canvas'])
 
 export class FileTree extends Component {
   private tree: TreeEntry[] = []
@@ -46,7 +53,8 @@ export class FileTree extends Component {
       e.preventDefault()
       showMenu(e.clientX, e.clientY, [
         { label: 'New note', action: () => this.handlers.onNewNote('') },
-        { label: 'New folder', action: () => this.handlers.onNewFolder('') }
+        { label: 'New folder', action: () => this.handlers.onNewFolder('') },
+        { label: 'New canvas', action: () => this.handlers.onNewCanvas('') }
       ])
     })
   }
@@ -115,7 +123,7 @@ export class FileTree extends Component {
     row.style.paddingLeft = `${8 + depth * INDENT}px`
     row.dataset.path = entry.path
     if (entry.path === this.active) row.classList.add('is-active')
-    if (!isFolder && entry.ext !== 'md') row.classList.add('is-other')
+    if (!isFolder && !FIRST_CLASS.has(entry.ext)) row.classList.add('is-other')
 
     const twisty = el('span', 'zn-tree-twisty', row)
     if (isFolder) {
@@ -147,6 +155,7 @@ export class FileTree extends Component {
         ...(isFolder ? [] : [{ label: 'Open', action: () => this.handlers.onOpen(entry) }]),
         { label: 'New note', action: () => this.handlers.onNewNote(dir) },
         { label: 'New folder', action: () => this.handlers.onNewFolder(dir) },
+        { label: 'New canvas', action: () => this.handlers.onNewCanvas(dir) },
         'separator',
         { label: 'Rename', action: () => this.startRename(entry.path) },
         { label: 'Show in Explorer', action: () => this.handlers.onReveal(entry.path) },
@@ -158,9 +167,11 @@ export class FileTree extends Component {
 
   private renderRenameInput(row: HTMLElement, entry: TreeEntry): void {
     const input = el('input', 'zn-tree-rename', row)
-    const keepExt = entry.kind === 'file' && entry.ext === 'md'
+    // Notes and canvases are renamed without touching their extension.
+    const ext = entry.kind === 'file' && FIRST_CLASS.has(entry.ext) ? `.${entry.ext}` : ''
+    const keepExt = ext !== ''
     const draft = this.renameDraft
-    input.value = draft ? draft.value : keepExt ? entry.name.slice(0, -3) : entry.name
+    input.value = draft ? draft.value : keepExt ? entry.name.slice(0, -ext.length) : entry.name
     let done = false
     this.renameInput = { el: input, discard: () => (done = true) }
     const finish = async (commit: boolean): Promise<void> => {
@@ -170,7 +181,7 @@ export class FileTree extends Component {
       this.renameInput = null
       this.renameDraft = null
       const value = input.value.trim()
-      const newName = keepExt ? `${value}.md` : value
+      const newName = keepExt ? `${value}${ext}` : value
       // A confirmed but unchanged name still goes through (as a no-op rename), so the app can move focus on.
       if (commit && value) {
         await this.handlers.onRename(entry, newName)
