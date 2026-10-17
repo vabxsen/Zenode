@@ -1,0 +1,140 @@
+import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { promises as fs } from 'node:fs'
+import { join } from 'node:path'
+import type { VaultInfo, WorkspaceState } from '../shared/api'
+import { loadSettings, rememberVault, saveSettings } from './settings'
+import { Vault } from './vault'
+
+const BG = '#0b0b0f'
+const EXTERNAL_URL = /^(https?:|mailto:)/i
+
+let win: BrowserWindow | null = null
+let vault: Vault | null = null
+let readyToClose = false
+
+function createWindow(): void {
+  win = new BrowserWindow({
+    width: 1280,
+    height: 820,
+    minWidth: 720,
+    minHeight: 480,
+    show: false,
+    backgroundColor: BG,
+    title: 'Zenode',
+    titleBarStyle: 'hidden',
+    // One pixel shorter than the title bar so its bottom border stays visible.
+    titleBarOverlay: { color: BG, symbolColor: '#a1a1aa', height: 37 },
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: true
+    }
+  })
+
+  win.once('ready-to-show', () => win?.show())
+
+  // The renderer never navigates or opens windows itself; web links go to the browser.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (EXTERNAL_URL.test(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (e) => e.preventDefault())
+
+  // Give the renderer a chance to flush unsaved notes before the window goes away.
+  win.on('close', (e) => {
+    if (readyToClose || !win) return
+    e.preventDefault()
+    win.webContents.send('app:before-close')
+    setTimeout(() => {
+      readyToClose = true
+      win?.close()
+    }, 3000)
+  })
+  win.on('closed', () => {
+    win = null
+    vault?.unwatch()
+  })
+
+  if (process.env.ELECTRON_RENDERER_URL) {
+    void win.loadURL(process.env.ELECTRON_RENDERER_URL)
+  } else {
+    void win.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+function requireVault(): Vault {
+  if (!vault) throw new Error('No vault is open')
+  return vault
+}
+
+async function openVault(root: string): Promise<VaultInfo> {
+  const stat = await fs.stat(root)
+  if (!stat.isDirectory()) throw new Error(`Not a folder: ${root}`)
+  vault?.unwatch()
+  vault = new Vault(root)
+  vault.watch((paths) => win?.webContents.send('vault:changed', paths))
+  await saveSettings(rememberVault(await loadSettings(), root))
+  win?.setTitle(`${vault.name} - Zenode`)
+  return { root: vault.root, name: vault.name }
+}
+
+// Only accept IPC from our own window.
+function handle<A extends unknown[], R>(channel: string, fn: (...args: A) => R | Promise<R>): void {
+  ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: unknown[]) => {
+    if (!win || event.sender !== win.webContents) throw new Error('Unexpected IPC sender')
+    return fn(...(args as A))
+  })
+}
+
+function registerIpc(): void {
+  handle('vault:choose', async () => {
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Open folder as vault',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return openVault(result.filePaths[0])
+  })
+  handle('vault:open', (root: string) => openVault(root))
+  handle('vault:current', () => (vault ? { root: vault.root, name: vault.name } : null))
+  handle('settings:get', () => loadSettings())
+  handle('workspace:save', async (state: WorkspaceState) => {
+    if (!vault) return
+    const settings = await loadSettings()
+    settings.workspaces[vault.root] = state
+    await saveSettings(settings)
+  })
+
+  handle('fs:list', () => requireVault().list())
+  handle('fs:read', (path: string) => requireVault().read(path))
+  handle('fs:write', (path: string, content: string) => requireVault().write(path, content))
+  handle('fs:createFile', (dir: string, base: string, ext: string) => requireVault().createFile(dir, base, ext))
+  handle('fs:createFolder', (dir: string, name: string) => requireVault().createFolder(dir, name))
+  handle('fs:rename', (path: string, newName: string) => requireVault().rename(path, newName))
+  handle('fs:trash', (path: string) => shell.trashItem(requireVault().abs(path)))
+  handle('fs:reveal', (path: string) => shell.showItemInFolder(requireVault().abs(path)))
+  handle('fs:openExternal', async (path: string) => {
+    const error = await shell.openPath(requireVault().abs(path))
+    if (error) throw new Error(error)
+  })
+  handle('app:openUrl', async (url: string) => {
+    if (!EXTERNAL_URL.test(url)) throw new Error(`Refusing to open: ${url}`)
+    await shell.openExternal(url)
+  })
+
+  ipcMain.on('app:ready-to-close', (event) => {
+    if (!win || event.sender !== win.webContents) return
+    readyToClose = true
+    win.close()
+  })
+}
+
+app.whenReady().then(() => {
+  registerIpc()
+  createWindow()
+})
+
+app.on('window-all-closed', () => app.quit())

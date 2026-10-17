@@ -1,0 +1,36 @@
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import type { ZenodeAPI } from '../shared/api'
+
+// The only bridge between the page and the system. The page gets these
+// functions and nothing else: no Node, no raw ipcRenderer.
+const api: ZenodeAPI = {
+  chooseVault: () => ipcRenderer.invoke('vault:choose'),
+  openVault: (root) => ipcRenderer.invoke('vault:open', root),
+  currentVault: () => ipcRenderer.invoke('vault:current'),
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  saveWorkspace: (state) => ipcRenderer.invoke('workspace:save', state),
+
+  list: () => ipcRenderer.invoke('fs:list'),
+  read: (path) => ipcRenderer.invoke('fs:read', path),
+  write: (path, content) => ipcRenderer.invoke('fs:write', path, content),
+  createFile: (dir, baseName, ext) => ipcRenderer.invoke('fs:createFile', dir, baseName, ext),
+  createFolder: (dir, name) => ipcRenderer.invoke('fs:createFolder', dir, name),
+  rename: (path, newName) => ipcRenderer.invoke('fs:rename', path, newName),
+  trash: (path) => ipcRenderer.invoke('fs:trash', path),
+  reveal: (path) => ipcRenderer.invoke('fs:reveal', path),
+  openExternal: (path) => ipcRenderer.invoke('fs:openExternal', path),
+  openUrl: (url) => ipcRenderer.invoke('app:openUrl', url),
+
+  onVaultChanged: (cb) => {
+    const listener = (_e: IpcRendererEvent, paths: string[]): void => cb(paths)
+    ipcRenderer.on('vault:changed', listener)
+    return () => ipcRenderer.removeListener('vault:changed', listener)
+  },
+  onBeforeClose: (cb) => {
+    ipcRenderer.on('app:before-close', () => {
+      cb().finally(() => ipcRenderer.send('app:ready-to-close'))
+    })
+  }
+}
+
+contextBridge.exposeInMainWorld('zenode', api)
