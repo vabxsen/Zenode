@@ -54,6 +54,23 @@ export class Vault {
     return fs.readFile(this.abs(rel), 'utf8')
   }
 
+  async readMany(rels: string[]): Promise<Record<string, string | null>> {
+    const out: Record<string, string | null> = {}
+    const BATCH = 64
+    for (let i = 0; i < rels.length; i += BATCH) {
+      await Promise.all(
+        rels.slice(i, i + BATCH).map(async (rel) => {
+          try {
+            out[rel] = await fs.readFile(this.abs(rel), 'utf8')
+          } catch {
+            out[rel] = null
+          }
+        })
+      )
+    }
+    return out
+  }
+
   // Write to a temp file and rename, so a crash never leaves a half-written note.
   async write(rel: string, content: string): Promise<void> {
     const target = this.abs(rel)

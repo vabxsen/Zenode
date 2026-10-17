@@ -1,22 +1,41 @@
 import type { TreeEntry, VaultInfo } from '../../shared/api'
+import { BacklinksPanel } from './backlinks'
 import { Component, el } from './component'
-import { displayName, FileTree, parentDir } from './fileTree'
+import type { LinkTarget } from './editor/linkCompletion'
+import { displayName, FileTree } from './fileTree'
 import { icon, type IconName } from './icons'
-import { noteTitle, Workspace } from './workspace'
+import { applyEdits, MetadataCache } from './index/metadataCache'
+import { splitLinktext } from './index/parser'
+import { baseName, isMarkdown, joinPath, parentDir, stripMd } from './paths'
+import { SearchPane } from './search/searchPane'
+import { openSwitcher } from './switcher'
+import { noteTitle, Workspace, type OpenPosition } from './workspace'
 
 const api = window.zenode
 const EXTERNAL = /^(https?:|mailto:)/i
 const SIDEBAR_KEY = 'zenode.sidebarWidth'
+const RIGHTBAR_KEY = 'zenode.rightbarHidden'
+const MAX_RECENT = 30
+
+type LeftPane = 'files' | 'search'
 
 export class App extends Component {
   private vault: VaultInfo | null = null
   private shell: Component | null = null
   private tree: FileTree | null = null
   private workspace: Workspace | null = null
+  private cache: MetadataCache | null = null
+  private search: SearchPane | null = null
+  private backlinks: BacklinksPanel | null = null
   private statusEl: HTMLElement | null = null
   private titleEl: HTMLElement | null = null
+  private paneEls: Record<LeftPane, HTMLElement> | null = null
+  private tabButtons: Record<LeftPane, HTMLElement> | null = null
   private treeTimer: number | null = null
   private layoutTimer: number | null = null
+  private indexBuilt = false
+  private indexChain: Promise<void> = Promise.resolve()
+  private recent: string[] = []
 
   constructor(private readonly root: HTMLElement) {
     super()
@@ -91,6 +110,9 @@ export class App extends Component {
     if (this.workspace) await this.workspace.closeAll()
     this.teardownShell()
     this.vault = info
+    this.cache = new MetadataCache()
+    this.indexBuilt = false
+    this.recent = []
     this.buildShell()
     await this.refreshTree()
 
@@ -104,16 +126,22 @@ export class App extends Component {
 
   private teardownShell(): void {
     if (this.shell) this.removeChild(this.shell)
+    this.cache?.dispose()
     this.shell = null
     this.tree = null
     this.workspace = null
+    this.cache = null
+    this.search = null
+    this.backlinks = null
   }
 
   private buildShell(): void {
     this.root.empty()
     this.root.className = 'zn-app'
+    if (safeGet(RIGHTBAR_KEY) === '1') this.root.classList.add('is-rightbar-hidden')
     const shell = this.addChild(new Component())
     this.shell = shell
+    const cache = this.cache!
 
     const titlebar = el('div', 'zn-titlebar zn-drag', this.root)
     const brand = el('div', 'zn-titlebar-brand', titlebar)
@@ -123,16 +151,31 @@ export class App extends Component {
 
     const body = el('div', 'zn-body', this.root)
     const ribbon = el('div', 'zn-ribbon', body)
-    this.ribbonButton(ribbon, 'sidebar', 'Toggle sidebar', () => this.root.classList.toggle('is-sidebar-hidden'))
+    this.ribbonButton(ribbon, 'sidebar', 'Toggle left sidebar (Ctrl+\\)', () => this.root.classList.toggle('is-sidebar-hidden'))
+    this.ribbonButton(ribbon, 'switcher', 'Quick switcher (Ctrl+O)', () => this.openQuickSwitcher())
+    this.ribbonButton(ribbon, 'search', 'Search (Ctrl+Shift+F)', () => this.showSearch())
     this.ribbonButton(ribbon, 'filePlus', 'New note (Ctrl+N)', () => void this.newNote(this.currentDir()))
     this.ribbonButton(ribbon, 'folderPlus', 'New folder', () => void this.newFolder(this.currentDir()))
     el('div', 'zn-ribbon-spacer', ribbon)
-    this.ribbonButton(ribbon, 'folderOpen', 'Open another vault (Ctrl+O)', () => void this.switchVault())
+    this.ribbonButton(ribbon, 'link', 'Toggle backlinks (Ctrl+Shift+B)', () => this.toggleRightbar())
+    this.ribbonButton(ribbon, 'folderOpen', 'Open another vault (Ctrl+Shift+O)', () => void this.chooseVault())
 
+    // Left sidebar: Files and Search panes.
     const sidebar = el('div', 'zn-sidebar', body)
-    const header = el('div', 'zn-sidebar-header', sidebar)
+    const tabs = el('div', 'zn-sidebar-tabs', sidebar)
+    const filesTab = el('button', 'zn-sidebar-tab', tabs)
+    filesTab.title = 'Files'
+    filesTab.appendChild(icon('files', 16))
+    const searchTab = el('button', 'zn-sidebar-tab', tabs)
+    searchTab.title = 'Search'
+    searchTab.appendChild(icon('search', 16))
+    filesTab.addEventListener('click', () => this.showPane('files'))
+    searchTab.addEventListener('click', () => this.showSearch())
+
+    const filesPane = el('div', 'zn-pane', sidebar)
+    const header = el('div', 'zn-sidebar-header', filesPane)
     el('div', 'zn-sidebar-title', header, this.vault!.name)
-    const treeHost = el('div', 'zn-sidebar-tree', sidebar)
+    const treeHost = el('div', 'zn-sidebar-tree', filesPane)
     this.tree = shell.addChild(
       new FileTree(treeHost, {
         onOpen: (entry) => void this.openEntry(entry),
@@ -143,6 +186,11 @@ export class App extends Component {
         onReveal: (path) => void api.reveal(path)
       })
     )
+    const searchPane = el('div', 'zn-pane zn-pane-search', sidebar)
+    this.search = shell.addChild(new SearchPane(searchPane, cache, (path, pos) => void this.openPath(path, pos)))
+    this.paneEls = { files: filesPane, search: searchPane }
+    this.tabButtons = { files: filesTab, search: searchTab }
+    this.showPane('files')
 
     const resizer = el('div', 'zn-resizer', body)
     this.setupResizer(resizer, sidebar)
@@ -152,9 +200,16 @@ export class App extends Component {
       new Workspace(main, {
         onActiveChange: (path) => {
           this.tree?.setActive(path)
+          this.backlinks?.setTarget(path)
           this.titleEl!.textContent = path ? noteTitle(path) : ''
+          if (path) this.recent = [path, ...this.recent.filter((p) => p !== path)].slice(0, MAX_RECENT)
         },
         onOpenLink: (href, from) => void this.openLink(href, from),
+        onOpenWikiLink: (target, from) => void this.openWikiLink(target, from),
+        onOpenTag: (tag) => this.showSearch(`tag:${tag}`),
+        isResolved: (link, from) => !this.indexBuilt || cache.resolve(link, from) !== null,
+        linkTargets: (from) => this.linkTargets(from),
+        onSaved: (path, content) => this.queueIndex(() => cache.setContent(path, content)),
         onStats: (words, chars) => {
           this.statusEl!.textContent = words || chars ? `${words.toLocaleString()} words · ${chars.toLocaleString()} characters` : ''
         },
@@ -163,9 +218,35 @@ export class App extends Component {
       })
     )
 
+    // Right sidebar: backlinks.
+    const rightbar = el('div', 'zn-rightbar', body)
+    this.backlinks = shell.addChild(new BacklinksPanel(rightbar, cache, (path, pos) => void this.openPath(path, pos)))
+
+    // Live link styling follows the index.
+    shell.register(cache.onChange(() => this.workspace?.refreshLinks()))
+
     const status = el('div', 'zn-statusbar', this.root)
     el('div', 'zn-status-vault', status, this.vault!.root)
     this.statusEl = el('div', 'zn-status-stats', status)
+  }
+
+  private showPane(pane: LeftPane): void {
+    if (!this.paneEls || !this.tabButtons) return
+    this.root.classList.remove('is-sidebar-hidden')
+    for (const key of ['files', 'search'] as LeftPane[]) {
+      this.paneEls[key].style.display = key === pane ? '' : 'none'
+      this.tabButtons[key].classList.toggle('is-active', key === pane)
+    }
+  }
+
+  private showSearch(initial?: string): void {
+    this.showPane('search')
+    this.search?.focus(initial)
+  }
+
+  private toggleRightbar(): void {
+    const hidden = this.root.classList.toggle('is-rightbar-hidden')
+    safeSet(RIGHTBAR_KEY, hidden ? '1' : '0')
   }
 
   private ribbonButton(parent: HTMLElement, name: IconName, label: string, action: () => void): void {
@@ -197,6 +278,24 @@ export class App extends Component {
     })
   }
 
+  // ---------- Index ----------
+
+  // Index updates run one at a time so a rebuild and an incremental update never interleave.
+  private queueIndex(task: () => Promise<void>): Promise<void> {
+    this.indexChain = this.indexChain.then(task).catch((e) => console.error('Index update failed', e))
+    return this.indexChain
+  }
+
+  private linkTargets(from: string): LinkTarget[] {
+    const cache = this.cache
+    if (!cache) return []
+    return cache.allNotes().map((note) => ({
+      title: stripMd(baseName(note.path)),
+      folder: parentDir(note.path),
+      linktext: cache.linktext(note.path, from)
+    }))
+  }
+
   // ---------- File operations ----------
 
   private currentDir(): string {
@@ -205,11 +304,23 @@ export class App extends Component {
   }
 
   private async refreshTree(): Promise<void> {
-    if (!this.tree) return
+    if (!this.tree || !this.cache) return
+    let entries: TreeEntry[]
     try {
-      this.tree.setTree(await api.list())
+      entries = await api.list()
     } catch (e) {
       this.notice(`Could not read the vault: ${(e as Error).message}`)
+      return
+    }
+    this.tree.setTree(entries)
+    const cache = this.cache
+    if (!this.indexBuilt) {
+      await this.queueIndex(async () => {
+        await cache.build(entries)
+        this.indexBuilt = true
+      })
+    } else {
+      await this.queueIndex(() => cache.sync(entries))
     }
   }
 
@@ -220,18 +331,24 @@ export class App extends Component {
 
   private onVaultChanged(paths: string[]): void {
     this.refreshTreeSoon()
+    const cache = this.cache
+    if (cache) void this.queueIndex(() => cache.refresh(paths))
     void this.workspace?.reloadChanged(paths)
   }
 
   private async openEntry(entry: TreeEntry): Promise<void> {
-    if (entry.ext === 'md') {
-      await this.workspace?.open(entry.path)
-    } else {
-      try {
-        await api.openExternal(entry.path)
-      } catch (e) {
-        this.notice((e as Error).message)
-      }
+    await this.openPath(entry.path)
+  }
+
+  private async openPath(path: string, pos?: OpenPosition): Promise<void> {
+    if (isMarkdown(path)) {
+      await this.workspace?.open(path, pos)
+      return
+    }
+    try {
+      await api.openExternal(path)
+    } catch (e) {
+      this.notice((e as Error).message)
     }
   }
 
@@ -247,6 +364,27 @@ export class App extends Component {
     }
   }
 
+  // Create a note from a name typed in the switcher or an unresolved link ("Folder/Name" allowed).
+  private async createNamedNote(name: string): Promise<void> {
+    const clean = stripMd(name.trim().replace(/\\/g, '/'))
+    if (!clean) return
+    const dir = parentDir(clean)
+    const base = baseName(clean)
+    let path: string
+    try {
+      path = await api.createFile(dir, base, 'md')
+    } catch {
+      try {
+        path = await api.createFile('', base, 'md')
+      } catch (e) {
+        this.notice(`Could not create note: ${(e as Error).message}`)
+        return
+      }
+    }
+    await this.refreshTree()
+    await this.workspace?.open(path)
+  }
+
   private async newFolder(dir: string): Promise<void> {
     try {
       const path = await api.createFolder(dir, 'Untitled folder')
@@ -257,14 +395,31 @@ export class App extends Component {
     }
   }
 
+  // Rename a file or folder, then rewrite every link in the vault that pointed at it.
   private async rename(entry: TreeEntry, newName: string): Promise<void> {
+    const cache = this.cache
     try {
       await this.workspace?.saveAll()
+      await this.indexChain
       const wasActive = this.workspace?.activePath === entry.path
+      const pending = cache ? cache.collectRenameRefs(entry.path, entry.kind === 'folder') : []
       const to = await api.rename(entry.path, newName)
       this.workspace?.renamed(entry.path, to)
       if (entry.kind === 'folder') this.tree?.renamePath(entry.path, to)
       await this.refreshTree()
+      if (cache && to !== entry.path && pending.length) {
+        const edits = cache.buildRenameEdits(pending, entry.path, to)
+        let count = 0
+        for (const [path, list] of edits) {
+          const note = cache.getNote(path)
+          if (!note) continue
+          const updated = applyEdits(note.content, list)
+          await api.write(path, updated)
+          await this.queueIndex(() => cache.setContent(path, updated))
+          count += list.length
+        }
+        if (count) this.notice(`Updated ${count} link${count === 1 ? '' : 's'} in ${edits.size} note${edits.size === 1 ? '' : 's'}.`)
+      }
       // Naming the open note moves you straight into writing it.
       if (wasActive) this.workspace?.focus()
     } catch (e) {
@@ -285,28 +440,69 @@ export class App extends Component {
     }
   }
 
+  // ---------- Links ----------
+
+  private async openWikiLink(target: string, fromPath: string): Promise<void> {
+    const cache = this.cache
+    if (!cache) return
+    const { link, subpath } = splitLinktext(target)
+    const resolved = link ? cache.resolve(link, fromPath) : fromPath
+    if (!resolved) {
+      await this.createNamedNote(link)
+      return
+    }
+    await this.openPath(resolved, subpath ? this.subpathPosition(resolved, subpath) : undefined)
+  }
+
+  // Find "#Heading" or "#^block-id" inside a note.
+  private subpathPosition(path: string, subpath: string): OpenPosition | undefined {
+    const note = this.cache?.getNote(path)
+    if (!note) return undefined
+    const content = note.content
+    if (subpath.startsWith('#^')) {
+      const at = content.indexOf(`^${subpath.slice(2)}`)
+      return at === -1 ? undefined : { from: content.lastIndexOf('\n', at) + 1 }
+    }
+    const wanted = subpath.slice(1).trim().toLowerCase()
+    const heading = note.meta.headings.find((h) => h.text.trim().toLowerCase() === wanted)
+    if (!heading) return undefined
+    let offset = 0
+    for (let i = 0; i < heading.line; i++) offset = content.indexOf('\n', offset) + 1
+    return { from: offset }
+  }
+
   private async openLink(href: string, fromPath: string): Promise<void> {
     if (EXTERNAL.test(href)) {
       await api.openUrl(href)
       return
     }
-    // Relative link to another note in the vault.
-    let target = decodeURI(href.split('#')[0])
-    if (!target) return
-    if (!/\.[a-z0-9]+$/i.test(target)) target += '.md'
-    const base = parentDir(fromPath)
-    const parts = (target.startsWith('/') ? target.slice(1) : base ? `${base}/${target}` : target).split('/')
-    const resolved: string[] = []
-    for (const part of parts) {
-      if (part === '..') resolved.pop()
-      else if (part && part !== '.') resolved.push(part)
+    // Relative Markdown link to another file in the vault.
+    let decoded = href
+    try {
+      decoded = decodeURI(href)
+    } catch {
+      // Use the raw href.
     }
-    await this.workspace?.open(resolved.join('/'))
+    const [target, ...rest] = decoded.split('#')
+    if (!target) return
+    let path = (target.startsWith('/') ? joinPath('', target.slice(1)) : joinPath(parentDir(fromPath), target)) ?? ''
+    if (!path) return
+    if (!/\.[a-z0-9]+$/i.test(path)) path += '.md'
+    const subpath = rest.length ? `#${rest.join('#')}` : ''
+    await this.openPath(path, subpath ? this.subpathPosition(path, subpath) : undefined)
   }
 
-  private async switchVault(): Promise<void> {
-    const info = await api.chooseVault()
-    if (info) await this.enterVault(info)
+  // ---------- Quick switcher ----------
+
+  private openQuickSwitcher(): void {
+    const cache = this.cache
+    if (!cache) return
+    openSwitcher({
+      items: cache.allNotes().map((n) => ({ path: n.path, aliases: n.meta.aliases })),
+      recent: this.recent,
+      onOpen: (path) => void this.openPath(path),
+      onCreate: (name) => void this.createNamedNote(name)
+    })
   }
 
   // ---------- Layout persistence ----------
@@ -332,8 +528,14 @@ export class App extends Component {
       e.stopPropagation()
       fn()
     }
-    if (key === 'o') return handled(() => void (this.vault ? this.switchVault() : this.chooseVault()))
-    if (!this.workspace) return
+    if (key === 'o' && e.shiftKey) return handled(() => void this.chooseVault())
+    if (!this.workspace) {
+      if (key === 'o') return handled(() => void this.chooseVault())
+      return
+    }
+    if (key === 'o') return handled(() => this.openQuickSwitcher())
+    if (key === 'f' && e.shiftKey) return handled(() => this.showSearch())
+    if (key === 'b' && e.shiftKey) return handled(() => this.toggleRightbar())
     if (key === 'n' && !e.shiftKey) return handled(() => void this.newNote(this.currentDir()))
     if (key === 's') return handled(() => void this.workspace!.save())
     if (key === 'w') return handled(() => void this.workspace!.close())
@@ -364,6 +566,6 @@ function safeSet(key: string, value: string): void {
   try {
     localStorage.setItem(key, value)
   } catch {
-    // Storage unavailable; the width just won't be remembered.
+    // Storage unavailable; the setting just won't be remembered.
   }
 }

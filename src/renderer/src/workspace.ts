@@ -1,8 +1,10 @@
-import type { EditorState } from '@codemirror/state'
+import { EditorSelection, type EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import type { WorkspaceState } from '../../shared/api'
 import { Component, el } from './component'
 import { createEditorState, fromDisk } from './editor/editor'
+import type { LinkTarget } from './editor/linkCompletion'
+import { linksChanged } from './editor/livePreview'
 import { icon } from './icons'
 
 const SAVE_DELAY = 600
@@ -15,9 +17,19 @@ interface Tab {
   timer: number | null
 }
 
+export interface OpenPosition {
+  from: number
+  to?: number
+}
+
 export interface WorkspaceHost {
   onActiveChange(path: string | null): void
   onOpenLink(href: string, fromPath: string): void
+  onOpenWikiLink(target: string, fromPath: string): void
+  onOpenTag(tag: string): void
+  isResolved(link: string, fromPath: string): boolean
+  linkTargets(fromPath: string): LinkTarget[]
+  onSaved(path: string, content: string): void
   onStats(words: number, chars: number): void
   onLayoutChange(): void
   onError(message: string): void
@@ -65,10 +77,11 @@ export class Workspace extends Component {
     if (this.active) this.view.focus()
   }
 
-  async open(path: string): Promise<void> {
+  async open(path: string, pos?: OpenPosition): Promise<void> {
     const existing = this.tabs.find((t) => t.path === path)
     if (existing) {
       this.activate(existing)
+      if (pos) this.reveal(pos)
       return
     }
     let content: string
@@ -81,11 +94,37 @@ export class Workspace extends Component {
     const tab: Tab = { path, state: null as unknown as EditorState, lastSaved: content, dirty: false, timer: null }
     tab.state = createEditorState(content, {
       onChange: () => this.onEdited(tab),
-      onOpenLink: (href) => this.host.onOpenLink(href, tab.path)
+      onOpenLink: (href) => this.host.onOpenLink(href, tab.path),
+      onOpenWikiLink: (target) => this.host.onOpenWikiLink(target, tab.path),
+      onOpenTag: (tag) => this.host.onOpenTag(tag),
+      isResolved: (link) => this.host.isResolved(link, tab.path),
+      linkTargets: () => this.host.linkTargets(tab.path)
     })
     const at = this.active ? this.tabs.indexOf(this.active) + 1 : this.tabs.length
     this.tabs.splice(at, 0, tab)
     this.activate(tab)
+    if (pos) this.reveal(pos)
+  }
+
+  // Select a range in the active note and scroll it to the middle of the view.
+  private reveal(pos: OpenPosition): void {
+    const len = this.view.state.doc.length
+    const from = Math.min(pos.from, len)
+    const to = Math.min(pos.to ?? pos.from, len)
+    this.view.dispatch({
+      selection: EditorSelection.range(from, to),
+      effects: EditorView.scrollIntoView(from, { y: 'center' })
+    })
+    requestAnimationFrame(() => this.view.focus())
+  }
+
+  // Re-run link styling after the vault's links changed (e.g. a missing note was created).
+  refreshLinks(): void {
+    if (this.active) this.view.dispatch({ effects: linksChanged.of(null) })
+  }
+
+  isOpen(path: string): boolean {
+    return this.tabs.some((t) => t.path === path)
   }
 
   private activate(tab: Tab): void {
@@ -161,6 +200,7 @@ export class Workspace extends Component {
     try {
       await window.zenode.write(tab.path, content)
       tab.lastSaved = content
+      this.host.onSaved(tab.path, content)
       if (this.docOf(tab) === content) tab.dirty = false
       this.render()
     } catch (e) {

@@ -1,10 +1,13 @@
+import { closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { HighlightStyle, indentOnInput, syntaxHighlighting } from '@codemirror/language'
 import { Annotation, EditorState } from '@codemirror/state'
 import { drawSelection, dropCursor, EditorView, highlightActiveLine, keymap } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
+import { wikiLinkCompletion, type LinkTarget } from './linkCompletion'
 import { livePreview } from './livePreview'
+import { frontmatterSyntax, hashtagSyntax, wikiLinkSyntax } from './wikilink'
 
 // Marks transactions that load content from disk, so they don't count as edits.
 export const fromDisk = Annotation.define<boolean>()
@@ -35,7 +38,22 @@ const theme = EditorView.theme(
     '.cm-activeLine': { backgroundColor: 'transparent' },
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
       backgroundColor: 'var(--zn-selection) !important'
-    }
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete': {
+      background: '#13131a',
+      border: '1px solid #262632',
+      borderRadius: '9px',
+      padding: '4px',
+      boxShadow: '0 12px 32px rgba(0,0,0,.5)'
+    },
+    '.cm-tooltip-autocomplete > ul': { fontFamily: 'var(--zn-font-ui)', maxHeight: '18em' },
+    '.cm-tooltip-autocomplete > ul > li': { padding: '5px 10px !important', borderRadius: '6px' },
+    '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+      background: 'rgba(139, 92, 246, 0.22) !important',
+      color: 'var(--zn-text-strong) !important'
+    },
+    '.cm-completionDetail': { marginLeft: '10px', fontStyle: 'normal', color: 'var(--zn-text-faint)', fontSize: '12px' },
+    '.cm-completionMatchedText': { textDecoration: 'none', color: 'var(--zn-accent)' }
   },
   { dark: true }
 )
@@ -43,6 +61,10 @@ const theme = EditorView.theme(
 export interface EditorCallbacks {
   onChange(): void
   onOpenLink(href: string): void
+  onOpenWikiLink(target: string): void
+  onOpenTag(tag: string): void
+  isResolved(link: string): boolean
+  linkTargets(): LinkTarget[]
 }
 
 export function createEditorState(doc: string, cb: EditorCallbacks): EditorState {
@@ -54,12 +76,20 @@ export function createEditorState(doc: string, cb: EditorCallbacks): EditorState
       dropCursor(),
       indentOnInput(),
       highlightActiveLine(),
+      closeBrackets(),
       EditorView.lineWrapping,
-      keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
-      markdown({ base: markdownLanguage }),
+      keymap.of([...closeBracketsKeymap, ...completionKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+      markdown({ base: markdownLanguage, extensions: [frontmatterSyntax, wikiLinkSyntax, hashtagSyntax] }),
+      EditorState.languageData.of(() => [{ closeBrackets: { brackets: ['(', '[', '{', '"'] } }]),
       syntaxHighlighting(highlight),
       theme,
-      livePreview({ onOpenLink: cb.onOpenLink }),
+      livePreview({
+        onOpenLink: cb.onOpenLink,
+        onOpenWikiLink: cb.onOpenWikiLink,
+        onOpenTag: cb.onOpenTag,
+        isResolved: cb.isResolved
+      }),
+      wikiLinkCompletion(cb.linkTargets),
       EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }),
       EditorView.updateListener.of((u) => {
         if (u.docChanged && !u.transactions.some((tr) => tr.annotation(fromDisk))) cb.onChange()

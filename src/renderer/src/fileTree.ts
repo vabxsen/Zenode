@@ -2,6 +2,7 @@ import type { TreeEntry } from '../../shared/api'
 import { Component, el } from './component'
 import { icon } from './icons'
 import { showMenu } from './menu'
+import { parentDir } from './paths'
 
 export interface FileTreeHandlers {
   onOpen(entry: TreeEntry): void
@@ -14,10 +15,7 @@ export interface FileTreeHandlers {
 
 const INDENT = 14
 
-export function parentDir(path: string): string {
-  const i = path.lastIndexOf('/')
-  return i === -1 ? '' : path.slice(0, i)
-}
+export { parentDir }
 
 export function displayName(entry: TreeEntry): string {
   return entry.kind === 'file' && entry.ext === 'md' ? entry.name.slice(0, -3) : entry.name

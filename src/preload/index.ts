@@ -12,6 +12,7 @@ const api: ZenodeAPI = {
 
   list: () => ipcRenderer.invoke('fs:list'),
   read: (path) => ipcRenderer.invoke('fs:read', path),
+  readMany: (paths) => ipcRenderer.invoke('fs:readMany', paths),
   write: (path, content) => ipcRenderer.invoke('fs:write', path, content),
   createFile: (dir, baseName, ext) => ipcRenderer.invoke('fs:createFile', dir, baseName, ext),
   createFolder: (dir, name) => ipcRenderer.invoke('fs:createFolder', dir, name),

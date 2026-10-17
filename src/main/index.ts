@@ -110,6 +110,7 @@ function registerIpc(): void {
 
   handle('fs:list', () => requireVault().list())
   handle('fs:read', (path: string) => requireVault().read(path))
+  handle('fs:readMany', (paths: string[]) => requireVault().readMany(paths))
   handle('fs:write', (path: string, content: string) => requireVault().write(path, content))
   handle('fs:createFile', (dir: string, base: string, ext: string) => requireVault().createFile(dir, base, ext))
   handle('fs:createFolder', (dir: string, name: string) => requireVault().createFolder(dir, name))

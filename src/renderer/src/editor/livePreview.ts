@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language'
-import type { EditorState, Range } from '@codemirror/state'
+import { StateEffect, type EditorState, type Range } from '@codemirror/state'
 import {
   Decoration,
   EditorView,
@@ -82,7 +82,14 @@ class CheckboxWidget extends WidgetType {
 
 export interface LivePreviewOptions {
   onOpenLink(href: string): void
+  onOpenWikiLink(target: string): void
+  onOpenTag(tag: string): void
+  // Whether a wikilink target (without subpath) resolves to an existing file.
+  isResolved(link: string): boolean
 }
+
+// Dispatch this when the vault's links change, so resolved/unresolved styling refreshes.
+export const linksChanged = StateEffect.define<null>()
 
 function touches(state: EditorState, focused: boolean, from: number, to: number): boolean {
   if (!focused) return false
@@ -119,7 +126,42 @@ const INLINE_STYLE: Record<string, { cls: string; mark: string }> = {
   InlineCode: { cls: 'zn-code', mark: 'CodeMark' }
 }
 
-function buildDecorations(view: EditorView): DecorationSet {
+function wikiDecorations(
+  out: Range<Decoration>[],
+  state: EditorState,
+  focused: boolean,
+  node: SyntaxNode,
+  options: LivePreviewOptions
+): void {
+  const doc = state.doc
+  const target = node.getChild('WikiLinkTarget')
+  if (!target) return
+  const inner = doc.sliceString(target.from, target.to)
+  const pipe = inner.indexOf('|')
+  const linkPart = pipe === -1 ? inner : inner.slice(0, pipe)
+  const hash = linkPart.indexOf('#')
+  const link = (hash === -1 ? linkPart : linkPart.slice(0, hash)).trim()
+  const resolved = link === '' || options.isResolved(link)
+  const embed = node.name === 'WikiEmbed'
+  const cls = `zn-link zn-internal${resolved ? '' : ' is-unresolved'}${embed ? ' zn-embed' : ''}`
+  const revealed = touches(state, focused, node.from, node.to)
+
+  if (revealed) {
+    out.push(Decoration.mark({ class: `${cls} is-raw` }).range(target.from, target.to))
+    return
+  }
+  // Hide "[[" / "![[" and "]]"; with an alias, also hide "target|".
+  const textFrom = pipe === -1 ? target.from : target.from + pipe + 1
+  out.push(hidden.range(node.from, textFrom))
+  out.push(hidden.range(target.to, node.to))
+  if (target.to > textFrom) {
+    out.push(
+      Decoration.mark({ class: cls, attributes: { 'data-zn-wikilink': linkPart.trim() } }).range(textFrom, target.to)
+    )
+  }
+}
+
+function buildDecorations(view: EditorView, options: LivePreviewOptions): DecorationSet {
   const { state } = view
   const focused = view.hasFocus
   const out: Range<Decoration>[] = []
@@ -159,6 +201,24 @@ function buildDecorations(view: EditorView): DecorationSet {
             for (const c of children(node)) if (c.name === style.mark) out.push(hidden.range(c.from, c.to))
           }
           return
+        }
+
+        if (name === 'Frontmatter') {
+          addLineClass(out, state, ref.from, ref.to, 'zn-frontmatter')
+          out.push(Decoration.line({ class: 'zn-frontmatter-first' }).range(doc.lineAt(ref.from).from))
+          out.push(Decoration.line({ class: 'zn-frontmatter-last' }).range(doc.lineAt(ref.to).from))
+          return false
+        }
+
+        if (name === 'Hashtag') {
+          const tag = doc.sliceString(ref.from, ref.to)
+          out.push(Decoration.mark({ class: 'zn-tag', attributes: { 'data-zn-tag': tag } }).range(ref.from, ref.to))
+          return
+        }
+
+        if (name === 'WikiLink' || name === 'WikiEmbed') {
+          wikiDecorations(out, state, focused, node, options)
+          return false
         }
 
         if (name === 'Link' || name === 'Autolink') {
@@ -271,7 +331,7 @@ export function livePreview(options: LivePreviewOptions) {
     class {
       decorations: DecorationSet
       constructor(view: EditorView) {
-        this.decorations = buildDecorations(view)
+        this.decorations = buildDecorations(view, options)
       }
       update(u: ViewUpdate): void {
         if (
@@ -279,9 +339,10 @@ export function livePreview(options: LivePreviewOptions) {
           u.viewportChanged ||
           u.selectionSet ||
           u.focusChanged ||
-          syntaxTree(u.state) !== syntaxTree(u.startState)
+          syntaxTree(u.state) !== syntaxTree(u.startState) ||
+          u.transactions.some((tr) => tr.effects.some((e) => e.is(linksChanged)))
         ) {
-          this.decorations = buildDecorations(u.view)
+          this.decorations = buildDecorations(u.view, options)
         }
       }
     },
@@ -289,9 +350,23 @@ export function livePreview(options: LivePreviewOptions) {
   )
 
   const clicks = EditorView.domEventHandlers({
-    mousedown(e) {
-      const target = (e.target as HTMLElement).closest<HTMLElement>('[data-zn-href]')
-      if (!target || e.button !== 0) return false
+    mousedown(e, view) {
+      if (e.button !== 0) return false
+      const el = e.target as HTMLElement
+      const tag = el.closest<HTMLElement>('[data-zn-tag]')
+      if (tag && !touches(view.state, view.hasFocus, view.posAtDOM(tag), view.posAtDOM(tag) + tag.textContent!.length)) {
+        e.preventDefault()
+        options.onOpenTag(tag.dataset.znTag!)
+        return true
+      }
+      const wiki = el.closest<HTMLElement>('[data-zn-wikilink]')
+      if (wiki) {
+        e.preventDefault()
+        options.onOpenWikiLink(wiki.dataset.znWikilink!)
+        return true
+      }
+      const target = el.closest<HTMLElement>('[data-zn-href]')
+      if (!target) return false
       e.preventDefault()
       options.onOpenLink(target.dataset.znHref!)
       return true

@@ -8,6 +8,9 @@ const PATHS = {
   close: 'M6 6l12 12M18 6L6 18',
   sidebar: 'M3 4h18v16H3zM9 4v16',
   note: 'M6 3h9l3 3v15H6zM9 10h6M9 14h6M9 18h4',
+  search: 'M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14zM20 20l-4.2-4.2',
+  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  switcher: 'M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3',
   logo: 'M5 5h14L5 19h14'
 } as const
 

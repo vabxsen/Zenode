@@ -34,6 +34,8 @@ export interface ZenodeAPI {
 
   list(): Promise<TreeEntry[]>
   read(path: string): Promise<string>
+  // Missing or unreadable files come back as null instead of failing the batch.
+  readMany(paths: string[]): Promise<Record<string, string | null>>
   write(path: string, content: string): Promise<void>
   createFile(dir: string, baseName: string, ext: string): Promise<string>
   createFolder(dir: string, name: string): Promise<string>
