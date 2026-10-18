@@ -1,8 +1,14 @@
-// Commands for daily notes and templates.
+// Commands for daily notes, templates and exporting notes.
 import type { CommandRegistry } from '../commands'
 import type { NoteTemplates } from './noteTemplates'
 
-export function registerTemplateCommands(registry: CommandRegistry, hasVault: () => boolean, hasActiveNote: () => boolean, t: NoteTemplates): () => void {
+export function registerTemplateCommands(
+  registry: CommandRegistry,
+  hasVault: () => boolean,
+  hasActiveNote: () => boolean,
+  t: NoteTemplates,
+  exportPdf: () => void
+): () => void {
   const when = (ok: () => boolean, run: () => void) => (checking: boolean): boolean => {
     if (!ok()) return false
     if (!checking) run()
@@ -17,6 +23,7 @@ export function registerTemplateCommands(registry: CommandRegistry, hasVault: ()
     }),
     registry.register({ id: 'daily-notes:open-yesterday', name: "Open yesterday's daily note", checkCallback: when(hasVault, () => void t.openDaily(-1)) }),
     registry.register({ id: 'daily-notes:open-tomorrow', name: "Open tomorrow's daily note", checkCallback: when(hasVault, () => void t.openDaily(1)) }),
+    registry.register({ id: 'workspace:export-pdf', name: 'Export to PDF', checkCallback: when(hasActiveNote, () => exportPdf()) }),
     registry.register({ id: 'templates:insert', name: 'Insert template', checkCallback: when(hasActiveNote, () => void t.insert()) })
   ]
   return () => disposers.forEach((d) => d())

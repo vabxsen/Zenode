@@ -19,6 +19,19 @@ export interface VaultInfo {
   id: string
 }
 
+// A note rendered for printing, with page settings.
+export interface PdfExportRequest {
+  // Self-contained HTML (images inlined) and the CSS it needs.
+  html: string
+  css: string
+  title: string
+  // The note's path, so the save dialog starts in its folder.
+  path: string
+  pageSize: 'A3' | 'A4' | 'A5' | 'Legal' | 'Letter' | 'Tabloid'
+  landscape: boolean
+  margins: 'default' | 'none' | 'minimum'
+}
+
 // One pane's tabs, in order.
 export interface PaneLayout {
   tabs: string[]
@@ -73,6 +86,8 @@ export interface ZenodeAPI {
   openVault(root: string): Promise<VaultInfo | null>
   // Opens a vault in a new window (asks for a folder when no root is given).
   openVaultInNewWindow(root?: string): Promise<void>
+  // Asks where to save, then writes the PDF. Null if cancelled.
+  exportPdf(req: PdfExportRequest): Promise<string | null>
   currentVault(): Promise<VaultInfo | null>
   getSettings(): Promise<Settings>
   // Per-vault config files in <vault>/.zenode/<name>.json. Missing or broken files read as null.

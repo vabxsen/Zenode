@@ -232,6 +232,12 @@ export class Pane extends Component {
     this.view.focus()
   }
 
+  // The active note's current text (unsaved edits included), or null.
+  activeNote(): { path: string; text: string } | null {
+    const tab = this.active
+    return tab?.kind === 'note' ? { path: tab.path, text: this.docOf(tab) } : null
+  }
+
   // Edits the active note being typed in (not Reading view): `build` gets its
   // text and cursor and returns the changes plus where the cursor goes after.
   editActive(build: (doc: string, cursor: number) => TextEdit): boolean {

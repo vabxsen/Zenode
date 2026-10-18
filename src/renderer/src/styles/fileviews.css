@@ -143,3 +143,43 @@
   color: var(--zn-text-muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* Export to PDF: the settings dialog, and the off-screen stage a note is rendered on. */
+
+.zn-export-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 300px;
+}
+
+.zn-export-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.zn-export-row.is-check {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.zn-export-select {
+  min-width: 140px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--zn-border);
+  border-radius: 6px;
+  background: var(--zn-bg);
+  color: var(--zn-text);
+  font: inherit;
+}
+
+.zn-export-stage {
+  position: fixed;
+  top: 0;
+  left: -20000px;
+  width: 760px;
+  pointer-events: none;
+}

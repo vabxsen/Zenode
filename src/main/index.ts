@@ -1,8 +1,9 @@
 import { app, dialog, ipcMain, net, protocol, shell, type IpcMainInvokeEvent } from 'electron'
 import { promises as fs } from 'node:fs'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { VaultInfo } from '../shared/api'
+import type { PdfExportRequest, VaultInfo } from '../shared/api'
+import { exportPdf } from './exportPdf'
 import { readConfig, writeConfig } from './config'
 import { errorCode, friendlyError } from './fsutil'
 import { describeError, isLogLevel, log } from './log'
@@ -99,6 +100,12 @@ function registerIpc(): void {
     else await VaultWindow.create(folder)
   })
   handle('vault:current', (w) => w.info())
+  handle('export:pdf', (w, req: PdfExportRequest) => {
+    const vault = w.requireVault()
+    // The note's folder, checked to be inside the vault.
+    const dir = dirname(vault.abs(typeof req?.path === 'string' ? req.path : ''))
+    return exportPdf(w.win, req, dir)
+  })
   handle('settings:get', () => loadSettings())
   handle('config:read', (w, name: string) => readConfig(w.requireVault().root, name))
   handle('config:write', (w, name: string, data: unknown) => writeConfig(w.requireVault().root, name, data))

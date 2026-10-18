@@ -34,6 +34,7 @@ import { contentHash } from '../../shared/hash'
 import { openSwitcher } from './switcher'
 import { setVaultUrlHost } from './vaultUrl'
 import { hasViewer } from './views/fileKinds'
+import { exportNoteToPdf } from './export/pdfExport'
 import { FileView } from './views/fileView'
 import { VIEW_PREFIX, Workspace, type OpenPosition } from './workspace'
 
@@ -95,7 +96,7 @@ export class App extends Component {
     this.register(this.registerCommands())
     this.register(registerWorkspaceCommands(this.commands, () => this.workspace))
     this.register(
-      registerTemplateCommands(this.commands, () => this.workspace !== null, () => this.workspace?.activeMode() != null, this.templates)
+      registerTemplateCommands(this.commands, () => this.workspace !== null, () => this.workspace?.activeMode() != null, this.templates, () => void this.exportActiveNote())
     )
     this.register(
       registerPanelCommands(this.commands, {
@@ -709,6 +710,13 @@ export class App extends Component {
       onOpenLink: (href) => void this.openLink(href, path),
       onOpenTag: (tag) => this.showSearch(`tag:${tag}`)
     }
+  }
+
+  private async exportActiveNote(): Promise<void> {
+    const note = this.workspace?.activeNote()
+    const cache = this.cache
+    if (!note || !cache) return
+    await exportNoteToPdf(note.path, note.text, { readingContext: (p) => this.readingContext(cache, p), notice: (m) => this.notice(m) })
   }
 
   private revealInTree(path: string): void {

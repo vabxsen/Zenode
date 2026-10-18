@@ -15,6 +15,7 @@ const api: ZenodeAPI = {
   chooseVault: () => invoke('vault:choose'),
   openVault: (root) => invoke('vault:open', root),
   openVaultInNewWindow: (root) => invoke('vault:openInNewWindow', root),
+  exportPdf: (req) => invoke('export:pdf', req),
   currentVault: () => invoke('vault:current'),
   getSettings: () => invoke('settings:get'),
   readConfig: (name) => invoke('config:read', name),

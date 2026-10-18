@@ -433,6 +433,10 @@ export class Workspace extends Component {
     return this.active.pane.open(path, pos)
   }
 
+  activeNote(): { path: string; text: string } | null {
+    return this.active.pane.activeNote()
+  }
+
   editActive(build: (doc: string, cursor: number) => TextEdit): boolean {
     return this.active.pane.editActive(build)
   }
