@@ -22,6 +22,7 @@ const api: ZenodeAPI = {
   reveal: (path) => ipcRenderer.invoke('fs:reveal', path),
   openExternal: (path) => ipcRenderer.invoke('fs:openExternal', path),
   openUrl: (url) => ipcRenderer.invoke('app:openUrl', url),
+  log: (level, message) => ipcRenderer.invoke('app:log', level, message),
 
   onVaultChanged: (cb) => {
     const listener = (_e: IpcRendererEvent, paths: string[]): void => cb(paths)

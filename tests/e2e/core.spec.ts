@@ -57,6 +57,12 @@ test('opens a canvas with its cards and connection', async ({ page }) => {
   await expect(canvas.locator('.zn-cnode-body')).toContainText('Ship the beta')
 })
 
+test('uncaught renderer errors are written to the app log', async ({ page, workDir }) => {
+  await page.evaluate(() => setTimeout(() => { throw new Error('e2e-log-probe') }))
+  const logFile = join(workDir, 'userdata', 'logs', 'zenode.log')
+  await expect.poll(() => (existsSync(logFile) ? readFileSync(logFile, 'utf8') : '')).toContain('e2e-log-probe')
+})
+
 test('quick switcher opens a note by fuzzy name', async ({ page }) => {
   await page.keyboard.press('Control+o')
   await page.locator('.zn-switcher-input').fill('rdmp')

@@ -1,0 +1,4 @@
+# Keep LF everywhere (the app writes LF, and test fixtures must be byte-identical on every machine).
+* text=auto eol=lf
+*.ico binary
+*.png binary

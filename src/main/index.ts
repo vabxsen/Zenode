@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { VaultInfo } from '../shared/api'
 import { readConfig, writeConfig } from './config'
+import { describeError, isLogLevel, log } from './log'
 import { loadSettings, rememberVault, saveSettings } from './settings'
 import { Vault } from './vault'
 
@@ -20,6 +21,9 @@ if (!app.isPackaged) {
   // End-to-end tests run with their own settings folder, so they never touch the user's.
   if (process.env.ZENODE_USER_DATA) app.setPath('userData', process.env.ZENODE_USER_DATA)
 }
+
+process.on('uncaughtException', (e) => void log('error', `main: ${describeError(e)}`))
+process.on('unhandledRejection', (e) => void log('error', `main (promise): ${describeError(e)}`))
 
 // vault://file/<path> serves files from the open vault (images in canvases and notes).
 protocol.registerSchemesAsPrivileged([
@@ -68,6 +72,7 @@ function createWindow(): void {
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (e) => e.preventDefault())
+  win.webContents.on('render-process-gone', (_e, details) => void log('error', `renderer gone: ${details.reason} (exit ${details.exitCode})`))
 
   // Give the renderer a chance to flush unsaved notes before the window goes away.
   win.on('close', (e) => {
@@ -143,6 +148,10 @@ function registerIpc(): void {
   handle('fs:openExternal', async (path: string) => {
     const error = await shell.openPath(requireVault().abs(path))
     if (error) throw new Error(error)
+  })
+  handle('app:log', (level: unknown, message: unknown) => {
+    if (!isLogLevel(level) || typeof message !== 'string') throw new Error('Invalid log entry')
+    return log(level, `renderer: ${message}`)
   })
   handle('app:openUrl', async (url: string) => {
     if (!EXTERNAL_URL.test(url)) throw new Error(`Refusing to open: ${url}`)

@@ -48,6 +48,9 @@ export interface ZenodeAPI {
   openExternal(path: string): Promise<void>
   openUrl(url: string): Promise<void>
 
+  // Appends to the app log (%APPDATA%\Zenode\logs\zenode.log).
+  log(level: 'info' | 'warn' | 'error', message: string): Promise<void>
+
   onVaultChanged(cb: (paths: string[]) => void): () => void
   onBeforeClose(cb: () => Promise<void>): void
 }
