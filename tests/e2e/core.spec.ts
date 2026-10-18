@@ -69,3 +69,19 @@ test('quick switcher opens a note by fuzzy name', async ({ page }) => {
   await page.keyboard.press('Enter')
   await expect(page.locator('.zn-tabbar .is-active')).toHaveText(/Roadmap/)
 })
+
+test('command palette finds and runs a command', async ({ page }) => {
+  await page.keyboard.press('Control+p')
+  const input = page.locator('.zn-palette .zn-switcher-input')
+  await expect(input).toBeFocused()
+  await input.fill('graph')
+  const row = page.locator('.zn-palette-row').first()
+  await expect(row).toContainText('Graph view: open')
+  await expect(row.locator('kbd')).toHaveText('Ctrl+G')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.zn-palette')).toHaveCount(0)
+  await expect(page.locator('.zn-tabbar .is-active')).toHaveText(/Graph view/)
+  // The command just used is listed first next time.
+  await page.keyboard.press('Control+p')
+  await expect(page.locator('.zn-palette-row').first()).toContainText('Graph view: open')
+})

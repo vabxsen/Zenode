@@ -1,6 +1,7 @@
 import type { TreeEntry, VaultInfo } from '../../shared/api'
 import { BacklinksPanel } from './backlinks'
 import { CanvasView, type CanvasHost } from './canvas/canvasView'
+import { openCommandPalette } from './commandPalette'
 import { CommandRegistry } from './commands'
 import { setSpellcheckDefault } from './editor/editor'
 import { attachmentDir, DEFAULT_EDITOR_SETTINGS, sanitizeEditorSettings, sanitizeHotkeys, sanitizeWorkspace, type EditorSettings } from './config'
@@ -711,6 +712,7 @@ export class App extends Component {
     return registerCoreCommands(this.commands, {
       hasVault: () => this.workspace !== null,
       chooseVault: () => void this.chooseVault(),
+      openCommandPalette: () => openCommandPalette(this.commands),
       openSwitcher: () => this.openQuickSwitcher(),
       showSearch: () => this.showSearch(),
       openGraph: () => this.openGraph(),

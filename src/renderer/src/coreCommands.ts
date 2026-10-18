@@ -4,6 +4,7 @@ import type { CommandRegistry } from './commands'
 export interface CoreActions {
   hasVault(): boolean
   chooseVault(): void
+  openCommandPalette(): void
   openSwitcher(): void
   showSearch(): void
   openGraph(): void
@@ -33,6 +34,12 @@ export function registerCoreCommands(registry: CommandRegistry, a: CoreActions):
     return true
   }
   const disposers = [
+    registry.register({
+      id: 'command-palette:open',
+      name: 'Command palette: open',
+      hotkeys: [{ modifiers: ['Mod'], key: 'p' }],
+      callback: () => a.openCommandPalette()
+    }),
     registry.register({
       id: 'app:open-vault',
       name: 'Open another vault',
