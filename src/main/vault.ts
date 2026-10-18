@@ -1,6 +1,7 @@
 import { promises as fs, watch, type FSWatcher } from 'node:fs'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { TreeEntry } from '../shared/api'
+import { atomicWrite } from './fsutil'
 
 const INVALID_NAME = /[\\/:*?"<>|]/
 
@@ -71,12 +72,8 @@ export class Vault {
     return out
   }
 
-  // Write to a temp file and rename, so a crash never leaves a half-written note.
   async write(rel: string, content: string): Promise<void> {
-    const target = this.abs(rel)
-    const temp = `${target}.zenode-tmp`
-    await fs.writeFile(temp, content, 'utf8')
-    await fs.rename(temp, target)
+    await atomicWrite(this.abs(rel), content)
   }
 
   async createFile(dirRel: string, baseName: string, ext: string): Promise<string> {

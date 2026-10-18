@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { promises as fs } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { Settings } from '../shared/api'
+import { atomicWrite } from './fsutil'
 
 const MAX_RECENT = 8
 
@@ -25,7 +26,7 @@ export async function loadSettings(): Promise<Settings> {
 export async function saveSettings(settings: Settings): Promise<void> {
   const file = settingsFile()
   await fs.mkdir(dirname(file), { recursive: true })
-  await fs.writeFile(file, JSON.stringify(settings, null, 2), 'utf8')
+  await atomicWrite(file, JSON.stringify(settings, null, 2))
 }
 
 export function rememberVault(settings: Settings, root: string): Settings {

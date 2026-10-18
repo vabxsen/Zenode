@@ -2,7 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell, type IpcMain
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { VaultInfo, WorkspaceState } from '../shared/api'
+import type { VaultInfo } from '../shared/api'
+import { readConfig, writeConfig } from './config'
 import { loadSettings, rememberVault, saveSettings } from './settings'
 import { Vault } from './vault'
 
@@ -123,12 +124,8 @@ function registerIpc(): void {
   handle('vault:open', (root: string) => openVault(root))
   handle('vault:current', () => (vault ? { root: vault.root, name: vault.name } : null))
   handle('settings:get', () => loadSettings())
-  handle('workspace:save', async (state: WorkspaceState) => {
-    if (!vault) return
-    const settings = await loadSettings()
-    settings.workspaces[vault.root] = state
-    await saveSettings(settings)
-  })
+  handle('config:read', (name: string) => readConfig(requireVault().root, name))
+  handle('config:write', (name: string, data: unknown) => writeConfig(requireVault().root, name, data))
 
   handle('fs:list', () => requireVault().list())
   handle('fs:read', (path: string) => requireVault().read(path))

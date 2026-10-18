@@ -7,6 +7,11 @@ import { CanvasParseError, canvasRefs, contains, facingSide, parseCanvas, serial
 import { CommandRegistry, hotkeyFromEvent, hotkeyLabel } from '../src/renderer/src/commands'
 import { registerCoreCommands } from '../src/renderer/src/coreCommands'
 import { parseCanvasMeta } from '../src/renderer/src/index/canvasMeta'
+import { sanitizeHotkeys, sanitizeWorkspace } from '../src/renderer/src/config'
+import { configPath, readConfig, writeConfig } from '../src/main/config'
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 let fails = 0
 const eq = (name: string, got: unknown, want: unknown) => {
@@ -205,6 +210,25 @@ core.execute(core.match(key('o', { ctrl: true }))!.id)
 eq('core commands: Ctrl+O without a vault picks one', [calls, core.match(key('n', { ctrl: true }))], [['choose'], null])
 dispose()
 eq('core commands: dispose removes all', core.list().length, 0)
+
+// Per-vault config (.zenode/*.json).
+eq('config: workspace sanitized', sanitizeWorkspace({ openFiles: ['a.md', 3, null], activeFile: 7 }), { openFiles: ['a.md'], activeFile: null })
+eq('config: workspace rejects non-objects', [sanitizeWorkspace(null), sanitizeWorkspace([1])], [null, null])
+eq('config: hotkeys sanitized', sanitizeHotkeys({
+  'a:ok': [{ modifiers: ['Mod', 'Shift'], key: 'k' }],
+  'a:bad-mod': [{ modifiers: ['Hyper'], key: 'k' }],
+  'a:none': [],
+  'a:junk': 'x'
+}), { 'a:ok': [{ modifiers: ['Mod', 'Shift'], key: 'k' }], 'a:bad-mod': [], 'a:none': [] })
+let badName = 0
+for (const name of ['../evil', 'a/b', 'A', '', 'x.json']) { try { configPath('C:/v', name) } catch { badName++ } }
+eq('config: names cannot escape .zenode', badName, 5)
+const vaultDir = mkdtempSync(join(tmpdir(), 'zenode-test-'))
+eq('config: missing file reads as null', await readConfig(vaultDir, 'workspace'), null)
+await writeConfig(vaultDir, 'workspace', { openFiles: ['x.md'], activeFile: 'x.md' })
+eq('config: round-trip', await readConfig(vaultDir, 'workspace'), { openFiles: ['x.md'], activeFile: 'x.md' })
+eq('config: no temp files left behind', readdirSync(join(vaultDir, '.zenode')), ['workspace.json'])
+rmSync(vaultDir, { recursive: true, force: true })
 
 cache.dispose()
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED')

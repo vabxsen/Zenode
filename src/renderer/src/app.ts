@@ -2,6 +2,7 @@ import type { TreeEntry, VaultInfo } from '../../shared/api'
 import { BacklinksPanel } from './backlinks'
 import { CanvasView, type CanvasHost } from './canvas/canvasView'
 import { CommandRegistry } from './commands'
+import { sanitizeHotkeys, sanitizeWorkspace } from './config'
 import { Component, el } from './component'
 import { registerCoreCommands } from './coreCommands'
 import type { LinkTarget } from './editor/linkCompletion'
@@ -131,8 +132,9 @@ export class App extends Component {
     this.buildShell()
     await this.refreshTree()
 
-    const settings = await api.getSettings()
-    const ws = settings.workspaces[info.root]
+    this.commands.setCustomHotkeys(sanitizeHotkeys(await api.readConfig('hotkeys')))
+    // Open tabs live in .zenode/workspace.json; older versions kept them in the app settings.
+    const ws = sanitizeWorkspace(await api.readConfig('workspace')) ?? (await api.getSettings()).workspaces[info.root]
     if (ws) {
       for (const path of ws.openFiles) await this.openTabPath(path)
       if (ws.activeFile) await this.openTabPath(ws.activeFile)
@@ -691,7 +693,12 @@ export class App extends Component {
   private async saveLayoutNow(): Promise<void> {
     if (this.layoutTimer !== null) window.clearTimeout(this.layoutTimer)
     this.layoutTimer = null
-    if (this.workspace && this.vault) await api.saveWorkspace(this.workspace.serialize())
+    if (!this.workspace || !this.vault) return
+    try {
+      await api.writeConfig('workspace', this.workspace.serialize())
+    } catch (e) {
+      this.notice(`Could not save the open tabs: ${(e as Error).message}`)
+    }
   }
 
   // ---------- Keyboard ----------

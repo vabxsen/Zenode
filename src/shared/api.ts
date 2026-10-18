@@ -22,6 +22,7 @@ export interface WorkspaceState {
 export interface Settings {
   lastVault?: string
   recentVaults: string[]
+  // Legacy: open tabs per vault, from before they moved to <vault>/.zenode/workspace.json.
   workspaces: Record<string, WorkspaceState>
 }
 
@@ -30,7 +31,9 @@ export interface ZenodeAPI {
   openVault(root: string): Promise<VaultInfo>
   currentVault(): Promise<VaultInfo | null>
   getSettings(): Promise<Settings>
-  saveWorkspace(state: WorkspaceState): Promise<void>
+  // Per-vault config files in <vault>/.zenode/<name>.json. Missing or broken files read as null.
+  readConfig(name: string): Promise<unknown>
+  writeConfig(name: string, data: unknown): Promise<void>
 
   list(): Promise<TreeEntry[]>
   read(path: string): Promise<string>

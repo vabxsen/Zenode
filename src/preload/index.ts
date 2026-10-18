@@ -8,7 +8,8 @@ const api: ZenodeAPI = {
   openVault: (root) => ipcRenderer.invoke('vault:open', root),
   currentVault: () => ipcRenderer.invoke('vault:current'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
-  saveWorkspace: (state) => ipcRenderer.invoke('workspace:save', state),
+  readConfig: (name) => ipcRenderer.invoke('config:read', name),
+  writeConfig: (name, data) => ipcRenderer.invoke('config:write', name, data),
 
   list: () => ipcRenderer.invoke('fs:list'),
   read: (path) => ipcRenderer.invoke('fs:read', path),
