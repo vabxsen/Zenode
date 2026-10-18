@@ -418,7 +418,7 @@ export class FileTree extends Component {
     })
     input.addEventListener('blur', () => void finish(true))
     input.addEventListener('click', (e) => e.stopPropagation())
-    requestAnimationFrame(() => {
+    const place = (): void => {
       if (done) return
       input.focus()
       if (draft) {
@@ -427,6 +427,10 @@ export class FileTree extends Component {
         const dot = keepExt ? input.value.length : input.value.lastIndexOf('.')
         input.setSelectionRange(0, dot > 0 ? dot : input.value.length)
       }
-    })
+    }
+    // A redraw while typing: take focus back in the same task, so no keystroke
+    // lands between the old box going and the new one appearing.
+    if (draft && input.isConnected) place()
+    else requestAnimationFrame(place)
   }
 }

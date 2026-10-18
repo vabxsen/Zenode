@@ -1,5 +1,5 @@
 // File tree: moving by drag and drop or "Move to…", multi-select, sorting.
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test, treeRow } from './fixture'
 
@@ -47,4 +47,19 @@ test('sort order can be changed from the tree header', async ({ page }) => {
   await page.locator('.zn-menu-item', { hasText: 'File name (Z to A)' }).click()
   // Folders still come first; files are Z to A.
   await expect(labels).toHaveText(['Projects', 'Ideas', 'Home', 'Formatting', 'Board'])
+})
+
+test('typing a new name survives the tree refreshing underneath', async ({ page, vaultDir }) => {
+  await treeRow(page, 'Ideas').click({ button: 'right' })
+  await page.locator('.zn-menu-item', { hasText: 'Rename' }).click()
+  await expect(page.locator('.zn-tree-rename')).toBeFocused()
+  await page.keyboard.press('Control+a')
+  for (const [i, ch] of [...'Brainstorm'].entries()) {
+    // Each new file makes the tree redraw while the rename box is open.
+    writeFileSync(join(vaultDir, `noise ${i}.md`), '')
+    await page.waitForTimeout(60)
+    await page.keyboard.type(ch)
+  }
+  await page.keyboard.press('Enter')
+  await expect.poll(() => existsSync(join(vaultDir, 'Brainstorm.md'))).toBe(true)
 })
