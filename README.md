@@ -2,6 +2,13 @@
 
 A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.md` files in a folder you choose (a "vault"), so they stay readable by any editor, including Obsidian.
 
+## Files, media & export (M4)
+
+- **Viewers**: images open in a viewer with zoom (wheel, buttons, double-click) and pan; PDFs in the built-in PDF viewer; audio and video in players; text and code files (`.txt`, `.csv`, `.json`, `.js`, ...) in a read-only view. Tabs follow renames and reload when the file changes. Other files open in their default app.
+- **Export to PDF** (command): the note as in Reading view, on light pages, with page size, orientation, margins and an optional title. Images are included; audio, video and PDFs are named.
+- **Where deleted files go**: the Recycle Bin (default) or the vault's hidden `.trash` folder (`"trashOption": "local"` in `.zenode/app.json`, or the command "Deleted files: switch..."). Where a drive has no Recycle Bin, files go to `.trash` instead of failing.
+- **Find unused attachments** (command): lists files that no note or canvas links to or mentions, and moves the ones you keep ticked to the trash.
+
 ## Workspace & navigation (M3)
 
 - **Command palette** (Ctrl+P): every command, fuzzy-searched, recent ones first, with their shortcuts.
@@ -35,7 +42,7 @@ Daily notes and templates are set up per vault:
 Editor settings live in `<vault>/.zenode/app.json` (a settings screen comes in M6):
 
 ```json
-{ "defaultView": "live", "spellcheck": true, "attachmentFolder": "./assets" }
+{ "defaultView": "live", "spellcheck": true, "attachmentFolder": "./assets", "trashOption": "system" }
 ```
 
 `defaultView` is `live`, `source` or `reading`. `attachmentFolder` is `""` (vault root), `"./"` (the note's folder), `"./name"` (a subfolder there) or a vault folder.
@@ -73,7 +80,7 @@ Editor settings live in `<vault>/.zenode/app.json` (a settings screen comes in M
 ## Phase 1
 
 - Open any folder as a vault; the last vault and its open tabs are restored on launch
-- File tree: create, rename (inline) and delete notes and folders (deletes go to the Recycle Bin)
+- File tree: create, rename (inline) and delete notes and folders (deletes go to the Recycle Bin, or the vault's `.trash`)
 - Editor: CodeMirror 6 with **Live Preview**. Markdown syntax hides until the cursor touches it:
   headings, bold, italic, strikethrough, inline code, links, bare URLs, lists, task checkboxes,
   blockquotes, horizontal rules and fenced code blocks
@@ -147,7 +154,7 @@ src/
   shared/     Types shared by main and renderer (the IPC contract)
   renderer/   The UI: app shell, file tree, tabs, CodeMirror editor + Live Preview
 tests/
-  run.ts          Runs the unit tests (index, safety, render, editor, notes, properties) bundled with esbuild in Node
+  run.ts          Runs the unit tests (index, safety, render, editor, notes, properties, files) bundled with esbuild in Node
   e2e/            Playwright tests that launch the built app
   fixtures/vault  The sample vault the end-to-end tests run against (copied per test)
 ```
@@ -168,7 +175,7 @@ Towards 1.0 (production-ready core):
 - ~~M1 Data safety: conflict handling for outside edits, crash recovery, file snapshots, sync-folder conflict copies~~ (done)
 - ~~M2 Editor: embeds, paste/drop attachments, tables, callouts, find & replace, math, Mermaid, Reading view~~ (done)
 - ~~M3 Workspace: command palette, split panes, drag & drop, outline/tags/bookmarks, daily notes, templates, properties, multiple windows~~ (done)
-- M4 Files: PDF/audio/video viewers, export to PDF
+- ~~M4 Files: image/PDF/audio/video/text viewers, export to PDF, delete to Recycle Bin or .trash, unused attachments~~ (done)
 - M5 Performance: persistent index cache, 10k+ note vaults
 - M6 Appearance: light theme, themes and snippets, hotkey editor, onboarding, accessibility
 - M7 Security hardening, M8 installer/updates/file associations, M9 docs and website
