@@ -186,6 +186,17 @@ export class Workspace extends Component {
     return tab
   }
 
+  // Puts `text` into an open note as an ordinary edit (undoable; autosave writes
+  // it). The text it replaces is kept in the file history. False if not open.
+  replaceText(path: string, text: string): boolean {
+    const tab = this.tabs.find((t) => t.path === path && t.kind === 'note')
+    if (!tab) return false
+    this.activate(tab)
+    this.host.preserve(path, this.docOf(tab))
+    this.setDoc(tab, text, false)
+    return true
+  }
+
   // Brings back unsaved text from the crash-recovery journal. If the file changed
   // since (or is gone), the tab opens in conflict so nothing is overwritten.
   async restoreUnsaved(path: string, content: string, baseHash: string): Promise<void> {

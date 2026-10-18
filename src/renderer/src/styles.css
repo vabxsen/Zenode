@@ -1985,3 +1985,66 @@ button {
   color: var(--zn-text-faint);
   font-size: 12px;
 }
+
+/* ---------- File recovery ---------- */
+
+.zn-dialog-wide {
+  width: min(900px, 94vw);
+}
+
+.zn-history {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 12px;
+  height: min(56vh, 520px);
+}
+
+.zn-history-list {
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zn-history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--zn-text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.zn-history-row:hover {
+  background: var(--zn-bg-hover);
+}
+
+.zn-history-row.is-selected {
+  background: var(--zn-selection);
+  color: var(--zn-text-strong);
+}
+
+.zn-history-size {
+  color: var(--zn-text-faint);
+}
+
+.zn-history-preview {
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  border: 1px solid var(--zn-border);
+  border-radius: 8px;
+  background: var(--zn-bg);
+  color: var(--zn-text);
+  font-family: var(--zn-font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

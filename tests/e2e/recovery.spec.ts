@@ -48,6 +48,25 @@ test('restoring never overwrites a version that changed after the crash', async 
   expect(readFileSync(file, 'utf8')).toBe('NEWER VERSION FROM ANOTHER DEVICE\n')
 })
 
+test('file history keeps the version before a save and can restore it', async ({ page, vaultDir }) => {
+  const file = join(vaultDir, 'Ideas.md')
+  const original = readFileSync(file, 'utf8')
+  await treeRow(page, 'Ideas').click()
+  await page.locator('.cm-content').first().click()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type('\nA REGRETTABLE EDIT')
+  await expect.poll(() => readFileSync(file, 'utf8')).toContain('A REGRETTABLE EDIT')
+
+  await treeRow(page, 'Ideas').click({ button: 'right' })
+  await page.locator('.zn-menu-item', { hasText: 'Show file history' }).click()
+  const dialog = page.locator('.zn-dialog')
+  await expect(dialog.locator('.zn-history-row')).toHaveCount(1)
+  await expect(dialog.locator('.zn-history-preview')).toHaveText(original)
+  await dialog.locator('button', { hasText: 'Restore this version' }).click()
+  await expect(page.locator('.cm-content').first()).not.toContainText('A REGRETTABLE EDIT')
+  await expect.poll(() => readFileSync(file, 'utf8')).toBe(original)
+})
+
 test('a clean quit leaves nothing to recover', async ({ app, page, relaunch }) => {
   await treeRow(page, 'Ideas').click()
   await page.locator('.cm-content').first().click()

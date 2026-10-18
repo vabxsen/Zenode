@@ -11,6 +11,9 @@ export interface CoreActions {
   toggleRightSidebar(): void
   newNote(): void
   newCanvas(): void
+  // Only when a file is open.
+  hasActiveFile(): boolean
+  showHistory(): void
   save(): void
   closeTab(): void
   cycleTab(step: 1 | -1): void
@@ -72,6 +75,15 @@ export function registerCoreCommands(registry: CommandRegistry, a: CoreActions):
       id: 'file:new-canvas',
       name: 'Create new canvas',
       checkCallback: inVault(() => a.newCanvas())
+    }),
+    registry.register({
+      id: 'file-recovery:open',
+      name: 'File recovery: show history of the current file',
+      checkCallback: (checking) => {
+        if (!a.hasActiveFile()) return false
+        if (!checking) a.showHistory()
+        return true
+      }
     }),
     registry.register({
       id: 'editor:save',

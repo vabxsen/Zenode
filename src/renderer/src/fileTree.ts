@@ -12,6 +12,7 @@ export interface FileTreeHandlers {
   onRename(entry: TreeEntry, newName: string): Promise<void>
   onDelete(entry: TreeEntry): void
   onReveal(path: string): void
+  onHistory(path: string): void
 }
 
 const INDENT = 14
@@ -159,6 +160,7 @@ export class FileTree extends Component {
         'separator',
         { label: 'Rename', action: () => this.startRename(entry.path) },
         { label: 'Show in Explorer', action: () => this.handlers.onReveal(entry.path) },
+        ...(isFolder ? [] : [{ label: 'Show file history', action: () => this.handlers.onHistory(entry.path) }]),
         'separator',
         { label: 'Delete', danger: true, action: () => this.handlers.onDelete(entry) }
       ])

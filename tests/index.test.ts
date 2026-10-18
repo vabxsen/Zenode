@@ -200,7 +200,7 @@ eq('commands: duplicate id rejected', dup, true)
 const core = new CommandRegistry()
 const calls: string[] = []
 const noop = (n: string) => () => { calls.push(n) }
-const dispose = registerCoreCommands(core, { hasVault: () => false, chooseVault: noop('choose'), openSwitcher: noop('switcher'), showSearch: noop('search'), openGraph: noop('graph'), toggleLeftSidebar: noop('left'), toggleRightSidebar: noop('right'), newNote: noop('note'), newCanvas: noop('canvas'), save: noop('save'), closeTab: noop('close'), cycleTab: noop('cycle') })
+const dispose = registerCoreCommands(core, { hasVault: () => false, chooseVault: noop('choose'), openSwitcher: noop('switcher'), showSearch: noop('search'), openGraph: noop('graph'), toggleLeftSidebar: noop('left'), toggleRightSidebar: noop('right'), newNote: noop('note'), newCanvas: noop('canvas'), hasActiveFile: () => false, showHistory: noop('history'), save: noop('save'), closeTab: noop('close'), cycleTab: noop('cycle') })
 core.execute(core.match(key('o', { ctrl: true }))!.id)
 eq('core commands: Ctrl+O without a vault picks one', [calls, core.match(key('n', { ctrl: true }))], [['choose'], null])
 dispose()

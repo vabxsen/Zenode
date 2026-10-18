@@ -13,8 +13,9 @@ import { icon, type IconName } from './icons'
 import { isCanvasPath } from './index/canvasMeta'
 import { applyEdits, MetadataCache } from './index/metadataCache'
 import { splitLinktext } from './index/parser'
+import { openFileRecovery, restoreVersion } from './fileRecovery'
 import { offerRecovery } from './recovery'
-import { baseName, isMarkdown, joinPath, parentDir, stripMd } from './paths'
+import { baseName, isMarkdown, joinPath, parentDir, stripExt, stripMd } from './paths'
 import { SearchPane } from './search/searchPane'
 import { openSwitcher } from './switcher'
 import { VIEW_PREFIX, Workspace, type OpenPosition, type WorkspaceView } from './workspace'
@@ -208,7 +209,8 @@ export class App extends Component {
         onNewCanvas: (dir) => void this.newCanvas(dir),
         onRename: (entry, name) => this.rename(entry, name),
         onDelete: (entry) => void this.remove(entry),
-        onReveal: (path) => void api.reveal(path)
+        onReveal: (path) => void api.reveal(path),
+        onHistory: (path) => void this.showHistory(path)
       })
     )
     const searchPane = el('div', 'zn-pane zn-pane-search', sidebar)
@@ -743,9 +745,20 @@ export class App extends Component {
       toggleRightSidebar: () => this.toggleRightbar(),
       newNote: () => void this.newNote(this.currentDir()),
       newCanvas: () => void this.newCanvas(this.currentDir()),
+      hasActiveFile: () => !!this.workspace?.activePath,
+      showHistory: () => void this.showHistory(this.workspace?.activePath ?? ''),
       save: () => void ws().save(),
       closeTab: () => void ws().close(),
       cycleTab: (step) => ws().cycle(step)
+    })
+  }
+
+  private async showHistory(path: string): Promise<void> {
+    if (!path) return
+    const notice = (m: string): void => this.notice(m)
+    await openFileRecovery(path, stripExt(baseName(path)), {
+      notice,
+      restore: (text) => restoreVersion(this.workspace, path, text, notice)
     })
   }
 
