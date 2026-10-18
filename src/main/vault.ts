@@ -120,6 +120,15 @@ export class Vault {
     return { status: 'ok' }
   }
 
+  // Creates a file with content (and any missing folders). Never overwrites:
+  // fails if something with that name already exists.
+  async createAt(rel: string, content: string): Promise<void> {
+    for (const part of rel.split('/')) checkName(part)
+    const file = this.abs(rel)
+    await fs.mkdir(dirname(file), { recursive: true })
+    await fs.writeFile(file, content, { flag: 'wx' })
+  }
+
   async createFile(dirRel: string, baseName: string, ext: string): Promise<string> {
     checkName(ext ? `${baseName}.${ext}` : baseName)
     const dir = this.abs(dirRel)

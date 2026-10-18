@@ -6,7 +6,7 @@ import { hideConflictBar, openCompareDialog, renderConflictBar } from './conflic
 import { createEditorState, fromDisk, spellcheckAttrs, spellcheckSetting } from './editor/editor'
 import { linksChanged, setSourceMode } from './editor/livePreview'
 import { icon } from './icons'
-import { confirmLargeNote, LARGE_NOTE, noteTitle, type MovedTab, type OpenPosition, type PaneHost, type PaneState, type Tab, type WorkspaceView } from './paneTypes'
+import { confirmLargeNote, LARGE_NOTE, noteTitle, type MovedTab, type OpenPosition, type PaneHost, type PaneState, type Tab, type TextEdit, type WorkspaceView } from './paneTypes'
 import { acceptTabDrops, renderTabBar, showTabMenu } from './tabBar'
 import { TabHistory } from './tabHistory'
 import { renderInto } from './render/reading'
@@ -230,6 +230,17 @@ export class Pane extends Component {
     const at = Math.min(pos, this.view.state.doc.length)
     this.view.dispatch({ changes: { from: at, insert: markdown }, selection: { anchor: at + markdown.length } })
     this.view.focus()
+  }
+
+  // Edits the active note being typed in (not Reading view): `build` gets its
+  // text and cursor and returns the changes plus where the cursor goes after.
+  editActive(build: (doc: string, cursor: number) => TextEdit): boolean {
+    const tab = this.active
+    if (tab?.kind !== 'note' || tab.reading) return false
+    const { changes, cursor } = build(this.view.state.doc.toString(), this.view.state.selection.main.head)
+    this.view.dispatch({ changes, selection: { anchor: cursor }, scrollIntoView: true, userEvent: 'input' })
+    this.view.focus()
+    return true
   }
 
   // Puts `text` into an open note as an ordinary edit (undoable; autosave writes

@@ -20,6 +20,8 @@ import { relativeLinkTarget, subpathPosition } from './links'
 import { FileActions } from './fileActions'
 import { HoverPreview } from './hoverPreview'
 import { registerPanelCommands } from './panelCommands'
+import { registerTemplateCommands } from './templates/commands'
+import { NoteTemplates } from './templates/noteTemplates'
 import { registerWorkspaceCommands } from './workspaceCommands'
 import { offerRecovery } from './recovery'
 import type { ReadingContext } from './render/reading'
@@ -51,6 +53,13 @@ export class App extends Component {
     renamed: (from, to) => this.left?.bookmarks.renamed(from, to),
     removed: (path) => this.left?.bookmarks.removed(path)
   })
+  private readonly templates = new NoteTemplates({
+    cache: () => this.cache,
+    workspace: () => this.workspace,
+    refreshTree: () => this.refreshTree(),
+    openPath: (path) => this.openPath(path),
+    notice: (m) => this.notice(m)
+  })
   private editorSettings: EditorSettings = { ...DEFAULT_EDITOR_SETTINGS }
   private vault: VaultInfo | null = null
   private shell: Component | null = null
@@ -81,6 +90,9 @@ export class App extends Component {
     api.onVaultChanged((paths) => this.onVaultChanged(paths))
     this.register(this.registerCommands())
     this.register(registerWorkspaceCommands(this.commands, () => this.workspace))
+    this.register(
+      registerTemplateCommands(this.commands, () => this.workspace !== null, () => this.workspace?.activeMode() != null, this.templates)
+    )
     this.register(
       registerPanelCommands(this.commands, {
         hasVault: () => this.workspace !== null,
@@ -208,6 +220,7 @@ export class App extends Component {
     this.ribbonButton(ribbon, 'graph', 'Graph view (Ctrl+G)', () => this.openGraph())
     this.ribbonButton(ribbon, 'filePlus', 'New note (Ctrl+N)', () => void this.files.newNote(this.currentDir()))
     this.ribbonButton(ribbon, 'folderPlus', 'New folder', () => void this.files.newFolder(this.currentDir()))
+    this.ribbonButton(ribbon, 'calendar', "Open today's daily note (Ctrl+Shift+D)", () => this.commands.execute('daily-notes:open-today'))
     this.ribbonButton(ribbon, 'canvas', 'New canvas', () => void this.files.newCanvas(this.currentDir()))
     el('div', 'zn-ribbon-spacer', ribbon)
     this.ribbonButton(ribbon, 'link', 'Toggle right sidebar (Ctrl+Shift+B)', () => this.toggleRightbar())

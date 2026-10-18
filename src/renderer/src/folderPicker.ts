@@ -1,4 +1,4 @@
-// "Move to…": fuzzy-pick a folder (the vault root is listed as "/").
+// Fuzzy pickers: a folder for "Move to…" (the vault root is listed as "/"), or any list.
 import type { TreeEntry } from '../../shared/api'
 import { el } from './component'
 import { fuzzyMatch, highlight } from './fuzzy'
@@ -20,6 +20,11 @@ export function allFolders(tree: TreeEntry[]): string[] {
 
 // Resolves with the chosen folder ('' = vault root), or null if cancelled.
 export function pickFolder(folders: string[], title: string): Promise<string | null> {
+  return pickFromList(['', ...folders], title, (path) => path || '/', 'No matching folder.')
+}
+
+// Fuzzy-pick one of `choices`; resolves with it, or null if cancelled.
+export function pickFromList(choices: string[], title: string, label: (choice: string) => string = (c) => c, empty = 'No match.'): Promise<string | null> {
   return new Promise((resolve) => {
     const bg = el('div', 'zn-modal-bg', document.body)
     const modal = el('div', 'zn-switcher', bg)
@@ -30,7 +35,6 @@ export function pickFolder(folders: string[], title: string): Promise<string | n
     input.spellcheck = false
     const list = el('div', 'zn-switcher-list', modal)
     list.setAttribute('role', 'listbox')
-    const choices = ['', ...folders]
     let rows: Array<{ path: string; indices: number[] }> = []
     let selected = 0
 
@@ -43,7 +47,7 @@ export function pickFolder(folders: string[], title: string): Promise<string | n
       const q = input.value.trim()
       rows = q
         ? choices
-            .map((path) => ({ path, m: fuzzyMatch(q, path || '/') }))
+            .map((path) => ({ path, m: fuzzyMatch(q, label(path)) }))
             .filter((r) => r.m)
             .sort((a, b) => b.m!.score - a.m!.score)
             .map((r) => ({ path: r.path, indices: r.m!.indices }))
@@ -52,13 +56,13 @@ export function pickFolder(folders: string[], title: string): Promise<string | n
       selected = 0
       list.replaceChildren()
       if (!rows.length) {
-        el('div', 'zn-switcher-empty', list, 'No matching folder.')
+        el('div', 'zn-switcher-empty', list, empty)
         return
       }
       rows.forEach((r, i) => {
         const row = el('div', `zn-switcher-row${i === 0 ? ' is-selected' : ''}`, list)
         row.setAttribute('role', 'option')
-        highlight(el('div', 'zn-switcher-title', row), r.path || '/', r.indices)
+        highlight(el('div', 'zn-switcher-title', row), label(r.path), r.indices)
         row.addEventListener('mousedown', (e) => {
           e.preventDefault()
           finish(r.path)

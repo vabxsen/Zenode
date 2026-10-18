@@ -4,7 +4,7 @@
 import type { LayoutNode, PaneLayout, WorkspaceState } from '../../shared/api'
 import { Component, el } from './component'
 import { Pane } from './pane'
-import type { MovedTab, OpenPosition, PaneHost, WorkspaceHost, WorkspaceView } from './paneTypes'
+import type { MovedTab, OpenPosition, PaneHost, TextEdit, WorkspaceHost, WorkspaceView } from './paneTypes'
 
 export { noteTitle, VIEW_PREFIX, type OpenPosition, type WorkspaceHost, type WorkspaceView } from './paneTypes'
 
@@ -431,6 +431,10 @@ export class Workspace extends Component {
 
   open(path: string, pos?: OpenPosition): Promise<void> {
     return this.active.pane.open(path, pos)
+  }
+
+  editActive(build: (doc: string, cursor: number) => TextEdit): boolean {
+    return this.active.pane.editActive(build)
   }
 
   replaceText(path: string, text: string): boolean {

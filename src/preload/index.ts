@@ -24,6 +24,7 @@ const api: ZenodeAPI = {
   readMany: (paths) => invoke('fs:readMany', paths),
   write: (path, content) => invoke('fs:write', path, content),
   writeChecked: (path, content, expectHash) => invoke('fs:writeChecked', path, content, expectHash),
+  createAt: (path, content) => invoke('fs:createAt', path, content),
   createFile: (dir, baseName, ext) => invoke('fs:createFile', dir, baseName, ext),
   createFolder: (dir, name) => invoke('fs:createFolder', dir, name),
   saveAttachment: (dir, fileName, bytes) => invoke('fs:saveAttachment', dir, fileName, bytes),

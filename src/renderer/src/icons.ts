@@ -25,6 +25,7 @@ const PATHS = {
   splitRight: 'M3 4h18v16H3zM12 4v16',
   splitDown: 'M3 4h18v16H3zM3 12h18',
   back: 'M15 6l-6 6 6 6',
+  calendar: 'M4 5h16v15H4zM4 10h16M8 3v4M16 3v4',
   bookmark: 'M6 3h12v18l-6-4-6 4z',
   tag: 'M3 12V3h9l9 9-9 9zM7.5 7.5h.01',
   outline: 'M4 6h16M8 12h12M12 18h8',

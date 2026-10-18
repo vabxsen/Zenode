@@ -122,3 +122,9 @@ export function noteTitle(path: string): string {
   const name = path.slice(path.lastIndexOf('/') + 1)
   return name.toLowerCase().endsWith('.md') ? name.slice(0, -3) : name
 }
+
+// Changes to a note's text, and where the cursor goes afterwards (in the new text).
+export interface TextEdit {
+  changes: Array<{ from: number; to?: number; insert: string }>
+  cursor: number
+}

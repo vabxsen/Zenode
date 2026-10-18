@@ -4,5 +4,6 @@ import './index.test'
 import './safety.test'
 import './render.test'
 import './editor.test'
+import './notes.test'
 
 report()
