@@ -10,7 +10,7 @@ import type { LinkTarget } from './editor/linkCompletion'
 import type { FileTree } from './fileTree'
 import { GRAPH_ID, makeGraphTab } from './graph/graphTab'
 import type { GraphView } from './graph/graphView'
-import { icon, type IconName } from './icons'
+import { icon } from './icons'
 import { isCanvasPath } from './index/canvasMeta'
 import { IndexSaver } from './index/indexSaver'
 import { loadIndexSnapshot } from './index/indexStore'
@@ -21,7 +21,12 @@ import { attachmentLinks, saveAttachments } from './fileOps'
 import { relativeLinkTarget, subpathPosition } from './links'
 import { FileActions } from './fileActions'
 import { HoverPreview } from './hoverPreview'
+import { applyAppearance, DEFAULT_APPEARANCE, loadAppearance } from './appearance/appearance'
+import { registerAppearanceCommands } from './appearance/commands'
 import { registerPanelCommands } from './panelCommands'
+import { hotkeysSection } from './settings/hotkeysSection'
+import { buildSections } from './settings/sections'
+import { openSettings } from './settings/settingsModal'
 import { loadPropertyTypes } from './properties/types'
 import { registerTemplateCommands } from './templates/commands'
 import { NoteTemplates } from './templates/noteTemplates'
@@ -33,6 +38,8 @@ import { baseName, isMarkdown, parentDir, stripExt, stripMd } from './paths'
 import { mentionLink, type Mention } from './panels/mentions'
 import { LeftSidebar, RightSidebar, type LeftPane, type RightPane, type SidebarDeps } from './sidebars'
 import { contentHash } from '../../shared/hash'
+import { showNotice } from './notices'
+import { buildRibbon } from './ribbon'
 import { openSwitcher } from './switcher'
 import { setVaultUrlHost } from './vaultUrl'
 import { hasViewer } from './views/fileKinds'
@@ -114,7 +121,9 @@ export class App extends Component {
         showRight: (pane) => this.showRightPane(pane)
       })
     )
+    this.register(registerAppearanceCommands(this.commands, () => this.workspace !== null, (m) => this.notice(m)))
     this.registerDomEvent(window, 'keydown', (e) => this.onKeydown(e), { capture: true })
+    applyAppearance(DEFAULT_APPEARANCE)
 
     // A window opened for a vault (or a reloaded page) already has one.
     const current = await api.currentVault()
@@ -183,6 +192,8 @@ export class App extends Component {
 
     await this.left?.bookmarks.load()
     await loadPropertyTypes((m) => this.notice(m))
+    const cssFailed = await loadAppearance()
+    if (cssFailed.length) this.notice(`Could not load ${cssFailed.join(', ')}.`)
     this.commands.setCustomHotkeys(sanitizeHotkeys(await api.readConfig('hotkeys')))
     this.editorSettings = sanitizeEditorSettings(await api.readConfig('app'))
     this.workspace?.setDefaultView(this.editorSettings.defaultView)
@@ -227,18 +238,20 @@ export class App extends Component {
     this.titleEl = el('div', 'zn-titlebar-title', titlebar)
 
     const body = el('div', 'zn-body', this.root)
-    const ribbon = el('div', 'zn-ribbon', body)
-    this.ribbonButton(ribbon, 'sidebar', 'Toggle left sidebar (Ctrl+\\)', () => this.commands.execute('app:toggle-left-sidebar'))
-    this.ribbonButton(ribbon, 'switcher', 'Quick switcher (Ctrl+O)', () => this.openQuickSwitcher())
-    this.ribbonButton(ribbon, 'search', 'Search (Ctrl+Shift+F)', () => this.showSearch())
-    this.ribbonButton(ribbon, 'graph', 'Graph view (Ctrl+G)', () => this.openGraph())
-    this.ribbonButton(ribbon, 'filePlus', 'New note (Ctrl+N)', () => void this.files.newNote(this.currentDir()))
-    this.ribbonButton(ribbon, 'folderPlus', 'New folder', () => void this.files.newFolder(this.currentDir()))
-    this.ribbonButton(ribbon, 'calendar', "Open today's daily note (Ctrl+Shift+D)", () => this.commands.execute('daily-notes:open-today'))
-    this.ribbonButton(ribbon, 'canvas', 'New canvas', () => void this.files.newCanvas(this.currentDir()))
-    el('div', 'zn-ribbon-spacer', ribbon)
-    this.ribbonButton(ribbon, 'link', 'Toggle right sidebar (Ctrl+Shift+B)', () => this.toggleRightbar())
-    this.ribbonButton(ribbon, 'folderOpen', 'Open another vault (Ctrl+Shift+O)', () => void this.chooseVault())
+    buildRibbon(body, [
+      ['sidebar', 'Toggle left sidebar (Ctrl+\\)', () => this.commands.execute('app:toggle-left-sidebar')],
+      ['switcher', 'Quick switcher (Ctrl+O)', () => this.openQuickSwitcher()],
+      ['search', 'Search (Ctrl+Shift+F)', () => this.showSearch()],
+      ['graph', 'Graph view (Ctrl+G)', () => this.openGraph()],
+      ['filePlus', 'New note (Ctrl+N)', () => void this.files.newNote(this.currentDir())],
+      ['folderPlus', 'New folder', () => void this.files.newFolder(this.currentDir())],
+      ['calendar', "Open today's daily note (Ctrl+Shift+D)", () => this.commands.execute('daily-notes:open-today')],
+      ['canvas', 'New canvas', () => void this.files.newCanvas(this.currentDir())],
+      'spacer',
+      ['link', 'Toggle right sidebar (Ctrl+Shift+B)', () => this.toggleRightbar()],
+      ['folderOpen', 'Open another vault (Ctrl+Shift+O)', () => void this.chooseVault()],
+      ['settings', 'Settings (Ctrl+,)', () => this.openSettings()]
+    ])
 
     const deps = this.sidebarDeps(shell, cache)
     this.left = new LeftSidebar(body, deps)
@@ -416,14 +429,6 @@ export class App extends Component {
   private openFileView(path: string): void {
     if (!this.workspace || this.workspace.activateById(path)) return
     this.workspace.openView(new FileView(path, { notice: (m) => this.notice(m) }))
-  }
-
-  private ribbonButton(parent: HTMLElement, name: IconName, label: string, action: () => void): void {
-    const btn = el('button', 'zn-ribbon-btn', parent)
-    btn.title = label
-    btn.setAttribute('aria-label', label)
-    btn.appendChild(icon(name, 18))
-    btn.addEventListener('click', action)
   }
 
   private setupResizer(handle: HTMLElement, sidebar: HTMLElement): void {
@@ -650,6 +655,8 @@ export class App extends Component {
   // ---------- Keyboard ----------
 
   private onKeydown(e: KeyboardEvent): void {
+    // Settings > Hotkeys is waiting for a key combination to record.
+    if ((e.target as HTMLElement | null)?.closest?.('.zn-hotkey-recording')) return
     const cmd = this.commands.match(e)
     if (!cmd) return
     e.preventDefault()
@@ -662,6 +669,7 @@ export class App extends Component {
     return registerCoreCommands(this.commands, {
       hasVault: () => this.workspace !== null,
       chooseVault: () => void this.chooseVault(),
+      openSettings: () => this.openSettings(),
       openCommandPalette: () => openCommandPalette(this.commands),
       openSwitcher: () => this.openQuickSwitcher(),
       showSearch: () => this.showSearch(),
@@ -717,6 +725,22 @@ export class App extends Component {
     }
   }
 
+  private openSettings(section?: string): void {
+    if (!this.vault) return
+    const sections = buildSections(
+      {
+        vault: this.vault,
+        editor: () => this.editorSettings,
+        updateEditor: (change) => this.updateEditorSettings(change),
+        openAnotherVault: () => void this.chooseVault(),
+        findUnusedAttachments: () => void this.findUnusedAttachments(),
+        notice: (m) => this.notice(m)
+      },
+      [hotkeysSection(this.commands, (m) => this.notice(m))]
+    )
+    openSettings(sections, section)
+  }
+
   private async findUnusedAttachments(): Promise<void> {
     const cache = this.cache
     if (!cache) return
@@ -751,14 +775,8 @@ export class App extends Component {
     api.keepSnapshot(path, text).catch((e: Error) => this.notice(`Could not keep a copy of ${path}: ${e.message}`))
   }
 
-  // ---------- Notices ----------
-
   notice(message: string): void {
-    let host = document.querySelector<HTMLElement>('.zn-notices')
-    if (!host) host = el('div', 'zn-notices', document.body)
-    const item = el('div', 'zn-notice', host, message)
-    window.setTimeout(() => item.classList.add('is-leaving'), 4000)
-    window.setTimeout(() => item.remove(), 4400)
+    showNotice(message)
   }
 }
 

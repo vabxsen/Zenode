@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { PdfExportRequest, TrashResult, VaultInfo } from '../shared/api'
 import { exportPdf } from './exportPdf'
-import { readConfig, writeConfig } from './config'
+import { cssFolder, listCss, readCss, readConfig, writeConfig, type CssKind } from './config'
 import { errorCode, friendlyError } from './fsutil'
 import { describeError, isLogLevel, log } from './log'
 import { loadSettings } from './settings'
@@ -100,6 +100,20 @@ function registerIpc(): void {
     else await VaultWindow.create(folder)
   })
   handle('vault:current', (w) => w.info())
+  handle('app:titleBar', (w, color: string, symbolColor: string) => {
+    const hex = /^#[0-9a-f]{6}$/i
+    if (!hex.test(color) || !hex.test(symbolColor)) throw new Error('Invalid colour')
+    w.win.setTitleBarOverlay({ color, symbolColor, height: 37 })
+    w.win.setBackgroundColor(color)
+  })
+  handle('app:info', () => ({
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    platform: `${process.platform} ${process.getSystemVersion()}`,
+    userData: app.getPath('userData')
+  }))
   handle('export:pdf', (w, req: PdfExportRequest) => {
     const vault = w.requireVault()
     // The note's folder, checked to be inside the vault.
@@ -109,6 +123,16 @@ function registerIpc(): void {
   handle('settings:get', () => loadSettings())
   handle('config:read', (w, name: string) => readConfig(w.requireVault().root, name))
   handle('config:write', (w, name: string, data: unknown) => writeConfig(w.requireVault().root, name, data))
+  const cssKind = (kind: unknown): CssKind => {
+    if (kind !== 'theme' && kind !== 'snippet') throw new Error('Invalid kind')
+    return kind
+  }
+  handle('css:list', (w) => listCss(w.requireVault().root))
+  handle('css:read', (w, kind: unknown, name: string) => readCss(w.requireVault().root, cssKind(kind), name))
+  handle('css:openFolder', async (w, kind: unknown) => {
+    const error = await shell.openPath(await cssFolder(w.requireVault().root, cssKind(kind)))
+    if (error) throw new Error(error)
+  })
 
   handle('fs:list', (w) => w.requireVault().list())
   handle('fs:read', (w, path: string) => w.requireVault().read(path))

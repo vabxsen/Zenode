@@ -1,0 +1,117 @@
+/* Colour themes. Every colour in the app comes from these tokens; tints are
+   color-mix()es of them, so a theme (or the accent setting) only sets these.
+   <html data-theme> is "dark" or "light" (the app resolves "system"). */
+
+:root {
+  color-scheme: dark;
+  --zn-bg: #0b0b0f;
+  --zn-bg-panel: #0f0f15;
+  --zn-bg-raised: #16161e;
+  --zn-bg-hover: #1b1b25;
+  --zn-bg-popover: #13131a;
+  --zn-bg-deep: #101017;
+  --zn-bg-checker: #14141b;
+  --zn-border: #1e1e28;
+  --zn-border-strong: #262632;
+  --zn-border-stronger: #33333f;
+  --zn-line: #6e6e80;
+  --zn-text: #d4d4dc;
+  --zn-text-strong: #f4f4f8;
+  --zn-text-muted: #8b8b98;
+  --zn-text-faint: #55555f;
+  --zn-accent: #a78bfa;
+  --zn-accent-strong: #8b5cf6;
+  --zn-accent-dim: #7c6bb5;
+  --zn-accent-soft: #c4b5fd;
+  --zn-accent-deep: #7c4ff0;
+  --zn-on-accent: #ffffff;
+  --zn-selection: color-mix(in srgb, var(--zn-accent-strong) 28%, transparent);
+  --zn-danger: #f87171;
+  --zn-danger-text: #fecaca;
+  --zn-danger-bg: #280e0e;
+  --zn-warning: #fbbf24;
+  --zn-warning-soft: #fcd34d;
+  --zn-warning-strong: #f59e0b;
+  --zn-warning-deep: #78500a;
+  --zn-highlight: #facc15;
+  /* Light overlays on dark surfaces (hover washes, grid dots). */
+  --zn-overlay: #ffffff;
+  --zn-shadow: #000000;
+  --zn-code-inline: #e2c4ff;
+  --zn-code-text: #cfcfe0;
+  --zn-syn-plain: #e6e6f0;
+  --zn-syn-comment: #6b6b7b;
+  --zn-syn-keyword: #c792ea;
+  --zn-syn-operator: #89ddff;
+  --zn-syn-string: #c3e88d;
+  --zn-syn-number: #f78c6c;
+  --zn-syn-function: #82aaff;
+  --zn-syn-type: #ffcb6b;
+  --zn-syn-tag: #f07178;
+  /* Graph view (read by its WebGL renderer). */
+  --zn-graph-node: #b5b5c2;
+  --zn-graph-tag: #33d499;
+  --zn-graph-attachment: #fabf24;
+  --zn-graph-unresolved: #5c5c66;
+  --zn-graph-line: #9999b3;
+  --zn-graph-label: #dcdce8;
+  --zn-font-ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --zn-font-text: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --zn-font-mono: 'Cascadia Code', 'Cascadia Mono', Consolas, monospace;
+  --zn-titlebar-h: 38px;
+  /* Note text size and readable line width (Appearance settings). */
+  --zn-text-size: 16px;
+  --zn-line-width: 760px;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --zn-bg: #ffffff;
+  --zn-bg-panel: #f6f6f8;
+  --zn-bg-raised: #ececf1;
+  --zn-bg-hover: #e6e6ec;
+  --zn-bg-popover: #ffffff;
+  --zn-bg-deep: #f4f4f7;
+  --zn-bg-checker: #ebebef;
+  --zn-border: #e2e2e8;
+  --zn-border-strong: #d4d4dc;
+  --zn-border-stronger: #c2c2cc;
+  --zn-line: #9a9aab;
+  --zn-text: #2a2a32;
+  --zn-text-strong: #0e0e13;
+  --zn-text-muted: #64646f;
+  --zn-text-faint: #8e8e9a;
+  --zn-accent: #6d28d9;
+  --zn-accent-strong: #7c3aed;
+  --zn-accent-dim: #8b7cc4;
+  --zn-accent-soft: #6d28d9;
+  --zn-accent-deep: #6d28d9;
+  --zn-on-accent: #ffffff;
+  --zn-danger: #dc2626;
+  --zn-danger-text: #991b1b;
+  --zn-danger-bg: #fef2f2;
+  --zn-warning: #d97706;
+  --zn-warning-soft: #b45309;
+  --zn-warning-strong: #b45309;
+  --zn-warning-deep: #a16207;
+  --zn-highlight: #facc15;
+  --zn-overlay: #000000;
+  --zn-shadow: #5c5c7a;
+  --zn-code-inline: #6d28d9;
+  --zn-code-text: #24292f;
+  --zn-syn-plain: #24292f;
+  --zn-syn-comment: #6e7781;
+  --zn-syn-keyword: #8250df;
+  --zn-syn-operator: #0550ae;
+  --zn-syn-string: #0a7d3e;
+  --zn-syn-number: #b35900;
+  --zn-syn-function: #0550ae;
+  --zn-syn-type: #953800;
+  --zn-syn-tag: #cf222e;
+  --zn-graph-node: #7a7a88;
+  --zn-graph-tag: #0f9f6e;
+  --zn-graph-attachment: #c98a00;
+  --zn-graph-unresolved: #b9b9c4;
+  --zn-graph-line: #8888a0;
+  --zn-graph-label: #2a2a32;
+}

@@ -4,6 +4,7 @@ import type { CommandRegistry } from './commands'
 export interface CoreActions {
   hasVault(): boolean
   chooseVault(): void
+  openSettings(): void
   openCommandPalette(): void
   openSwitcher(): void
   showSearch(): void
@@ -43,6 +44,12 @@ export function registerCoreCommands(registry: CommandRegistry, a: CoreActions):
       name: 'Command palette: open',
       hotkeys: [{ modifiers: ['Mod'], key: 'p' }],
       callback: () => a.openCommandPalette()
+    }),
+    registry.register({
+      id: 'app:open-settings',
+      name: 'Open settings',
+      hotkeys: [{ modifiers: ['Mod'], key: ',' }],
+      checkCallback: inVault(() => a.openSettings())
     }),
     registry.register({
       id: 'app:open-vault',

@@ -1,0 +1,283 @@
+/* The settings screen. */
+
+.zn-settings-bg {
+  display: grid;
+  place-items: center;
+}
+
+.zn-settings {
+  position: relative;
+  width: min(960px, calc(100vw - 48px));
+  height: min(680px, calc(100vh - 80px));
+  display: flex;
+  border: 1px solid var(--zn-border-strong);
+  border-radius: 12px;
+  background: var(--zn-bg);
+  box-shadow: 0 24px 64px color-mix(in srgb, var(--zn-shadow) 55%, transparent);
+  overflow: hidden;
+}
+
+.zn-settings-nav {
+  flex: none;
+  width: 210px;
+  padding: 18px 10px;
+  border-right: 1px solid var(--zn-border);
+  background: var(--zn-bg-panel);
+  overflow: auto;
+}
+
+.zn-settings-title {
+  padding: 0 10px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--zn-text-faint);
+}
+
+.zn-settings-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zn-settings-tab {
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--zn-text-muted);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.zn-settings-tab:hover {
+  background: var(--zn-bg-hover);
+  color: var(--zn-text);
+}
+
+.zn-settings-tab.is-active {
+  background: color-mix(in srgb, var(--zn-accent-strong) 16%, transparent);
+  color: var(--zn-text-strong);
+}
+
+.zn-settings-body {
+  flex: 1;
+  min-width: 0;
+  padding: 22px 32px 40px;
+  overflow: auto;
+  outline: none;
+}
+
+.zn-settings-heading {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--zn-text-strong);
+}
+
+.zn-settings-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--zn-text-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.zn-settings-close:hover {
+  background: var(--zn-bg-hover);
+  color: var(--zn-text);
+}
+
+.zn-set-heading {
+  margin: 22px 0 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--zn-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--zn-text-strong);
+}
+
+.zn-set-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--zn-border);
+}
+
+.zn-set-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.zn-set-name {
+  color: var(--zn-text);
+  font-size: 13.5px;
+}
+
+.zn-set-desc {
+  margin-top: 3px;
+  color: var(--zn-text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.zn-set-control {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 55%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.zn-set-text,
+.zn-set-select {
+  height: 30px;
+  min-width: 200px;
+  padding: 0 9px;
+  border: 1px solid var(--zn-border-strong);
+  border-radius: 6px;
+  background: var(--zn-bg-panel);
+  color: var(--zn-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.zn-set-text:focus,
+.zn-set-select:focus {
+  outline: 2px solid color-mix(in srgb, var(--zn-accent-strong) 60%, transparent);
+  outline-offset: 0;
+}
+
+.zn-set-slider {
+  width: 180px;
+  accent-color: var(--zn-accent-strong);
+}
+
+.zn-set-value {
+  min-width: 52px;
+  color: var(--zn-text-muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.zn-set-color {
+  width: 40px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--zn-border-strong);
+  border-radius: 6px;
+  background: var(--zn-bg-panel);
+  cursor: pointer;
+}
+
+.zn-set-button {
+  height: 30px;
+  font-size: 13px;
+}
+
+.zn-set-preview {
+  flex-basis: 100%;
+  text-align: right;
+  color: var(--zn-text-muted);
+  font-size: 12px;
+}
+
+.zn-set-preview.is-error {
+  color: var(--zn-danger);
+}
+
+.zn-set-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Hotkeys */
+
+.zn-hotkey-search {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.zn-hotkey-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--zn-border);
+}
+
+.zn-hotkey-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.zn-hotkey-keys {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.zn-hotkey-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--zn-border-strong);
+  border-radius: 6px;
+  background: var(--zn-bg-raised);
+  color: var(--zn-text);
+  font-family: var(--zn-font-mono);
+  font-size: 12px;
+}
+
+.zn-hotkey-chip.is-conflict {
+  border-color: color-mix(in srgb, var(--zn-danger) 60%, transparent);
+  color: var(--zn-danger);
+}
+
+.zn-hotkey-remove,
+.zn-hotkey-action {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--zn-text-muted);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.zn-hotkey-remove:hover,
+.zn-hotkey-action:hover {
+  background: var(--zn-bg-hover);
+  color: var(--zn-text-strong);
+}
+
+.zn-hotkey-prompt {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--zn-accent-strong) 16%, transparent);
+  color: var(--zn-accent);
+  font-size: 12.5px;
+  outline: none;
+}

@@ -88,7 +88,7 @@
   overflow: hidden;
   cursor: grab;
   background:
-    repeating-conic-gradient(#14141b 0% 25%, #101016 0% 50%) 50% / 20px 20px;
+    repeating-conic-gradient(var(--zn-bg-checker) 0% 25%, var(--zn-bg-deep) 0% 50%) 50% / 20px 20px;
 }
 
 .zn-image-viewer.is-dragging {
@@ -115,7 +115,7 @@
   padding: 4px;
   border: 1px solid var(--zn-border);
   border-radius: 8px;
-  background: rgba(15, 15, 21, 0.92);
+  background: color-mix(in srgb, var(--zn-bg-panel) 92%, transparent);
   cursor: default;
 }
 
@@ -180,7 +180,7 @@
   position: fixed;
   top: 0;
   left: -20000px;
-  width: 760px;
+  width: var(--zn-line-width);
   pointer-events: none;
 }
 

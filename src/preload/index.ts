@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webFrame, type IpcRendererEvent } from 'electron'
 import type { ZenodeAPI } from '../shared/api'
 
 // Electron reports main-process errors as "Error invoking remote method 'x': Error: msg";
@@ -15,6 +15,12 @@ const api: ZenodeAPI = {
   chooseVault: () => invoke('vault:choose'),
   openVault: (root) => invoke('vault:open', root),
   openVaultInNewWindow: (root) => invoke('vault:openInNewWindow', root),
+  setZoom: (factor) => webFrame.setZoomFactor(Math.min(2, Math.max(0.5, Number(factor) || 1))),
+  setTitleBarColors: (color, symbolColor) => invoke('app:titleBar', color, symbolColor),
+  appInfo: () => invoke('app:info'),
+  listCss: () => invoke('css:list'),
+  readCss: (kind, name) => invoke('css:read', kind, name),
+  openCssFolder: (kind) => invoke('css:openFolder', kind),
   exportPdf: (req) => invoke('export:pdf', req),
   currentVault: () => invoke('vault:current'),
   getSettings: () => invoke('settings:get'),

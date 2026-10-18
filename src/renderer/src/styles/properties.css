@@ -2,7 +2,7 @@
 
 .cm-editor .zn-props {
   /* Same column as the note text. */
-  margin: 4px max(32px, calc((100% - 760px) / 2)) 18px;
+  margin: 4px max(32px, calc((100% - var(--zn-line-width)) / 2)) 18px;
   cursor: default;
 }
 
@@ -125,7 +125,7 @@ button.zn-prop-type:hover {
 }
 
 .zn-prop-chip.is-tag {
-  background: rgba(139, 92, 246, 0.16);
+  background: color-mix(in srgb, var(--zn-accent-strong) 16%, transparent);
   color: var(--zn-accent);
 }
 
@@ -148,7 +148,7 @@ button.zn-prop-type:hover {
 
 .zn-prop-chip-remove:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--zn-overlay) 8%, transparent);
 }
 
 .zn-prop-chip-input {

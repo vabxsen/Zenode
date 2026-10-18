@@ -129,6 +129,7 @@ export class GraphRenderer {
   readonly textCanvas: HTMLCanvasElement
   private gl: WebGL2RenderingContext
   private ctx: CanvasRenderingContext2D
+  private labelRGB = '220, 220, 232'
   private nodeProgram: WebGLProgram
   private edgeProgram: WebGLProgram
   private nodeVao: WebGLVertexArrayObject
@@ -206,6 +207,10 @@ export class GraphRenderer {
     }
   }
 
+  setLabelColor([r, g, b]: [number, number, number]): void {
+    this.labelRGB = `${r}, ${g}, ${b}`
+  }
+
   draw(cam: Camera, frame: GraphFrame): void {
     const gl = this.gl
     const { dpr } = this
@@ -261,7 +266,7 @@ export class GraphRenderer {
     for (const n of onScreen) {
       const f = `${n.bold ? 600 : 400} 12px 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif`
       if (f !== font) ctx.font = font = f
-      ctx.fillStyle = `rgba(220, 220, 232, ${n.alpha})`
+      ctx.fillStyle = `rgba(${this.labelRGB}, ${n.alpha})`
       ctx.fillText(n.text.length > 40 ? `${n.text.slice(0, 39)}…` : n.text, n.sx, n.sy)
     }
   }

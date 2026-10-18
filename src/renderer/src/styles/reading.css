@@ -8,7 +8,8 @@
 }
 
 .zn-reading-body {
-  max-width: 760px;
+  font-size: var(--zn-text-size);
+  max-width: var(--zn-line-width);
   margin: 0 auto;
   padding: 32px 32px 40vh;
 }
@@ -102,7 +103,7 @@
 .zn-rendered a.zn-tag {
   padding: 0.05em 0.45em;
   border-radius: 999px;
-  background: rgba(139, 92, 246, 0.14);
+  background: color-mix(in srgb, var(--zn-accent-strong) 14%, transparent);
   font-size: 0.9em;
 }
 
@@ -110,7 +111,7 @@
 .cm-editor .zn-highlight {
   padding: 0 0.1em;
   border-radius: 3px;
-  background: rgba(250, 204, 21, 0.28);
+  background: color-mix(in srgb, var(--zn-highlight) 28%, transparent);
   color: inherit;
 }
 
@@ -118,7 +119,7 @@
   padding: 0.1em 0.35em;
   border-radius: 5px;
   background: var(--zn-bg-raised);
-  color: #e2c4ff;
+  color: var(--zn-code-inline);
   font-family: var(--zn-font-mono);
   font-size: 0.9em;
 }
@@ -128,13 +129,13 @@
   padding: 14px 16px;
   overflow: auto;
   border-radius: 8px;
-  background: #101017;
+  background: var(--zn-bg-deep);
 }
 
 .zn-rendered pre code {
   padding: 0;
   background: none;
-  color: #cfcfe0;
+  color: var(--zn-code-text);
   font-size: 0.88em;
   line-height: 1.55;
 }
@@ -161,43 +162,43 @@
 
 /* Code token colours (CodeMirror's tok-* classes), shared by Reading view and the editor. */
 .tok-keyword {
-  color: #c792ea;
+  color: var(--zn-syn-keyword);
 }
 .tok-operator {
-  color: #89ddff;
+  color: var(--zn-syn-operator);
 }
 .tok-string,
 .tok-string2 {
-  color: #c3e88d;
+  color: var(--zn-syn-string);
 }
 .tok-number,
 .tok-bool,
 .tok-atom {
-  color: #f78c6c;
+  color: var(--zn-syn-number);
 }
 .tok-comment {
-  color: #6b6b7b;
+  color: var(--zn-syn-comment);
   font-style: italic;
 }
 .tok-variableName {
-  color: #e6e6f0;
+  color: var(--zn-syn-plain);
 }
 .tok-definition,
 .tok-propertyName,
 .tok-function,
 .tok-macroName {
-  color: #82aaff;
+  color: var(--zn-syn-function);
 }
 .tok-typeName,
 .tok-className,
 .tok-attributeName {
-  color: #ffcb6b;
+  color: var(--zn-syn-type);
 }
 .tok-tagName {
-  color: #f07178;
+  color: var(--zn-syn-tag);
 }
 .tok-meta {
-  color: #89ddff;
+  color: var(--zn-syn-operator);
 }
 .tok-invalid {
   color: var(--zn-danger);
@@ -224,7 +225,7 @@
 .zn-rendered th,
 .zn-rendered td {
   padding: 6px 12px;
-  border: 1px solid #262632;
+  border: 1px solid var(--zn-border-strong);
 }
 
 .zn-rendered th {
@@ -374,7 +375,7 @@ details.callout[open] > summary .callout-title::after {
   padding: 4px 14px 8px;
   border-left: 3px solid var(--zn-accent-strong);
   border-radius: 0 8px 8px 0;
-  background: rgba(139, 92, 246, 0.05);
+  background: color-mix(in srgb, var(--zn-accent-strong) 5%, transparent);
 }
 
 .zn-embed-header {
@@ -436,9 +437,9 @@ details.callout[open] > summary .callout-title::after {
 
 .zn-diagram-error {
   padding: 8px 12px;
-  border: 1px solid rgba(248, 113, 113, 0.4);
+  border: 1px solid color-mix(in srgb, var(--zn-danger) 40%, transparent);
   border-radius: 6px;
-  color: #fecaca;
+  color: var(--zn-danger-text);
   font-family: var(--zn-font-mono);
   font-size: 0.85em;
   text-align: left;
@@ -452,10 +453,10 @@ details.callout[open] > summary .callout-title::after {
   max-height: min(420px, 60vh);
   display: flex;
   flex-direction: column;
-  border: 1px solid #262632;
+  border: 1px solid var(--zn-border-strong);
   border-radius: 10px;
-  background: #121219;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  background: var(--zn-bg-popover);
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--zn-shadow) 55%, transparent);
   overflow: hidden;
 }
 

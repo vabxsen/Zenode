@@ -24,6 +24,17 @@ export interface VaultInfo {
 // Where a deleted file went: the Recycle Bin, or the vault's .trash folder (at `path`).
 export type TrashResult = { where: 'system' } | { where: 'vault'; path: string }
 
+// For Settings > About.
+export interface AppInfo {
+  version: string
+  electron: string
+  chrome: string
+  node: string
+  platform: string
+  // Where logs and app settings live.
+  userData: string
+}
+
 // A note rendered for printing, with page settings.
 export interface PdfExportRequest {
   // Self-contained HTML (images inlined) and the CSS it needs.
@@ -91,6 +102,14 @@ export interface ZenodeAPI {
   openVault(root: string): Promise<VaultInfo | null>
   // Opens a vault in a new window (asks for a folder when no root is given).
   openVaultInNewWindow(root?: string): Promise<void>
+  // Interface zoom (1 = 100%), and the window frame's colours to match the theme.
+  setZoom(factor: number): void
+  setTitleBarColors(color: string, symbolColor: string): Promise<void>
+  appInfo(): Promise<AppInfo>
+  // Installed CSS themes (.zenode/themes) and snippets (.zenode/snippets).
+  listCss(): Promise<{ themes: string[]; snippets: string[] }>
+  readCss(kind: 'theme' | 'snippet', name: string): Promise<string>
+  openCssFolder(kind: 'theme' | 'snippet'): Promise<void>
   // Asks where to save, then writes the PDF. Null if cancelled.
   exportPdf(req: PdfExportRequest): Promise<string | null>
   currentVault(): Promise<VaultInfo | null>

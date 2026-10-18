@@ -1,3 +1,4 @@
+import { themeColor } from '../appearance/appearance'
 import { Component, el } from '../component'
 import { icon } from '../icons'
 import type { MetadataCache } from '../index/metadataCache'
@@ -7,16 +8,32 @@ import type { Forces } from './sim.worker'
 
 type RGBA = [number, number, number, number]
 
-const COLORS: Record<NodeKind | 'active' | 'hover', RGBA> = {
-  note: [0.71, 0.71, 0.76, 1],
-  tag: [0.2, 0.83, 0.6, 1],
-  attachment: [0.98, 0.75, 0.14, 1],
-  unresolved: [0.36, 0.36, 0.4, 1],
-  active: [0.65, 0.55, 0.98, 1],
-  hover: [0.77, 0.71, 0.99, 1]
+// Colours come from the theme tokens (WebGL can't read CSS), refreshed when the appearance changes.
+let EDGE: RGBA = [0.6, 0.6, 0.7, 0.55]
+let EDGE_HOT: RGBA = [0.65, 0.55, 0.98, 0.85]
+let LABEL: [number, number, number] = [220, 220, 232]
+let COLORS: Record<NodeKind | 'active' | 'hover', RGBA> = readColors()
+
+function tokenRGBA(token: string, alpha: number, fallback: RGBA): RGBA {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(themeColor(token))
+  return m ? [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255, alpha] : fallback
 }
-const EDGE: RGBA = [0.6, 0.6, 0.7, 0.55]
-const EDGE_HOT: RGBA = [0.65, 0.55, 0.98, 0.85]
+
+function readColors(): Record<NodeKind | 'active' | 'hover', RGBA> {
+  const accent = tokenRGBA('--zn-accent', 1, [0.65, 0.55, 0.98, 1])
+  EDGE = tokenRGBA('--zn-graph-line', 0.55, [0.6, 0.6, 0.7, 0.55])
+  EDGE_HOT = [accent[0], accent[1], accent[2], 0.85]
+  const label = tokenRGBA('--zn-graph-label', 1, [0.86, 0.86, 0.91, 1])
+  LABEL = [Math.round(label[0] * 255), Math.round(label[1] * 255), Math.round(label[2] * 255)]
+  return {
+    note: tokenRGBA('--zn-graph-node', 1, [0.71, 0.71, 0.76, 1]),
+    tag: tokenRGBA('--zn-graph-tag', 1, [0.2, 0.83, 0.6, 1]),
+    attachment: tokenRGBA('--zn-graph-attachment', 1, [0.98, 0.75, 0.14, 1]),
+    unresolved: tokenRGBA('--zn-graph-unresolved', 1, [0.36, 0.36, 0.4, 1]),
+    active: accent,
+    hover: tokenRGBA('--zn-accent-soft', 1, [0.77, 0.71, 0.99, 1])
+  }
+}
 const DIM = 0.3
 
 export interface GraphSettings {
@@ -90,6 +107,12 @@ export class GraphView extends Component {
 
   onload(): void {
     if (!this.renderer) return
+    this.registerDomEvent(window, 'zenode-appearance', () => {
+      COLORS = readColors()
+      this.renderer?.setLabelColor(LABEL)
+      this.requestDraw()
+    })
+    this.renderer.setLabelColor(LABEL)
     this.worker = new Worker(new URL('./sim.worker.ts', import.meta.url), { type: 'module', name: 'Zenode Graph Physics' })
     this.worker.onmessage = (e: MessageEvent<{ type: 'tick'; positions: Float32Array; alpha: number }>) => {
       if (e.data.positions.length !== this.data.nodes.length * 2) return // stale tick from a previous build

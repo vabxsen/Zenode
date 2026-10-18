@@ -20,7 +20,7 @@
 
 .zn-palette-meta kbd {
   padding: 1px 6px;
-  border: 1px solid #2a2a36;
+  border: 1px solid var(--zn-border-strong);
   border-radius: 4px;
   background: var(--zn-bg-raised);
   color: var(--zn-text-muted);
@@ -106,7 +106,7 @@ body.is-resizing {
 }
 
 .zn-tabbar.is-drop-target {
-  background: rgba(139, 92, 246, 0.08);
+  background: color-mix(in srgb, var(--zn-accent-strong) 8%, transparent);
 }
 
 .zn-tab.is-pinned {
@@ -129,7 +129,7 @@ body.is-resizing {
   z-index: 30;
   border: 2px solid var(--zn-accent-strong);
   border-radius: 6px;
-  background: rgba(139, 92, 246, 0.12);
+  background: color-mix(in srgb, var(--zn-accent-strong) 12%, transparent);
   pointer-events: none;
 }
 
@@ -195,7 +195,7 @@ body.is-resizing {
 }
 
 .zn-tree-row.is-selected:not(.is-active) {
-  background: rgba(139, 92, 246, 0.09);
+  background: color-mix(in srgb, var(--zn-accent-strong) 9%, transparent);
   color: var(--zn-text);
 }
 
@@ -203,7 +203,7 @@ body.is-resizing {
 .zn-tree.is-drop-target {
   outline: 1px dashed var(--zn-accent-strong);
   outline-offset: -1px;
-  background: rgba(139, 92, 246, 0.12);
+  background: color-mix(in srgb, var(--zn-accent-strong) 12%, transparent);
 }
 
 .zn-tree {

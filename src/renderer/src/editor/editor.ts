@@ -50,9 +50,9 @@ const highlight = HighlightStyle.define([
 const theme = EditorView.theme(
   {
     '&': { height: '100%', backgroundColor: 'transparent', color: 'var(--zn-text)' },
-    '.cm-scroller': { fontFamily: 'var(--zn-font-text)', lineHeight: '1.7' },
+    '.cm-scroller': { fontFamily: 'var(--zn-font-text)', fontSize: 'var(--zn-text-size)', lineHeight: '1.7' },
     '.cm-content': { padding: '32px 0 40vh', caretColor: 'var(--zn-accent)' },
-    '.cm-line': { padding: '0 max(32px, calc((100% - 760px) / 2))' },
+    '.cm-line': { padding: '0 max(32px, calc((100% - var(--zn-line-width)) / 2))' },
     '&.cm-focused': { outline: 'none' },
     '.cm-cursor': { borderLeftColor: 'var(--zn-accent)', borderLeftWidth: '2px' },
     '.cm-activeLine': { backgroundColor: 'transparent' },
@@ -60,23 +60,42 @@ const theme = EditorView.theme(
       backgroundColor: 'var(--zn-selection) !important'
     },
     '.cm-tooltip.cm-tooltip-autocomplete': {
-      background: '#13131a',
-      border: '1px solid #262632',
+      background: 'var(--zn-bg-popover)',
+      border: '1px solid var(--zn-border-strong)',
       borderRadius: '9px',
       padding: '4px',
-      boxShadow: '0 12px 32px rgba(0,0,0,.5)'
+      boxShadow: '0 12px 32px color-mix(in srgb, var(--zn-shadow) 50%, transparent)'
     },
     '.cm-tooltip-autocomplete > ul': { fontFamily: 'var(--zn-font-ui)', maxHeight: '18em' },
     '.cm-tooltip-autocomplete > ul > li': { padding: '5px 10px !important', borderRadius: '6px' },
     '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
-      background: 'rgba(139, 92, 246, 0.22) !important',
+      background: 'color-mix(in srgb, var(--zn-accent-strong) 22%, transparent) !important',
       color: 'var(--zn-text-strong) !important'
     },
     '.cm-completionDetail': { marginLeft: '10px', fontStyle: 'normal', color: 'var(--zn-text-faint)', fontSize: '12px' },
     '.cm-completionMatchedText': { textDecoration: 'none', color: 'var(--zn-accent)' }
   },
-  { dark: true }
+  // Colours come from the theme tokens; whether CodeMirror treats the editor as
+  // dark follows the app theme (themeMode below).
 )
+
+// CodeMirror's own dark/light base styles, kept in step with <html data-theme>.
+const themeMode = new Compartment()
+const isDarkTheme = (): boolean => document.documentElement.dataset.theme !== 'light'
+
+// Brings one editor in line with the current theme (a stored tab state may be older).
+export function syncEditorTheme(view: EditorView): void {
+  const dark = isDarkTheme()
+  if (view.state.facet(EditorView.darkTheme) !== dark) view.dispatch({ effects: themeMode.reconfigure(EditorView.darkTheme.of(dark)) })
+}
+
+// After a theme change: every editor on the page (notes, canvas cards).
+export function syncAllEditorThemes(): void {
+  for (const dom of document.querySelectorAll<HTMLElement>('.cm-editor')) {
+    const view = EditorView.findFromDOM(dom)
+    if (view) syncEditorTheme(view)
+  }
+}
 
 export interface EditorCallbacks {
   onChange(): void
@@ -141,6 +160,7 @@ export function createEditorState(doc: string, cb: EditorCallbacks, extra: Exten
       EditorState.languageData.of(() => [{ closeBrackets: { brackets: ['(', '[', '{', '"'] } }]),
       syntaxHighlighting(highlight),
       theme,
+      themeMode.of(EditorView.darkTheme.of(isDarkTheme())),
       sourceMode,
       livePreview({
         onOpenLink: cb.onOpenLink,

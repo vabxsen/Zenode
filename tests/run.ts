@@ -8,5 +8,6 @@ import './notes.test'
 import './properties.test'
 import './files.test'
 import './indexcache.test'
+import './appearance.test'
 
 report()

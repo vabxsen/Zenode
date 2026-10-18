@@ -8,7 +8,7 @@
 
 .cm-editor .cm-panels-top {
   border-bottom: 1px solid var(--zn-border);
-  background: #101017;
+  background: var(--zn-bg-deep);
 }
 
 .cm-editor .cm-search {
@@ -16,7 +16,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 8px max(32px, calc((100% - 760px) / 2));
+  padding: 8px max(32px, calc((100% - var(--zn-line-width)) / 2));
   font-family: var(--zn-font-ui);
   font-size: 12.5px;
 }
@@ -56,7 +56,7 @@
 
 .cm-editor .cm-search .cm-button:hover {
   color: var(--zn-text-strong);
-  border-color: #33333f;
+  border-color: var(--zn-border-stronger);
 }
 
 .cm-editor .cm-search label {
@@ -81,15 +81,15 @@
 
 .cm-editor .cm-searchMatch {
   border-radius: 2px;
-  background: rgba(250, 204, 21, 0.25);
+  background: color-mix(in srgb, var(--zn-highlight) 25%, transparent);
 }
 
 .cm-editor .cm-searchMatch-selected {
-  background: rgba(250, 204, 21, 0.55);
+  background: color-mix(in srgb, var(--zn-highlight) 55%, transparent);
 }
 
 .cm-editor .cm-selectionMatch {
-  background: rgba(139, 92, 246, 0.18);
+  background: color-mix(in srgb, var(--zn-accent-strong) 18%, transparent);
 }
 
 /* Fold gutter: arrows appear on hover beside foldable headings and lists. */
