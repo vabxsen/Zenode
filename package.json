@@ -13,8 +13,8 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "dist": "electron-vite build && electron-builder --win --publish never",
-    "test": "esbuild tests/index.test.ts --bundle --platform=node --format=esm --outfile=out/tests/index.test.mjs --log-level=warning && node out/tests/index.test.mjs",
-    "test:e2e": "electron-vite build && playwright test"
+    "test": "esbuild tests/run.ts --bundle --platform=node --format=esm --outfile=out/tests/run.mjs --log-level=warning && node out/tests/run.mjs",
+    "test:e2e": "electron-vite build --outDir out-e2e && playwright test"
   },
   "build": {
     "appId": "app.zenode.desktop",
@@ -51,6 +51,7 @@
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.13.1",
+    "@codemirror/merge": "^6.12.2",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.14",
     "@lezer/common": "^1.5.3",

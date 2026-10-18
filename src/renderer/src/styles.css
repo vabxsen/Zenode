@@ -1751,3 +1751,136 @@ button {
 .zn-canvas.has-error .zn-canvas-toolbar {
   display: none;
 }
+
+/* ---------- M1: conflicts with the file on disk ---------- */
+
+.zn-tab.has-conflict .zn-tab-title::after {
+  content: ' !';
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.zn-conflict {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(120, 80, 10, 0.22);
+  color: var(--zn-text);
+  font-size: 13px;
+}
+
+.zn-conflict-text {
+  flex: 1 1 320px;
+  line-height: 1.45;
+}
+
+.zn-conflict-text strong {
+  color: #fcd34d;
+}
+
+.zn-conflict-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.zn-conflict .zn-btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+
+.zn-canvas-conflict {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 25;
+}
+
+.zn-merge {
+  width: min(1200px, 94vw);
+  height: 78vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #262632;
+  border-radius: 12px;
+  background: #121219;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.zn-modal-bg:has(.zn-merge) {
+  align-items: center;
+  padding-top: 0;
+}
+
+.zn-merge-header {
+  padding: 14px 18px 8px;
+}
+
+.zn-merge-title {
+  color: var(--zn-text-strong);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.zn-merge-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 0 18px 8px;
+  color: var(--zn-text-muted);
+  font-size: 12px;
+}
+
+.zn-merge-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid var(--zn-border);
+  border-bottom: 1px solid var(--zn-border);
+}
+
+.zn-merge-body .cm-mergeView {
+  min-height: 100%;
+}
+
+.zn-merge-body .cm-editor {
+  font-size: 14px;
+}
+
+.zn-merge-body .cm-changedLine,
+.zn-merge-body .cm-merge-b .cm-changedLine {
+  background: rgba(139, 92, 246, 0.12);
+}
+
+.zn-merge-body .cm-merge-a .cm-changedLine {
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.zn-merge-body .cm-changedText {
+  background: rgba(139, 92, 246, 0.35);
+}
+
+.zn-merge-body .cm-merge-a .cm-changedText,
+.zn-merge-body .cm-deletedChunk {
+  background: rgba(251, 191, 36, 0.25);
+}
+
+.zn-merge-body .cm-merge-revert button {
+  border: 1px solid var(--zn-border);
+  border-radius: 4px;
+  background: var(--zn-bg-raised);
+  color: var(--zn-text);
+  cursor: pointer;
+}
+
+.zn-merge-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 18px;
+}

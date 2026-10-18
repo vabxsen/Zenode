@@ -1,4 +1,5 @@
 import type { TreeEntry, VaultInfo } from '../../shared/api'
+import { contentHash } from '../../shared/hash'
 import { BacklinksPanel } from './backlinks'
 import { CanvasView, type CanvasHost } from './canvas/canvasView'
 import { CommandRegistry } from './commands'
@@ -240,7 +241,8 @@ export class App extends Component {
           this.statusEl!.textContent = words || chars ? `${words.toLocaleString()} words · ${chars.toLocaleString()} characters` : ''
         },
         onLayoutChange: () => this.saveLayoutSoon(),
-        onError: (msg) => this.notice(msg)
+        onError: (msg) => this.notice(msg),
+        preserve: (path, text) => this.preserve(path, text)
       })
     )
 
@@ -551,7 +553,9 @@ export class App extends Component {
         }),
       notice: (message) => this.notice(message),
       onSaved: (path, content) => void this.queueIndex(() => cache.setContent(path, content)),
-      release: (view) => this.shell?.removeChild(view)
+      release: (view) => this.shell?.removeChild(view),
+      preserve: (path, text) => this.preserve(path, text),
+      close: (view) => this.workspace?.closeView(view.id)
     }
   }
 
@@ -578,25 +582,39 @@ export class App extends Component {
       if (entry.kind === 'folder') this.tree?.renamePath(entry.path, to)
       await this.refreshTree()
       if (cache && to !== entry.path && pending.length) {
+        // Each rewrite is checked against the indexed version, so a file edited
+        // outside Zenode in the meantime is skipped rather than overwritten.
+        const skipped: string[] = []
+        const rewrite = async (path: string, before: string, updated: string): Promise<boolean> => {
+          const result = await api.writeChecked(path, updated, contentHash(before))
+          if (result.status === 'conflict') {
+            skipped.push(path)
+            return false
+          }
+          await this.queueIndex(() => cache.setContent(path, updated))
+          return true
+        }
         const edits = cache.buildRenameEdits(pending, entry.path, to)
         let count = 0
+        let files = 0
         for (const [path, list] of edits) {
           const note = cache.getNote(path)
           if (!note) continue
-          const updated = applyEdits(note.content, list)
-          await api.write(path, updated)
-          await this.queueIndex(() => cache.setContent(path, updated))
-          count += list.length
+          if (await rewrite(path, note.content, applyEdits(note.content, list))) {
+            count += list.length
+            files++
+          }
         }
         // Links inside canvases live in JSON; rewrite those files too.
-        const canvasEdits = cache.buildCanvasRenames(pending, entry.path, to)
-        for (const [path, updated] of canvasEdits) {
-          await api.write(path, updated)
-          await this.queueIndex(() => cache.setContent(path, updated))
-          count++
+        for (const [path, updated] of cache.buildCanvasRenames(pending, entry.path, to)) {
+          const before = cache.getNote(path)?.content
+          if (before !== undefined && (await rewrite(path, before, updated))) {
+            count++
+            files++
+          }
         }
-        const files = edits.size + canvasEdits.size
         if (count) this.notice(`Updated ${count} link${count === 1 ? '' : 's'} in ${files} file${files === 1 ? '' : 's'}.`)
+        if (skipped.length) this.notice(`Links not updated in ${skipped.join(', ')}: changed outside Zenode just now. Rename again to retry.`)
       }
       // Naming the open note moves you straight into writing it.
       if (wasActive) this.workspace?.focus()
@@ -727,6 +745,11 @@ export class App extends Component {
       closeTab: () => void ws().close(),
       cycleTab: (step) => ws().cycle(step)
     })
+  }
+
+  // Keep a copy of text the user is throwing away, in the local file history.
+  private preserve(path: string, text: string): void {
+    api.keepSnapshot(path, text).catch((e: Error) => this.notice(`Could not keep a copy of ${path}: ${e.message}`))
   }
 
   // ---------- Notices ----------

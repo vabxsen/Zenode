@@ -1,0 +1,6 @@
+// Runs every unit test file in order, then prints the summary.
+import { report } from './harness'
+import './index.test'
+import './safety.test'
+
+report()

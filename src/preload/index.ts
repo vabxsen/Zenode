@@ -15,6 +15,7 @@ const api: ZenodeAPI = {
   read: (path) => ipcRenderer.invoke('fs:read', path),
   readMany: (paths) => ipcRenderer.invoke('fs:readMany', paths),
   write: (path, content) => ipcRenderer.invoke('fs:write', path, content),
+  writeChecked: (path, content, expectHash) => ipcRenderer.invoke('fs:writeChecked', path, content, expectHash),
   createFile: (dir, baseName, ext) => ipcRenderer.invoke('fs:createFile', dir, baseName, ext),
   createFolder: (dir, name) => ipcRenderer.invoke('fs:createFolder', dir, name),
   rename: (path, newName) => ipcRenderer.invoke('fs:rename', path, newName),
@@ -23,6 +24,9 @@ const api: ZenodeAPI = {
   openExternal: (path) => ipcRenderer.invoke('fs:openExternal', path),
   openUrl: (url) => ipcRenderer.invoke('app:openUrl', url),
   log: (level, message) => ipcRenderer.invoke('app:log', level, message),
+  listSnapshots: (path) => ipcRenderer.invoke('snapshots:list', path),
+  readSnapshot: (path, id) => ipcRenderer.invoke('snapshots:read', path, id),
+  keepSnapshot: (path, content) => ipcRenderer.invoke('snapshots:keep', path, content),
 
   onVaultChanged: (cb) => {
     const listener = (_e: IpcRendererEvent, paths: string[]): void => cb(paths)

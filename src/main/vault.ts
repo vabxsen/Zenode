@@ -1,9 +1,17 @@
 import { promises as fs, watch, type FSWatcher } from 'node:fs'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import type { TreeEntry } from '../shared/api'
-import { atomicWrite } from './fsutil'
+import type { TreeEntry, WriteResult } from '../shared/api'
+import { fileNameProblem } from '../shared/fileNames'
+import { contentHash } from '../shared/hash'
+import { atomicWrite, readIfExists, withRetry } from './fsutil'
 
-const INVALID_NAME = /[\\/:*?"<>|]/
+// Called with a file's old content just before a write replaces it (for snapshots).
+export type BeforeOverwrite = (rel: string, oldContent: string) => Promise<void>
+
+function checkName(name: string): void {
+  const problem = fileNameProblem(name)
+  if (problem) throw new Error(problem)
+}
 
 // Owns the open vault: every renderer path goes through `abs()`, which
 // rejects anything that resolves outside the vault root.
@@ -12,7 +20,10 @@ export class Vault {
   private pending = new Set<string>()
   private flushTimer: NodeJS.Timeout | null = null
 
-  constructor(readonly root: string) {}
+  constructor(
+    readonly root: string,
+    private readonly beforeOverwrite?: BeforeOverwrite
+  ) {}
 
   get name(): string {
     return basename(this.root)
@@ -52,7 +63,8 @@ export class Vault {
   }
 
   read(rel: string): Promise<string> {
-    return fs.readFile(this.abs(rel), 'utf8')
+    const file = this.abs(rel)
+    return withRetry(() => fs.readFile(file, 'utf8'))
   }
 
   async readMany(rels: string[]): Promise<Record<string, string | null>> {
@@ -62,7 +74,8 @@ export class Vault {
       await Promise.all(
         rels.slice(i, i + BATCH).map(async (rel) => {
           try {
-            out[rel] = await fs.readFile(this.abs(rel), 'utf8')
+            const file = this.abs(rel)
+            out[rel] = await withRetry(() => fs.readFile(file, 'utf8'))
           } catch {
             out[rel] = null
           }
@@ -73,10 +86,32 @@ export class Vault {
   }
 
   async write(rel: string, content: string): Promise<void> {
-    await atomicWrite(this.abs(rel), content)
+    const file = this.abs(rel)
+    const old = this.beforeOverwrite ? await readIfExists(file) : null
+    if (old !== null && old !== content) await this.beforeOverwrite!(rel, old)
+    // Recreating a note whose folder was moved or deleted outside Zenode.
+    if (old === null) await fs.mkdir(dirname(file), { recursive: true })
+    await atomicWrite(file, content)
+  }
+
+  // Writes only if the file still matches the version the page last saw, so an
+  // edit made outside Zenode (another app, a sync client) is never overwritten silently.
+  async writeChecked(rel: string, content: string, expectHash: string): Promise<WriteResult> {
+    const file = this.abs(rel)
+    const disk = await readIfExists(file)
+    if (disk === null || contentHash(disk) !== expectHash) {
+      // Already identical to what we'd write (e.g. the same edit synced back): nothing to do.
+      if (disk === content) return { status: 'ok' }
+      return { status: 'conflict', disk }
+    }
+    if (disk === content) return { status: 'ok' }
+    if (this.beforeOverwrite) await this.beforeOverwrite(rel, disk)
+    await atomicWrite(file, content)
+    return { status: 'ok' }
   }
 
   async createFile(dirRel: string, baseName: string, ext: string): Promise<string> {
+    checkName(ext ? `${baseName}.${ext}` : baseName)
     const dir = this.abs(dirRel)
     const target = await this.uniquePath(dir, baseName, ext ? `.${ext}` : '')
     await fs.writeFile(target, '', { flag: 'wx' })
@@ -84,6 +119,7 @@ export class Vault {
   }
 
   async createFolder(dirRel: string, name: string): Promise<string> {
+    checkName(name)
     const dir = this.abs(dirRel)
     const target = await this.uniquePath(dir, name, '')
     await fs.mkdir(target)
@@ -92,15 +128,14 @@ export class Vault {
 
   async rename(rel: string, newName: string): Promise<string> {
     const name = newName.trim()
-    if (!name || INVALID_NAME.test(name) || name === '.' || name === '..') {
-      throw new Error(`Invalid name: ${newName}`)
-    }
+    checkName(name)
     const from = this.abs(rel)
     const to = this.abs(join(dirname(rel), name))
     if (from === to) return rel
+    // Windows paths are case-insensitive: "note" -> "Note" is a rename of the same file.
     const caseOnly = from.toLowerCase() === to.toLowerCase()
     if (!caseOnly && (await exists(to))) throw new Error(`"${name}" already exists`)
-    await fs.rename(from, to)
+    await withRetry(() => fs.rename(from, to))
     return this.rel(to)
   }
 

@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
-// End-to-end tests drive the built Electron app (run `npm run build` first;
-// `npm run test:e2e` does both).
+// End-to-end tests drive the built Electron app in out-e2e/ (built by
+// `npm run test:e2e`, kept apart from the dev server's out/).
 export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 60_000,

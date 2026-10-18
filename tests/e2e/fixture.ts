@@ -34,7 +34,8 @@ export const test = base.extend<ZenodeFixtures>({
     const env: Record<string, string> = {}
     for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== 'ELECTRON_RENDERER_URL') env[k] = v
     const app = await electron.launch({
-      args: [join(ROOT, 'out/main/index.js')],
+      // Built by `npm run test:e2e` into out-e2e/, apart from the dev server's out/.
+      args: [join(ROOT, 'out-e2e/main/index.js')],
       env: { ...env, ZENODE_USER_DATA: userData }
     })
     await use(app)

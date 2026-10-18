@@ -4,8 +4,10 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { VaultInfo } from '../shared/api'
 import { readConfig, writeConfig } from './config'
+import { errorCode, friendlyError } from './fsutil'
 import { describeError, isLogLevel, log } from './log'
 import { loadSettings, rememberVault, saveSettings } from './settings'
+import { SnapshotStore } from './snapshots'
 import { Vault } from './vault'
 
 const BG = '#0b0b0f'
@@ -13,6 +15,7 @@ const EXTERNAL_URL = /^(https?:|mailto:)/i
 
 let win: BrowserWindow | null = null
 let vault: Vault | null = null
+let snapshots: SnapshotStore | null = null
 let readyToClose = false
 
 if (!app.isPackaged) {
@@ -105,18 +108,30 @@ async function openVault(root: string): Promise<VaultInfo> {
   const stat = await fs.stat(root)
   if (!stat.isDirectory()) throw new Error(`Not a folder: ${root}`)
   vault?.unwatch()
-  vault = new Vault(root)
+  const store = new SnapshotStore(app.getPath('userData'), root)
+  snapshots = store
+  vault = new Vault(root, async (rel, old) => {
+    // History must never block a save.
+    await store.save(rel, old, 'auto').catch((e) => log('warn', `snapshot ${rel}: ${describeError(e)}`))
+  })
+  void store.prune().catch((e) => log('warn', `snapshot prune: ${describeError(e)}`))
   vault.watch((paths) => win?.webContents.send('vault:changed', paths))
   await saveSettings(rememberVault(await loadSettings(), root))
   win?.setTitle(`${vault.name} - Zenode`)
   return { root: vault.root, name: vault.name }
 }
 
-// Only accept IPC from our own window.
+// Only accept IPC from our own window. File-system errors reach the page as
+// plain-language messages; unexpected ones are also logged.
 function handle<A extends unknown[], R>(channel: string, fn: (...args: A) => R | Promise<R>): void {
-  ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: unknown[]) => {
+  ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: unknown[]) => {
     if (!win || event.sender !== win.webContents) throw new Error('Unexpected IPC sender')
-    return fn(...(args as A))
+    try {
+      return await fn(...(args as A))
+    } catch (e) {
+      if (!errorCode(e)) void log('warn', `${channel}: ${describeError(e)}`)
+      throw friendlyError(e)
+    }
   })
 }
 
@@ -140,6 +155,7 @@ function registerIpc(): void {
   handle('fs:read', (path: string) => requireVault().read(path))
   handle('fs:readMany', (paths: string[]) => requireVault().readMany(paths))
   handle('fs:write', (path: string, content: string) => requireVault().write(path, content))
+  handle('fs:writeChecked', (path: string, content: string, expectHash: string) => requireVault().writeChecked(path, content, expectHash))
   handle('fs:createFile', (dir: string, base: string, ext: string) => requireVault().createFile(dir, base, ext))
   handle('fs:createFolder', (dir: string, name: string) => requireVault().createFolder(dir, name))
   handle('fs:rename', (path: string, newName: string) => requireVault().rename(path, newName))
@@ -148,6 +164,17 @@ function registerIpc(): void {
   handle('fs:openExternal', async (path: string) => {
     const error = await shell.openPath(requireVault().abs(path))
     if (error) throw new Error(error)
+  })
+  // Paths go through Vault.abs() first so the page can only name files inside the vault.
+  const snapshotsFor = (path: string): SnapshotStore => {
+    requireVault().abs(path)
+    if (!snapshots) throw new Error('No vault is open')
+    return snapshots
+  }
+  handle('snapshots:list', (path: string) => snapshotsFor(path).list(path))
+  handle('snapshots:read', (path: string, id: string) => snapshotsFor(path).read(path, id))
+  handle('snapshots:keep', async (path: string, content: string) => {
+    await snapshotsFor(path).save(path, content, 'kept')
   })
   handle('app:log', (level: unknown, message: unknown) => {
     if (!isLogLevel(level) || typeof message !== 'string') throw new Error('Invalid log entry')

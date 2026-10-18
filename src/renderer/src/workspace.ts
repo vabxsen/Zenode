@@ -1,7 +1,9 @@
 import { EditorSelection, type EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import type { WorkspaceState } from '../../shared/api'
+import { contentHash } from '../../shared/hash'
 import { Component, el } from './component'
+import { hideConflictBar, openCompareDialog, renderConflictBar } from './conflictUi'
 import { createEditorState, fromDisk } from './editor/editor'
 import type { LinkTarget } from './editor/linkCompletion'
 import { linksChanged } from './editor/livePreview'
@@ -24,6 +26,8 @@ export interface WorkspaceView {
   reloadFromDisk?(): Promise<void>
   // The file was deleted: close without writing it back.
   discard?(): void
+  // While the view's unsaved content conflicts with the file on disk: that content.
+  conflictText?(): string | null
 }
 
 interface Tab {
@@ -31,9 +35,15 @@ interface Tab {
   kind: 'note' | 'view'
   state: EditorState | null
   view: WorkspaceView | null
+  // The file's content as last read from or written to disk.
   lastSaved: string
   dirty: boolean
   timer: number | null
+  // The file changed on disk (disk: new content) or vanished (disk: null) while
+  // this tab had unsaved edits. Autosave pauses until the user picks a version.
+  conflict: { disk: string | null } | null
+  // The save in flight, so a change notification for our own write waits for it.
+  saving: Promise<void> | null
 }
 
 export const VIEW_PREFIX = 'zenode:'
@@ -55,6 +65,8 @@ export interface WorkspaceHost {
   onStats(words: number, chars: number): void
   onLayoutChange(): void
   onError(message: string): void
+  // Text about to be thrown away (the user chose another version): keep a copy.
+  preserve(path: string, text: string): void
 }
 
 export function noteTitle(path: string): string {
@@ -67,6 +79,7 @@ export class Workspace extends Component {
   private active: Tab | null = null
   private readonly view: EditorView
   private readonly tabbarEl: HTMLElement
+  private readonly conflictEl: HTMLElement
   private readonly editorEl: HTMLElement
   private readonly viewsEl: HTMLElement
   private readonly emptyEl: HTMLElement
@@ -78,6 +91,8 @@ export class Workspace extends Component {
   ) {
     super()
     this.tabbarEl = el('div', 'zn-tabbar', container)
+    this.conflictEl = el('div', 'zn-conflict', container)
+    this.conflictEl.style.display = 'none'
     this.editorEl = el('div', 'zn-editor', container)
     this.viewsEl = el('div', 'zn-views', container)
     this.emptyEl = el('div', 'zn-empty', container)
@@ -113,7 +128,7 @@ export class Workspace extends Component {
     }
     this.viewsEl.appendChild(view.el)
     view.hide()
-    const tab: Tab = { path: view.id, kind: 'view', state: null, view, lastSaved: '', dirty: false, timer: null }
+    const tab: Tab = { path: view.id, kind: 'view', state: null, view, lastSaved: '', dirty: false, timer: null, conflict: null, saving: null }
     const at = this.active ? this.tabs.indexOf(this.active) + 1 : this.tabs.length
     this.tabs.splice(at, 0, tab)
     this.activate(tab)
@@ -144,7 +159,7 @@ export class Workspace extends Component {
       this.host.onError(`Could not open ${path}: ${(e as Error).message}`)
       return
     }
-    const tab: Tab = { path, kind: 'note', state: null, view: null, lastSaved: content, dirty: false, timer: null }
+    const tab: Tab = { path, kind: 'note', state: null, view: null, lastSaved: content, dirty: false, timer: null, conflict: null, saving: null }
     tab.state = createEditorState(content, {
       onChange: () => this.onEdited(tab),
       onOpenLink: (href) => this.host.onOpenLink(href, tab.path),
@@ -203,6 +218,12 @@ export class Workspace extends Component {
 
   async close(tab: Tab | null = this.active): Promise<void> {
     if (!tab) return
+    if (tab.conflict || (tab.view?.conflictText?.() ?? null) !== null) {
+      // Closing would silently drop the user's version; make them choose first.
+      this.activate(tab)
+      this.host.onError(`"${this.titleOf(tab)}" has unsaved changes that conflict with the file on disk. Choose a version first.`)
+      return
+    }
     await this.save(tab)
     this.dispose(tab)
   }
@@ -257,6 +278,19 @@ export class Workspace extends Component {
       window.clearTimeout(tab.timer)
       tab.timer = null
     }
+    // Waiting for the user to pick a version in the conflict bar.
+    if (tab.conflict) return
+    if (tab.saving) await tab.saving
+    const run = this.writeTab(tab)
+    tab.saving = run
+    try {
+      await run
+    } finally {
+      if (tab.saving === run) tab.saving = null
+    }
+  }
+
+  private async writeTab(tab: Tab): Promise<void> {
     const content = this.docOf(tab)
     if (content === tab.lastSaved) {
       if (tab.dirty) {
@@ -266,18 +300,113 @@ export class Workspace extends Component {
       return
     }
     try {
-      await window.zenode.write(tab.path, content)
-      tab.lastSaved = content
-      this.host.onSaved(tab.path, content)
-      if (this.docOf(tab) === content) tab.dirty = false
-      this.render()
+      // Only overwrite the version we last saw; anything else is a conflict.
+      const result = await window.zenode.writeChecked(tab.path, content, contentHash(tab.lastSaved))
+      if (result.status === 'conflict') {
+        this.setConflict(tab, result.disk)
+        return
+      }
+      this.saved(tab, content)
     } catch (e) {
       this.host.onError(`Could not save ${tab.path}: ${(e as Error).message}`)
     }
   }
 
+  private saved(tab: Tab, content: string): void {
+    tab.lastSaved = content
+    this.host.onSaved(tab.path, content)
+    if (this.docOf(tab) === content) tab.dirty = false
+    this.render()
+  }
+
+  // Saves everything that can be saved. Text in conflicted tabs is kept as a
+  // snapshot, since it can't be written without the user's say.
   async saveAll(): Promise<void> {
     await Promise.all(this.tabs.map((t) => this.save(t)))
+    for (const tab of this.tabs) {
+      if (tab.conflict) this.host.preserve(tab.path, this.docOf(tab))
+      const viewText = tab.view?.conflictText?.() ?? null
+      if (viewText !== null && tab.view?.filePath) this.host.preserve(tab.view.filePath, viewText)
+    }
+  }
+
+  // Close a view's tab without saving (the view already kept what it needed).
+  closeView(id: string): void {
+    const tab = this.tabs.find((t) => t.path === id)
+    if (tab) this.dispose(tab)
+  }
+
+  // ---------- Conflicts with the file on disk ----------
+
+  private setConflict(tab: Tab, disk: string | null): void {
+    tab.conflict = { disk }
+    tab.dirty = true
+    this.render()
+  }
+
+  private clearConflict(tab: Tab): void {
+    tab.conflict = null
+    this.render()
+  }
+
+  // Replace a tab's text as a change from disk (no autosave, no undo step merge).
+  private setDoc(tab: Tab, text: string, fromDiskChange: boolean): void {
+    const state = tab === this.active ? this.view.state : tab.state!
+    const spec = { changes: { from: 0, to: state.doc.length, insert: text }, annotations: fromDisk.of(fromDiskChange) }
+    if (tab === this.active) {
+      this.view.dispatch(spec)
+      this.updateStats()
+    } else {
+      tab.state = state.update(spec).state
+    }
+  }
+
+  // Write the user's version over whatever is on disk now (or recreate the file).
+  private async keepMine(tab: Tab): Promise<void> {
+    const conflict = tab.conflict
+    if (!conflict) return
+    const content = this.docOf(tab)
+    try {
+      if (conflict.disk === null) {
+        await window.zenode.write(tab.path, content)
+      } else {
+        const result = await window.zenode.writeChecked(tab.path, content, contentHash(conflict.disk))
+        if (result.status === 'conflict') {
+          // It changed again in the meantime: show the newest version.
+          this.setConflict(tab, result.disk)
+          return
+        }
+      }
+      tab.conflict = null
+      this.saved(tab, content)
+    } catch (e) {
+      this.host.onError(`Could not save ${tab.path}: ${(e as Error).message}`)
+    }
+  }
+
+  private useDisk(tab: Tab): void {
+    const disk = tab.conflict?.disk
+    if (disk === undefined || disk === null) return
+    this.host.preserve(tab.path, this.docOf(tab))
+    tab.lastSaved = disk
+    this.setDoc(tab, disk, true)
+    tab.dirty = false
+    this.clearConflict(tab)
+  }
+
+  private async compare(tab: Tab): Promise<void> {
+    const disk = tab.conflict?.disk
+    if (disk === undefined || disk === null) return
+    const merged = await openCompareDialog(this.titleOf(tab), disk, this.docOf(tab))
+    if (merged === null || !tab.conflict) return
+    if (merged !== this.docOf(tab)) this.setDoc(tab, merged, false)
+    await this.keepMine(tab)
+  }
+
+  private discardTab(tab: Tab): void {
+    this.host.preserve(tab.path, this.docOf(tab))
+    tab.conflict = null
+    this.dispose(tab)
   }
 
   async closeAll(): Promise<void> {
@@ -312,7 +441,8 @@ export class Workspace extends Component {
     }
   }
 
-  // Pick up edits made outside Zenode, unless the user has unsaved changes.
+  // Pick up edits made outside Zenode. With unsaved changes here, that's a
+  // conflict: nothing is overwritten and the user picks a version.
   async reloadChanged(paths: string[]): Promise<void> {
     const changed = new Set(paths)
     for (const tab of this.tabs.slice()) {
@@ -320,24 +450,37 @@ export class Workspace extends Component {
         if (tab.view?.filePath !== undefined && changed.has(tab.path)) await tab.view.reloadFromDisk?.()
         continue
       }
-      if (tab.kind !== 'note' || !changed.has(tab.path) || tab.dirty) continue
-      let content: string
+      if (!changed.has(tab.path)) continue
+      if (tab.saving) await tab.saving
+      let disk: string | null
       try {
-        content = await window.zenode.read(tab.path)
+        disk = await window.zenode.read(tab.path)
       } catch {
+        disk = null
+      }
+      if (!this.tabs.includes(tab)) continue
+      if (disk === tab.lastSaved) {
+        if (tab.conflict) this.clearConflict(tab)
+        continue
+      }
+      if (tab.dirty || tab.conflict) {
+        // The disk caught up with exactly what's in the editor (e.g. synced back): no conflict.
+        if (disk === this.docOf(tab)) {
+          tab.lastSaved = disk
+          tab.dirty = false
+          this.clearConflict(tab)
+          continue
+        }
+        this.setConflict(tab, disk)
+        continue
+      }
+      // No unsaved changes: follow the disk (a deleted or moved file closes its tab).
+      if (disk === null) {
         this.dispose(tab)
         continue
       }
-      if (content === tab.lastSaved) continue
-      tab.lastSaved = content
-      const state = tab === this.active ? this.view.state : tab.state!
-      const spec = { changes: { from: 0, to: state.doc.length, insert: content }, annotations: fromDisk.of(true) }
-      if (tab === this.active) {
-        this.view.dispatch(spec)
-        this.updateStats()
-      } else {
-        tab.state = state.update(spec).state
-      }
+      tab.lastSaved = disk
+      this.setDoc(tab, disk, true)
     }
   }
 
@@ -354,12 +497,27 @@ export class Workspace extends Component {
     }, 150)
   }
 
+  private renderConflict(): void {
+    const tab = this.active
+    if (!tab || tab.kind !== 'note' || !tab.conflict) {
+      hideConflictBar(this.conflictEl)
+      return
+    }
+    renderConflictBar(this.conflictEl, tab.conflict.disk, 'note', {
+      compare: () => void this.compare(tab),
+      keepMine: () => void this.keepMine(tab),
+      useDisk: () => this.useDisk(tab),
+      closeTab: () => this.discardTab(tab)
+    })
+  }
+
   private render(): void {
     this.tabbarEl.empty()
     for (const tab of this.tabs) {
       const tabEl = el('div', 'zn-tab', this.tabbarEl)
       if (tab === this.active) tabEl.classList.add('is-active')
       if (tab.dirty) tabEl.classList.add('is-dirty')
+      if (tab.conflict) tabEl.classList.add('has-conflict')
       if (tab.kind === 'view') tabEl.classList.add('is-view')
       el('span', 'zn-tab-title', tabEl, this.titleOf(tab))
       tabEl.title = tab.kind === 'view' ? this.titleOf(tab) : tab.path
@@ -377,6 +535,7 @@ export class Workspace extends Component {
       })
       tabEl.addEventListener('click', () => this.activate(tab))
     }
+    this.renderConflict()
     const kind = this.active?.kind
     this.editorEl.style.display = kind === 'note' ? '' : 'none'
     this.viewsEl.style.display = kind === 'view' ? '' : 'none'

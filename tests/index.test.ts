@@ -1,3 +1,4 @@
+import { eq } from './harness'
 import { parseNote } from '../src/renderer/src/index/parser'
 import { MetadataCache, applyEdits } from '../src/renderer/src/index/metadataCache'
 import { matchNote, parseQuery } from '../src/renderer/src/search/query'
@@ -13,13 +14,6 @@ import { configPath, readConfig, writeConfig } from '../src/main/config'
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-
-let fails = 0
-const eq = (name: string, got: unknown, want: unknown) => {
-  const ok = JSON.stringify(got) === JSON.stringify(want)
-  if (!ok) fails++
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : `\n      got:  ${JSON.stringify(got)}\n      want: ${JSON.stringify(want)}`}`)
-}
 
 const text = `---
 tags: [project, idea]
@@ -260,5 +254,3 @@ eq('config: no temp files left behind', readdirSync(join(vaultDir, '.zenode')), 
 rmSync(vaultDir, { recursive: true, force: true })
 
 cache.dispose()
-console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED')
-process.exit(fails ? 1 : 0)

@@ -1,7 +1,9 @@
 import { EditorView } from '@codemirror/view'
+import { contentHash } from '../../../shared/hash'
 import { Component, el } from '../component'
+import { hideConflictBar, renderConflictBar } from '../conflictUi'
 import type { EditorCallbacks } from '../editor/editor'
-import { icon, type IconName } from '../icons'
+import { buildToolbar, editLabelInPlace, renderColorBar } from './canvasToolbar'
 import { baseName, isMarkdown } from '../paths'
 import type { WorkspaceView } from '../workspace'
 import { CanvasCamera } from './camera'
@@ -16,7 +18,6 @@ import {
   isLink,
   isText,
   parseCanvas,
-  PRESET_COLORS,
   serializeCanvas,
   stackOrder,
   type Point,
@@ -35,6 +36,10 @@ export interface CanvasHost {
   onSaved(path: string, content: string): void
   // Called when the tab closes, so the owner can unload the view.
   release(view: CanvasView): void
+  // Keep a copy of content that's about to be thrown away.
+  preserve(path: string, text: string): void
+  // Close this view's tab without saving.
+  close(view: CanvasView): void
 }
 
 const SAVE_DELAY = 500
@@ -64,6 +69,10 @@ export class CanvasView extends Component implements WorkspaceView {
   private dirty = false
   private saveTimer: number | null = null
   private error: string | null = null
+  // The file changed (disk: new content) or vanished (null) while there were
+  // unsaved changes here. Saving pauses until the user picks a version.
+  private conflict: { disk: string | null } | null = null
+  private readonly conflictEl: HTMLElement
   private readonly viewport: HTMLElement
   private readonly nodesLayer: HTMLElement
   private readonly labelsLayer: HTMLElement
@@ -86,6 +95,8 @@ export class CanvasView extends Component implements WorkspaceView {
     super()
     this.path = path
     this.el = el('div', 'zn-canvas')
+    this.conflictEl = el('div', 'zn-conflict zn-canvas-conflict', this.el)
+    this.conflictEl.style.display = 'none'
     this.viewport = el('div', 'zn-canvas-viewport', this.el)
     this.viewport.tabIndex = 0
     const world = el('div', 'zn-canvas-world', this.viewport)
@@ -154,25 +165,50 @@ export class CanvasView extends Component implements WorkspaceView {
       window.clearTimeout(this.saveTimer)
       this.saveTimer = null
     }
-    if (this.error || !this.ready) return
+    if (this.error || !this.ready || this.conflict) return
     const content = serializeCanvas(this.doc.data)
     if (content === this.lastSaved) {
       this.dirty = false
       return
     }
     try {
-      await window.zenode.write(this.path, content)
-      this.lastSaved = content
-      this.dirty = false
-      this.host.onSaved(this.path, content)
+      // Only overwrite the version we last saw; anything else is a conflict.
+      const result = await window.zenode.writeChecked(this.path, content, contentHash(this.lastSaved))
+      if (result.status === 'conflict') {
+        this.setConflict(result.disk)
+        return
+      }
+      this.saved(content)
     } catch (e) {
       this.host.notice(`Could not save ${this.path}: ${(e as Error).message}`)
     }
   }
 
-  // Pick up edits made outside Zenode, unless there are unsaved changes here.
+  private saved(content: string): void {
+    this.lastSaved = content
+    this.dirty = false
+    this.host.onSaved(this.path, content)
+  }
+
+  conflictText(): string | null {
+    return this.conflict ? serializeCanvas(this.doc.data) : null
+  }
+
+  // Pick up edits made outside Zenode. With unsaved changes here, that's a
+  // conflict: nothing is overwritten and the user picks a version.
   async reloadFromDisk(): Promise<void> {
-    if (this.dirty || this.editing) return
+    if (this.editing) return
+    if (this.ready && (this.dirty || this.conflict)) {
+      const disk = await window.zenode.read(this.path).catch(() => null)
+      const mine = serializeCanvas(this.doc.data)
+      if (disk === this.lastSaved || disk === mine) {
+        if (disk === mine) this.saved(mine)
+        this.clearConflict()
+        return
+      }
+      this.setConflict(disk)
+      return
+    }
     // A file that failed to parse gets another try once it changes on disk.
     if (!this.ready) {
       if (this.error && this.error !== DISCARDED) await this.loadFromDisk(true)
@@ -222,6 +258,59 @@ export class CanvasView extends Component implements WorkspaceView {
     this.renderAll()
     if (first && !this.camera.restore(this.path)) this.camera.fit(this.doc.data.nodes)
     this.applyCamera()
+  }
+
+  // ---------- Conflicts with the file on disk ----------
+
+  private setConflict(disk: string | null): void {
+    this.conflict = { disk }
+    this.dirty = true
+    if (this.saveTimer !== null) window.clearTimeout(this.saveTimer)
+    renderConflictBar(this.conflictEl, disk, 'canvas', {
+      keepMine: () => void this.keepMine(),
+      useDisk: () => void this.useDisk(),
+      closeTab: () => {
+        this.host.preserve(this.path, serializeCanvas(this.doc.data))
+        this.conflict = null
+        this.discard()
+        this.host.close(this)
+      }
+    })
+  }
+
+  private clearConflict(): void {
+    this.conflict = null
+    hideConflictBar(this.conflictEl)
+  }
+
+  private async keepMine(): Promise<void> {
+    const conflict = this.conflict
+    if (!conflict) return
+    const content = serializeCanvas(this.doc.data)
+    try {
+      if (conflict.disk === null) {
+        await window.zenode.write(this.path, content)
+      } else {
+        const result = await window.zenode.writeChecked(this.path, content, contentHash(conflict.disk))
+        if (result.status === 'conflict') {
+          this.setConflict(result.disk)
+          return
+        }
+      }
+      this.clearConflict()
+      this.saved(content)
+    } catch (e) {
+      this.host.notice(`Could not save ${this.path}: ${(e as Error).message}`)
+    }
+  }
+
+  private async useDisk(): Promise<void> {
+    if (!this.conflict || this.conflict.disk === null) return
+    this.host.preserve(this.path, serializeCanvas(this.doc.data))
+    this.clearConflict()
+    this.dirty = false
+    this.lastSaved = ''
+    await this.loadFromDisk(false)
   }
 
   private showError(message: string): void {
@@ -348,31 +437,16 @@ export class CanvasView extends Component implements WorkspaceView {
   // ---------- Toolbar & color bar ----------
 
   private buildToolbar(): void {
-    const bar = el('div', 'zn-canvas-toolbar', this.el)
-    const button = (name: IconName, label: string, action: () => void): void => {
-      const b = el('button', 'zn-canvas-btn', bar)
-      b.title = label
-      b.appendChild(icon(name, 16))
-      this.chromeClick(b, action)
-    }
-    button('filePlus', 'Add card (double-click the canvas)', () => this.addCard(this.camera.cam))
-    button('note', 'Add note from vault', () => this.host.pickNote((path) => this.addFile(path)))
-    button('folderPlus', 'Group selection', () => this.edit(() => this.doc.groupSelection(this.camera.cam)))
-    el('div', 'zn-canvas-sep', bar)
-    button('minus', 'Zoom out (Ctrl+scroll)', () => this.zoomCenter(1 / ZOOM_STEP))
-    button('fit', 'Zoom to fit', () => {
-      this.camera.fit(this.doc.data.nodes)
-      this.applyCamera()
-    })
-    button('plus', 'Zoom in (Ctrl+scroll)', () => this.zoomCenter(ZOOM_STEP))
-  }
-
-  // Toolbar buttons never take focus, so canvas shortcuts (undo, delete) keep working after a click.
-  private chromeClick(button: HTMLElement, action: () => void): void {
-    button.addEventListener('mousedown', (e) => e.preventDefault())
-    button.addEventListener('click', () => {
-      this.viewport.focus({ preventScroll: true })
-      action()
+    buildToolbar(this.el, this.viewport, {
+      addCard: () => this.addCard(this.camera.cam),
+      addNote: () => this.host.pickNote((path) => this.addFile(path)),
+      group: () => this.edit(() => this.doc.groupSelection(this.camera.cam)),
+      zoomOut: () => this.zoomCenter(1 / ZOOM_STEP),
+      fit: () => {
+        this.camera.fit(this.doc.data.nodes)
+        this.applyCamera()
+      },
+      zoomIn: () => this.zoomCenter(ZOOM_STEP)
     })
   }
 
@@ -382,23 +456,13 @@ export class CanvasView extends Component implements WorkspaceView {
   }
 
   private renderColorBar(): void {
-    this.colorBar.replaceChildren()
-    const any = this.doc.hasSelection()
-    this.colorBar.style.display = any && !this.error ? '' : 'none'
-    if (!any) return
-    const swatch = (value: string, css: string | null, title: string): void => {
-      const b = el('button', 'zn-canvas-swatch', this.colorBar)
-      b.title = title
-      if (css) b.style.background = css
-      else b.classList.add('is-clear')
-      this.chromeClick(b, () => this.edit(() => this.doc.setColor(value)))
-    }
-    swatch('', null, 'No color')
-    for (const [k, css] of Object.entries(PRESET_COLORS)) swatch(k, css, `Color ${k}`)
-    const del = el('button', 'zn-canvas-btn is-danger', this.colorBar)
-    del.title = 'Delete (Del)'
-    del.appendChild(icon('close', 14))
-    this.chromeClick(del, () => this.deleteSelection())
+    renderColorBar(
+      this.colorBar,
+      this.viewport,
+      this.doc.hasSelection() && !this.error,
+      (color) => this.edit(() => this.doc.setColor(color)),
+      () => this.deleteSelection()
+    )
   }
 
   // ---------- Operations ----------
@@ -450,30 +514,9 @@ export class CanvasView extends Component implements WorkspaceView {
 
   // A floating text box over a group or edge label.
   private editLabel(anchorEl: HTMLElement, value: string, apply: (v: string) => void): void {
-    const rect = anchorEl.getBoundingClientRect()
-    const input = el('input', 'zn-canvas-label-input', document.body)
-    input.value = value
-    input.style.left = `${rect.left}px`
-    input.style.top = `${rect.top}px`
-    input.style.minWidth = `${Math.max(rect.width, 160)}px`
-    let done = false
-    const finish = (commit: boolean): void => {
-      if (done) return
-      done = true
-      const next = input.value.trim()
-      input.remove()
-      if (commit && next !== value) this.edit(() => apply(next))
+    editLabelInPlace(anchorEl, value, (next) => {
+      if (next !== null && next !== value) this.edit(() => apply(next))
       this.viewport.focus({ preventScroll: true })
-    }
-    input.addEventListener('keydown', (e) => {
-      e.stopPropagation()
-      if (e.key === 'Enter') finish(true)
-      if (e.key === 'Escape') finish(false)
-    })
-    input.addEventListener('blur', () => finish(true))
-    requestAnimationFrame(() => {
-      input.focus()
-      input.select()
     })
   }
 
