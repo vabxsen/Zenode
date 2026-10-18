@@ -33,8 +33,15 @@ export function makeGraphTab(d: GraphTabDeps): WorkspaceView {
     id: GRAPH_ID,
     title: 'Graph view',
     el: host,
-    show: () => ensure().setVisible(true),
-    hide: () => graph?.setVisible(false),
+    show: () => {
+      host.style.display = ''
+      ensure().setVisible(true)
+    },
+    // Hidden, not just paused, so its floating controls don't show over other tabs.
+    hide: () => {
+      host.style.display = 'none'
+      graph?.setVisible(false)
+    },
     destroy: () => {
       if (graph) {
         d.shell.removeChild(graph)

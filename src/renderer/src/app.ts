@@ -33,6 +33,8 @@ import { LeftSidebar, RightSidebar, type LeftPane, type RightPane, type SidebarD
 import { contentHash } from '../../shared/hash'
 import { openSwitcher } from './switcher'
 import { setVaultUrlHost } from './vaultUrl'
+import { hasViewer } from './views/fileKinds'
+import { FileView } from './views/fileView'
 import { VIEW_PREFIX, Workspace, type OpenPosition } from './workspace'
 
 const api = window.zenode
@@ -416,7 +418,15 @@ export class App extends Component {
   private async openTabPath(path: string): Promise<void> {
     if (path === GRAPH_ID) this.openGraph()
     else if (isCanvasPath(path)) this.openCanvas(path)
-    else if (!path.startsWith(VIEW_PREFIX)) await this.workspace?.open(path)
+    else if (path.startsWith(VIEW_PREFIX)) return
+    else if (isMarkdown(path)) await this.workspace?.open(path)
+    else if (hasViewer(path)) this.openFileView(path)
+  }
+
+  // Images, PDFs, audio, video and text files open in a tab of their own.
+  private openFileView(path: string): void {
+    if (!this.workspace || this.workspace.activateById(path)) return
+    this.workspace.openView(new FileView(path, { notice: (m) => this.notice(m) }))
   }
 
   private ribbonButton(parent: HTMLElement, name: IconName, label: string, action: () => void): void {
@@ -517,6 +527,10 @@ export class App extends Component {
     }
     if (isMarkdown(path)) {
       await this.workspace?.open(path, pos)
+      return
+    }
+    if (hasViewer(path)) {
+      this.openFileView(path)
       return
     }
     try {
