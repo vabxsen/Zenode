@@ -2,6 +2,7 @@ import type { TreeEntry, VaultInfo } from '../../shared/api'
 import { BacklinksPanel } from './backlinks'
 import { CanvasView, type CanvasHost } from './canvas/canvasView'
 import { CommandRegistry } from './commands'
+import { setSpellcheckDefault } from './editor/editor'
 import { attachmentDir, DEFAULT_EDITOR_SETTINGS, sanitizeEditorSettings, sanitizeHotkeys, sanitizeWorkspace, type EditorSettings } from './config'
 import { Component, el } from './component'
 import { registerCoreCommands } from './coreCommands'
@@ -14,9 +15,10 @@ import { MetadataCache } from './index/metadataCache'
 import { splitLinktext } from './index/parser'
 import { openFileRecovery, restoreVersion } from './fileRecovery'
 import { importAttachments, rewriteLinksAfterRename } from './fileOps'
+import { relativeLinkTarget, subpathPosition } from './links'
 import { offerRecovery } from './recovery'
 import { SyncIndicator } from './sync/syncPanel'
-import { baseName, isMarkdown, joinPath, parentDir, stripExt, stripMd } from './paths'
+import { baseName, isMarkdown, parentDir, stripExt, stripMd } from './paths'
 import { SearchPane } from './search/searchPane'
 import { openSwitcher } from './switcher'
 import { VIEW_PREFIX, Workspace, type OpenPosition, type WorkspaceView } from './workspace'
@@ -140,6 +142,7 @@ export class App extends Component {
     this.commands.setCustomHotkeys(sanitizeHotkeys(await api.readConfig('hotkeys')))
     this.editorSettings = sanitizeEditorSettings(await api.readConfig('app'))
     this.workspace?.setDefaultView(this.editorSettings.defaultView)
+    setSpellcheckDefault(this.editorSettings.spellcheck)
     // Open tabs live in .zenode/workspace.json; older versions kept them in the app settings.
     const ws = sanitizeWorkspace(await api.readConfig('workspace')) ?? (await api.getSettings()).workspaces[info.root]
     if (ws) {
@@ -651,18 +654,7 @@ export class App extends Component {
   // Find "#Heading" or "#^block-id" inside a note.
   private subpathPosition(path: string, subpath: string): OpenPosition | undefined {
     const note = this.cache?.getNote(path)
-    if (!note) return undefined
-    const content = note.content
-    if (subpath.startsWith('#^')) {
-      const at = content.indexOf(`^${subpath.slice(2)}`)
-      return at === -1 ? undefined : { from: content.lastIndexOf('\n', at) + 1 }
-    }
-    const wanted = subpath.slice(1).trim().toLowerCase()
-    const heading = note.meta.headings.find((h) => h.text.trim().toLowerCase() === wanted)
-    if (!heading) return undefined
-    let offset = 0
-    for (let i = 0; i < heading.line; i++) offset = content.indexOf('\n', offset) + 1
-    return { from: offset }
+    return note ? subpathPosition(note.content, note.meta, subpath) : undefined
   }
 
   private async openLink(href: string, fromPath: string): Promise<void> {
@@ -671,19 +663,9 @@ export class App extends Component {
       return
     }
     // Relative Markdown link to another file in the vault.
-    let decoded = href
-    try {
-      decoded = decodeURI(href)
-    } catch {
-      // Use the raw href.
-    }
-    const [target, ...rest] = decoded.split('#')
+    const target = relativeLinkTarget(href, fromPath)
     if (!target) return
-    let path = (target.startsWith('/') ? joinPath('', target.slice(1)) : joinPath(parentDir(fromPath), target)) ?? ''
-    if (!path) return
-    if (!/\.[a-z0-9]+$/i.test(path)) path += '.md'
-    const subpath = rest.length ? `#${rest.join('#')}` : ''
-    await this.openPath(path, subpath ? this.subpathPosition(path, subpath) : undefined)
+    await this.openPath(target.path, target.subpath ? this.subpathPosition(target.path, target.subpath) : undefined)
   }
 
   // ---------- Quick switcher ----------
@@ -743,6 +725,7 @@ export class App extends Component {
       hasActiveNote: () => this.workspace?.activeMode() != null,
       toggleReading: () => this.workspace?.toggleReading(),
       toggleSource: () => this.workspace?.toggleSource(),
+      toggleSpellcheck: () => void this.updateEditorSettings({ spellcheck: !this.editorSettings.spellcheck }),
       showHistory: () => void this.showHistory(this.workspace?.activePath ?? ''),
       save: () => void ws().save(),
       closeTab: () => void ws().close(),
@@ -757,6 +740,16 @@ export class App extends Component {
       notice,
       restore: (text) => restoreVersion(this.workspace, path, text, notice)
     })
+  }
+
+  // Change editor settings, apply them to open notes and save .zenode/app.json.
+  private async updateEditorSettings(change: Partial<EditorSettings>): Promise<void> {
+    this.editorSettings = { ...this.editorSettings, ...change }
+    setSpellcheckDefault(this.editorSettings.spellcheck)
+    this.workspace?.applySpellcheck(this.editorSettings.spellcheck)
+    this.workspace?.setDefaultView(this.editorSettings.defaultView)
+    if (change.spellcheck !== undefined) this.notice(`Spellcheck ${change.spellcheck ? 'on' : 'off'}`)
+    await api.writeConfig('app', this.editorSettings).catch((e: Error) => this.notice(`Could not save settings: ${e.message}`))
   }
 
   // Keep a copy of text the user is throwing away, in the local file history.

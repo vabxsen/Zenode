@@ -1,6 +1,8 @@
 // Editor grammar: the Obsidian syntax the Live Preview editor recognises.
 import { markdownLanguage } from '@codemirror/lang-markdown'
 import { commentSyntax, frontmatterSyntax, hashtagSyntax, highlightSyntax, mathSyntax, wikiLinkSyntax } from '../src/renderer/src/editor/wikilink'
+import { formatTable, splitRow } from '../src/renderer/src/editor/tables'
+import { relativeLinkTarget, subpathPosition } from '../src/renderer/src/links'
 import { eq } from './harness'
 
 const parser = markdownLanguage.parser.configure([frontmatterSyntax, wikiLinkSyntax, hashtagSyntax, highlightSyntax, commentSyntax, mathSyntax])
@@ -15,6 +17,27 @@ function nodes(text: string, wanted: string[]): Array<[string, string]> {
   })
   return out
 }
+
+// Tables.
+eq('table: split row', splitRow('| a | b \\| c | d |'), ['a', 'b \\| c', 'd'])
+eq('table: split row without outer pipes', splitRow('a | b'), ['a', 'b'])
+eq('table: format pads columns and keeps alignment', formatTable('|Name|Qty|\n|:-|--:|\n|Apple|3|\n|Kiwi|12|').split('\n'), [
+  '| Name  | Qty |',
+  '| :---- | --: |',
+  '| Apple | 3   |',
+  '| Kiwi  | 12  |'
+])
+eq('table: ragged rows get empty cells', formatTable('|a|b|\n|-|-|\n|1|').split('\n')[2], '| 1   |     |')
+
+// Link targets.
+eq('relative link: up and decoded', relativeLinkTarget('../Other%20note.md#Plans', 'Folder/Note.md'), { path: 'Other note.md', subpath: '#Plans' })
+eq('relative link: no extension means a note', relativeLinkTarget('Sub/Page', 'A/n.md'), { path: 'A/Sub/Page.md', subpath: '' })
+eq('relative link: vault-absolute', relativeLinkTarget('/Top.md', 'A/B/n.md'), { path: 'Top.md', subpath: '' })
+eq('relative link: cannot leave the vault', relativeLinkTarget('../../x.md', 'A/n.md'), null)
+const linkMeta = { links: [], tags: [], frontmatterTags: [], aliases: [], headings: [{ level: 1, text: 'Title', line: 0 }, { level: 2, text: 'Plans', line: 2 }] }
+eq('subpath: heading offset', subpathPosition('# Title\nx\n## Plans\ny', linkMeta, '#plans'), { from: 10 })
+eq('subpath: block offset', subpathPosition('a\nsome text ^b1\n', linkMeta, '#^b1'), { from: 2 })
+eq('subpath: missing', subpathPosition('a', linkMeta, '#nope'), undefined)
 
 const KINDS = ['Highlight', 'Comment', 'CommentBlock', 'InlineMath', 'BlockMath', 'WikiEmbed', 'Hashtag']
 eq('lezer: highlight', nodes('a ==b c== d', KINDS), [['Highlight', '==b c==']])

@@ -2,6 +2,7 @@ import 'katex/dist/katex.min.css'
 import './styles.css'
 import './styles/reading.css'
 import './styles/livepreview.css'
+import './styles/editor-tools.css'
 import { App } from './app'
 
 // Anything that slips past local error handling goes to the app log.

@@ -5,7 +5,7 @@ import { contentHash } from '../../shared/hash'
 import { Component, el } from './component'
 import { hideConflictBar, openCompareDialog, renderConflictBar } from './conflictUi'
 import { openDialog } from './dialog'
-import { createEditorState, fromDisk } from './editor/editor'
+import { createEditorState, fromDisk, spellcheckAttrs, spellcheckSetting } from './editor/editor'
 import type { LinkTarget } from './editor/linkCompletion'
 import { linksChanged, setSourceMode } from './editor/livePreview'
 import { icon } from './icons'
@@ -162,6 +162,16 @@ export class Workspace extends Component {
   // How newly opened notes are shown (from settings).
   setDefaultView(view: 'live' | 'source' | 'reading'): void {
     this.defaultView = view
+  }
+
+  // Turn spellcheck on or off in every open note.
+  applySpellcheck(on: boolean): void {
+    const effects = spellcheckSetting.reconfigure(spellcheckAttrs(on))
+    for (const tab of this.tabs) {
+      if (tab.kind !== 'note') continue
+      if (tab === this.active) this.view.dispatch({ effects })
+      else tab.state = tab.state!.update({ effects }).state
+    }
   }
 
   // Ctrl+E: switch the active note between editing and Reading view.

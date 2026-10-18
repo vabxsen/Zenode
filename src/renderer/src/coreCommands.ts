@@ -18,6 +18,7 @@ export interface CoreActions {
   hasActiveNote(): boolean
   toggleReading(): void
   toggleSource(): void
+  toggleSpellcheck(): void
   save(): void
   closeTab(): void
   cycleTab(step: 1 | -1): void
@@ -107,6 +108,11 @@ export function registerCoreCommands(registry: CommandRegistry, a: CoreActions):
         if (!checking) a.toggleSource()
         return true
       }
+    }),
+    registry.register({
+      id: 'editor:toggle-spellcheck',
+      name: 'Toggle spellcheck',
+      checkCallback: inVault(() => a.toggleSpellcheck())
     }),
     registry.register({
       id: 'editor:save',

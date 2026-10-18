@@ -1,16 +1,32 @@
 import { closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { HighlightStyle, indentOnInput, syntaxHighlighting } from '@codemirror/language'
-import { Annotation, EditorState, type Extension } from '@codemirror/state'
+import { codeFolding, foldGutter, foldKeymap, HighlightStyle, indentOnInput, syntaxHighlighting } from '@codemirror/language'
+import { languages } from '@codemirror/language-data'
+import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search'
+import { Annotation, Compartment, EditorState, Prec, type Extension } from '@codemirror/state'
 import { drawSelection, dropCursor, EditorView, highlightActiveLine, keymap } from '@codemirror/view'
-import { tags as t } from '@lezer/highlight'
+import { classHighlighter, tags as t } from '@lezer/highlight'
+import { tableEditing } from './tables'
 import { wikiLinkCompletion, type LinkTarget } from './linkCompletion'
 import type { ReadingContext } from '../render/reading'
 import { livePreview, sourceMode } from './livePreview'
 import { richBlocks } from './richBlocks'
 import { fileDropAndPaste } from './attachments'
 import { commentSyntax, frontmatterSyntax, hashtagSyntax, highlightSyntax, mathSyntax, wikiLinkSyntax } from './wikilink'
+
+// Spellcheck on/off (from settings); reconfigured on open editors when it changes.
+export const spellcheckSetting = new Compartment()
+
+export function spellcheckAttrs(on: boolean): Extension {
+  return EditorView.contentAttributes.of({ spellcheck: on ? 'true' : 'false', autocorrect: on ? 'on' : 'off' })
+}
+
+// The default for new editors (the app sets it from .zenode/app.json).
+let spellcheckDefault = true
+export function setSpellcheckDefault(on: boolean): void {
+  spellcheckDefault = on
+}
 
 // Marks transactions that load content from disk, so they don't count as edits.
 export const fromDisk = Annotation.define<boolean>()
@@ -92,8 +108,21 @@ export function createEditorState(doc: string, cb: EditorCallbacks, extra: Exten
       highlightActiveLine(),
       closeBrackets(),
       EditorView.lineWrapping,
-      keymap.of([...closeBracketsKeymap, ...completionKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
-      markdown({ base: markdownLanguage, extensions: [frontmatterSyntax, wikiLinkSyntax, hashtagSyntax, highlightSyntax, commentSyntax, mathSyntax] }),
+      Prec.high(tableEditing()),
+      // Ctrl+H opens find & replace, as in Obsidian (Ctrl+F opens the same panel).
+      keymap.of([{ key: 'Mod-h', run: openSearchPanel }]),
+      keymap.of([...closeBracketsKeymap, ...completionKeymap, ...searchKeymap, ...foldKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+      search({ top: true }),
+      highlightSelectionMatches(),
+      codeFolding({ placeholderText: '…' }),
+      foldGutter({ openText: '⌄', closedText: '›' }),
+      // Code blocks get their language's highlighting (parsers load on demand).
+      markdown({
+        base: markdownLanguage,
+        codeLanguages: languages,
+        extensions: [frontmatterSyntax, wikiLinkSyntax, hashtagSyntax, highlightSyntax, commentSyntax, mathSyntax]
+      }),
+      syntaxHighlighting(classHighlighter),
       EditorState.languageData.of(() => [{ closeBrackets: { brackets: ['(', '[', '{', '"'] } }]),
       syntaxHighlighting(highlight),
       theme,
@@ -107,7 +136,7 @@ export function createEditorState(doc: string, cb: EditorCallbacks, extra: Exten
       richBlocks(() => cb.renderContext?.() ?? null),
       cb.onFiles ? fileDropAndPaste(cb.onFiles) : [],
       wikiLinkCompletion(cb.linkTargets),
-      EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }),
+      spellcheckSetting.of(spellcheckAttrs(spellcheckDefault)),
       EditorView.updateListener.of((u) => {
         if (u.docChanged && !u.transactions.some((tr) => tr.annotation(fromDisk))) cb.onChange()
       }),
