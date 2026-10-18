@@ -29,7 +29,7 @@ export interface TextEdit {
   text: string
 }
 
-interface PendingRename {
+export interface PendingRename {
   source: string
   ref: LinkRef
   target: string

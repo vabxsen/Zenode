@@ -1,5 +1,4 @@
 import type { TreeEntry, VaultInfo } from '../../shared/api'
-import { contentHash } from '../../shared/hash'
 import { BacklinksPanel } from './backlinks'
 import { CanvasView, type CanvasHost } from './canvas/canvasView'
 import { CommandRegistry } from './commands'
@@ -11,10 +10,12 @@ import { displayName, FileTree } from './fileTree'
 import { GraphView } from './graph/graphView'
 import { icon, type IconName } from './icons'
 import { isCanvasPath } from './index/canvasMeta'
-import { applyEdits, MetadataCache } from './index/metadataCache'
+import { MetadataCache } from './index/metadataCache'
 import { splitLinktext } from './index/parser'
 import { openFileRecovery, restoreVersion } from './fileRecovery'
+import { rewriteLinksAfterRename } from './fileOps'
 import { offerRecovery } from './recovery'
+import { SyncIndicator } from './sync/syncPanel'
 import { baseName, isMarkdown, joinPath, parentDir, stripExt, stripMd } from './paths'
 import { SearchPane } from './search/searchPane'
 import { openSwitcher } from './switcher'
@@ -281,6 +282,12 @@ export class App extends Component {
 
     const status = el('div', 'zn-statusbar', this.root)
     el('div', 'zn-status-vault', status, this.vault!.root)
+    shell.addChild(new SyncIndicator(status, {
+      cache,
+      workspace: () => this.workspace,
+      openPath: (path) => void this.openPath(path),
+      notice: (m) => this.notice(m)
+    }))
     this.statusEl = el('div', 'zn-status-stats', status)
   }
 
@@ -586,38 +593,9 @@ export class App extends Component {
       if (entry.kind === 'folder') this.tree?.renamePath(entry.path, to)
       await this.refreshTree()
       if (cache && to !== entry.path && pending.length) {
-        // Each rewrite is checked against the indexed version, so a file edited
-        // outside Zenode in the meantime is skipped rather than overwritten.
-        const skipped: string[] = []
-        const rewrite = async (path: string, before: string, updated: string): Promise<boolean> => {
-          const result = await api.writeChecked(path, updated, contentHash(before))
-          if (result.status === 'conflict') {
-            skipped.push(path)
-            return false
-          }
-          await this.queueIndex(() => cache.setContent(path, updated))
-          return true
-        }
-        const edits = cache.buildRenameEdits(pending, entry.path, to)
-        let count = 0
-        let files = 0
-        for (const [path, list] of edits) {
-          const note = cache.getNote(path)
-          if (!note) continue
-          if (await rewrite(path, note.content, applyEdits(note.content, list))) {
-            count += list.length
-            files++
-          }
-        }
-        // Links inside canvases live in JSON; rewrite those files too.
-        for (const [path, updated] of cache.buildCanvasRenames(pending, entry.path, to)) {
-          const before = cache.getNote(path)?.content
-          if (before !== undefined && (await rewrite(path, before, updated))) {
-            count++
-            files++
-          }
-        }
-        if (count) this.notice(`Updated ${count} link${count === 1 ? '' : 's'} in ${files} file${files === 1 ? '' : 's'}.`)
+        const reindex = (path: string, content: string): Promise<void> => this.queueIndex(() => cache.setContent(path, content))
+        const { links, files, skipped } = await rewriteLinksAfterRename(cache, pending, entry.path, to, reindex)
+        if (links) this.notice(`Updated ${links} link${links === 1 ? '' : 's'} in ${files} file${files === 1 ? '' : 's'}.`)
         if (skipped.length) this.notice(`Links not updated in ${skipped.join(', ')}: changed outside Zenode just now. Rename again to retry.`)
       }
       // Naming the open note moves you straight into writing it.

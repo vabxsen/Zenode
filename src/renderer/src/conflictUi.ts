@@ -48,15 +48,27 @@ export function hideConflictBar(bar: HTMLElement): void {
 // Side-by-side compare: the disk version on the left (read-only), the user's
 // version on the right (editable; arrows copy changes across). Resolves with the
 // merged text to save, or null if cancelled.
-export function openCompareDialog(title: string, disk: string, mine: string): Promise<string | null> {
+export interface CompareLabels {
+  left: string
+  right: string
+  save: string
+}
+
+const CONFLICT_LABELS: CompareLabels = {
+  left: 'On disk (changed outside Zenode)',
+  right: 'Your version (edit this; arrows copy changes across)',
+  save: 'Save my version'
+}
+
+export function openCompareDialog(title: string, disk: string, mine: string, text: CompareLabels = CONFLICT_LABELS): Promise<string | null> {
   return new Promise((resolve) => {
     const bg = el('div', 'zn-modal-bg', document.body)
     const modal = el('div', 'zn-merge', bg)
     const header = el('div', 'zn-merge-header', modal)
     el('div', 'zn-merge-title', header, `Compare: ${title}`)
     const labels = el('div', 'zn-merge-labels', modal)
-    el('div', '', labels, 'On disk (changed outside Zenode)')
-    el('div', '', labels, 'Your version (edit this; arrows copy changes across)')
+    el('div', '', labels, text.left)
+    el('div', '', labels, text.right)
     const host = el('div', 'zn-merge-body', modal)
     const theme = EditorView.theme({ '&': { height: '100%' } })
     const view = new MergeView({
@@ -76,7 +88,7 @@ export function openCompareDialog(title: string, disk: string, mine: string): Pr
     }
     const cancel = el('button', 'zn-btn', footer, 'Cancel')
     cancel.addEventListener('click', () => finish(null))
-    const save = el('button', 'zn-btn zn-btn-primary', footer, 'Save my version')
+    const save = el('button', 'zn-btn zn-btn-primary', footer, text.save)
     save.addEventListener('click', () => finish(view.b.state.doc.toString()))
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {

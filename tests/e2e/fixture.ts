@@ -30,7 +30,7 @@ async function launch(workDir: string, vaultDir: string): Promise<ElectronApplic
   return electron.launch({
     // Built by `npm run test:e2e` into out-e2e/, apart from the dev server's out/.
     args: [join(ROOT, 'out-e2e/main/index.js')],
-    env: { ...env, ZENODE_USER_DATA: userData }
+    env: { ...env, ZENODE_USER_DATA: userData, ZENODE_TEST_TRASH: join(workDir, 'trash') }
   })
 }
 

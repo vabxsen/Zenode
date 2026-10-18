@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell, type IpcMainInvokeEvent } from 'electron'
 import { promises as fs } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { VaultInfo } from '../shared/api'
 import { readConfig, writeConfig } from './config'
@@ -26,6 +26,7 @@ if (!app.isPackaged) {
   // End-to-end tests run with their own settings folder, so they never touch the user's.
   if (process.env.ZENODE_USER_DATA) app.setPath('userData', process.env.ZENODE_USER_DATA)
 }
+const testTrash = app.isPackaged ? undefined : process.env.ZENODE_TEST_TRASH
 
 process.on('uncaughtException', (e) => void log('error', `main: ${describeError(e)}`))
 process.on('unhandledRejection', (e) => void log('error', `main (promise): ${describeError(e)}`))
@@ -162,7 +163,16 @@ function registerIpc(): void {
   handle('fs:createFile', (dir: string, base: string, ext: string) => requireVault().createFile(dir, base, ext))
   handle('fs:createFolder', (dir: string, name: string) => requireVault().createFolder(dir, name))
   handle('fs:rename', (path: string, newName: string) => requireVault().rename(path, newName))
-  handle('fs:trash', (path: string) => shell.trashItem(requireVault().abs(path)))
+  handle('fs:trash', async (path: string) => {
+    const file = requireVault().abs(path)
+    // End-to-end tests use their own trash folder instead of the user's Recycle Bin.
+    if (testTrash) {
+      await fs.mkdir(testTrash, { recursive: true })
+      await fs.rename(file, join(testTrash, `${Date.now()}-${basename(file)}`))
+      return
+    }
+    await shell.trashItem(file)
+  })
   handle('fs:reveal', (path: string) => shell.showItemInFolder(requireVault().abs(path)))
   handle('fs:openExternal', async (path: string) => {
     const error = await shell.openPath(requireVault().abs(path))

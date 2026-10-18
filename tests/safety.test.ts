@@ -7,6 +7,7 @@ import { friendlyError, withRetry } from '../src/main/fsutil'
 import { RecoveryJournal } from '../src/main/recovery'
 import { SnapshotStore } from '../src/main/snapshots'
 import { fileNameProblem } from '../src/shared/fileNames'
+import { findConflictCopies, hasMergeMarkers } from '../src/renderer/src/sync/conflictCopies'
 import { contentHash } from '../src/shared/hash'
 import { eq } from './harness'
 
@@ -71,6 +72,34 @@ let permanent = ''
 try { await withRetry(async () => { attempts++; throw Object.assign(new Error('gone'), { code: 'ENOENT' }) }) } catch (e) { permanent = (e as Error).message }
 eq('retry: other errors fail at once', [permanent, attempts], ['gone', 1])
 eq('errors: friendly message', friendlyError(Object.assign(new Error('x'), { code: 'ENOSPC' })).message, 'The disk is full.')
+
+// Sync conflict copies.
+const vaultFiles = [
+  'Plan.md',
+  'Plan-DESKTOP-ABC123.md',
+  'Folder/Note.md',
+  'Folder/Note.sync-conflict-20261018-123456-ABCDEFG.md',
+  'Ideas (Pat\'s conflicted copy 2026-10-18).md',
+  'Ideas.md',
+  'Budget (conflicted copy 2026-10-18 101500).md',
+  'Report_conflict-20261018-101500.md',
+  'Report-Q3.md',
+  'Report-FINAL.md',
+  'Lonely-LAPTOP7.md',
+  'img/photo.sync-conflict-20261018-123456-ABCDEFG.png'
+]
+eq('sync copies: each tool recognised', findConflictCopies(vaultFiles).map((c) => [c.path, c.original, c.tool, c.originalExists]), [
+  ['Plan-DESKTOP-ABC123.md', 'Plan.md', 'OneDrive', true],
+  ['Folder/Note.sync-conflict-20261018-123456-ABCDEFG.md', 'Folder/Note.md', 'Syncthing', true],
+  ["Ideas (Pat's conflicted copy 2026-10-18).md", 'Ideas.md', 'Dropbox', true],
+  ['Budget (conflicted copy 2026-10-18 101500).md', 'Budget.md', 'Nextcloud', false],
+  ['Report_conflict-20261018-101500.md', 'Report.md', 'Nextcloud', false],
+  ['img/photo.sync-conflict-20261018-123456-ABCDEFG.png', 'img/photo.png', 'Syncthing', false]
+])
+eq('sync copies: device names', findConflictCopies(vaultFiles).filter((c) => c.device).map((c) => c.device), ['DESKTOP-ABC123', 'Pat'])
+eq('sync copies: ordinary dashed names are not copies', findConflictCopies(['Report-Q3.md', 'Report-FINAL.md', 'Lonely-LAPTOP7.md', 'my-note.md']), [])
+eq('merge markers: found', hasMergeMarkers('a\n<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> branch\nb'), true)
+eq('merge markers: lookalikes ignored', [hasMergeMarkers('<<<<<<< only start'), hasMergeMarkers('text ======= text')], [false, false])
 
 // Local file history.
 const userData = join(dir, 'userdata')
