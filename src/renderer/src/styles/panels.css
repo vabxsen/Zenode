@@ -188,3 +188,34 @@
 .zn-search-bookmark:hover {
   color: var(--zn-accent);
 }
+
+.zn-mentions-head {
+  display: flex;
+  align-items: center;
+}
+
+.zn-mentions-head .zn-mentions-toggle {
+  flex: 1;
+}
+
+.zn-mentions-refresh {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--zn-text-faint);
+  cursor: pointer;
+}
+
+.zn-mentions-refresh:hover {
+  background: var(--zn-bg-hover);
+  color: var(--zn-text);
+}
+
+.zn-backlinks-more {
+  display: block;
+  margin: 8px auto 0;
+  height: 28px;
+  font-size: 12px;
+}

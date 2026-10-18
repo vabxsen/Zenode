@@ -24,6 +24,12 @@ export interface FileTreeHandlers {
 }
 
 const INDENT = 14
+// Every row is this tall (see .zn-tree-row), which lets long trees draw only
+// the rows in view.
+const ROW_HEIGHT = 28
+// Trees up to this many visible rows are drawn whole.
+const VIRTUAL_FROM = 300
+const OVERSCAN = 20
 const SORT_KEY = 'zenode.fileSort'
 // Tree entries being dragged (their paths, as JSON).
 const PATHS_DRAG_TYPE = 'application/x-zenode-paths'
@@ -74,6 +80,10 @@ export class FileTree extends Component {
   private renameInput: { el: HTMLInputElement; discard(): void } | null = null
   private renameDraft: { value: string; start: number; end: number } | null = null
   private readonly listEl: HTMLElement
+  private readonly scrollEl: HTMLElement
+  // Rows in display order (expanded folders' children included).
+  private rows: Array<{ entry: TreeEntry; depth: number }> = []
+  private windowFrame: number | null = null
 
   constructor(
     private readonly container: HTMLElement,
@@ -95,8 +105,8 @@ export class FileTree extends Component {
     tool('folderPlus', 'New folder', () => this.handlers.onNewFolder(''))
     tool('sort', 'Change sort order', (e) => this.sortMenu(e))
     tool('collapse', 'Collapse all', () => this.collapseAll())
-    const scroll = el('div', 'zn-sidebar-tree', container)
-    this.listEl = el('div', 'zn-tree', scroll)
+    this.scrollEl = el('div', 'zn-sidebar-tree', container)
+    this.listEl = el('div', 'zn-tree', this.scrollEl)
     this.listEl.setAttribute('role', 'tree')
   }
 
@@ -114,6 +124,35 @@ export class FileTree extends Component {
     this.registerDomEvent(this.listEl, 'dragover', (e) => this.onDragOver(e, ''))
     this.registerDomEvent(this.listEl, 'dragleave', () => this.clearDropTarget())
     this.registerDomEvent(this.listEl, 'drop', (e) => this.onDrop(e, ''))
+    // Long trees redraw the rows in view as you scroll or resize.
+    this.registerDomEvent(this.scrollEl, 'scroll', () => this.drawWindowSoon())
+    const resize = new ResizeObserver(() => this.drawWindowSoon())
+    resize.observe(this.scrollEl)
+    this.register(() => resize.disconnect())
+  }
+
+  private get isVirtual(): boolean {
+    return this.rows.length > VIRTUAL_FROM
+  }
+
+  private drawWindowSoon(): void {
+    if (!this.isVirtual || this.windowFrame !== null) return
+    this.windowFrame = requestAnimationFrame(() => {
+      this.windowFrame = null
+      this.drawRows()
+    })
+  }
+
+  // Scrolls a long tree so the row for `path` is drawn (short trees are all drawn).
+  private scrollToRow(path: string): void {
+    const i = this.rows.findIndex((r) => r.entry.path === path)
+    if (i === -1 || !this.isVirtual) return
+    const top = i * ROW_HEIGHT
+    const view = this.scrollEl.clientHeight
+    if (top < this.scrollEl.scrollTop || top + ROW_HEIGHT > this.scrollEl.scrollTop + view) {
+      this.scrollEl.scrollTop = Math.max(0, top - view / 2)
+    }
+    this.drawRows()
   }
 
   setTree(tree: TreeEntry[]): void {
@@ -140,6 +179,7 @@ export class FileTree extends Component {
   // Shows a path: expands its folders and scrolls it into view.
   reveal(path: string): void {
     this.setActive(path)
+    this.scrollToRow(path)
     this.listEl.querySelector<HTMLElement>(`[data-path="${CSS.escape(path)}"]`)?.scrollIntoView({ block: 'nearest' })
   }
 
@@ -152,6 +192,7 @@ export class FileTree extends Component {
     this.expandParents(path)
     this.renaming = path
     this.render()
+    this.scrollToRow(path)
   }
 
   // Keep folder expansion in sync when a folder is renamed or moved.
@@ -191,28 +232,48 @@ export class FileTree extends Component {
   }
 
   render(): void {
+    this.rows = []
+    const walk = (entries: TreeEntry[], depth: number): void => {
+      for (const entry of entries) {
+        this.rows.push({ entry, depth })
+        if (entry.kind === 'folder' && this.expanded.has(entry.path) && entry.children) walk(entry.children, depth + 1)
+      }
+    }
+    walk(this.sorted, 0)
+    this.visible = this.rows.map((r) => r.entry.path)
+    this.drawRows()
+  }
+
+  // Draws every row, or for a long tree just the rows in view inside a list as tall as all of them.
+  private drawRows(): void {
     if (this.renameInput) {
+      // Leaving the view: keep what was typed for when the row comes back.
       const { value, selectionStart, selectionEnd } = this.renameInput.el
       this.renameDraft = { value, start: selectionStart ?? value.length, end: selectionEnd ?? value.length }
       this.renameInput.discard()
       this.renameInput = null
     }
+    // Measure and size before emptying: reading the scroll position of an
+    // emptied list would make the browser clamp it, jumping back to the top.
+    let from = 0
+    let to = this.rows.length
+    if (this.isVirtual) {
+      const top = this.scrollEl.scrollTop
+      const view = this.scrollEl.clientHeight
+      this.listEl.style.height = `${this.rows.length * ROW_HEIGHT}px`
+      from = Math.max(0, Math.min(this.rows.length - 1, Math.floor(top / ROW_HEIGHT) - OVERSCAN))
+      to = Math.min(this.rows.length, from + Math.ceil(view / ROW_HEIGHT) + 2 * OVERSCAN)
+      this.listEl.style.paddingTop = `${from * ROW_HEIGHT}px`
+    } else {
+      this.listEl.style.height = ''
+      this.listEl.style.paddingTop = ''
+    }
     this.listEl.empty()
-    this.visible = []
-    if (this.sorted.length === 0) {
+    if (this.rows.length === 0) {
       el('div', 'zn-tree-empty', this.listEl, 'No notes yet. Press Ctrl+N to create one.')
       return
     }
-    this.renderEntries(this.sorted, 0)
-  }
-
-  private renderEntries(entries: TreeEntry[], depth: number): void {
-    for (const entry of entries) {
-      this.renderRow(entry, depth)
-      if (entry.kind === 'folder' && this.expanded.has(entry.path) && entry.children) {
-        this.renderEntries(entry.children, depth + 1)
-      }
-    }
+    for (let i = from; i < to; i++) this.renderRow(this.rows[i].entry, this.rows[i].depth)
   }
 
   private renderRow(entry: TreeEntry, depth: number): void {
@@ -222,7 +283,6 @@ export class FileTree extends Component {
     row.dataset.path = entry.path
     row.setAttribute('role', 'treeitem')
     if (isFolder) row.setAttribute('aria-expanded', String(this.expanded.has(entry.path)))
-    this.visible.push(entry.path)
     if (entry.path === this.active) row.classList.add('is-active')
     if (this.selected.has(entry.path)) row.classList.add('is-selected')
     if (!isFolder && !FIRST_CLASS.has(entry.ext)) row.classList.add('is-other')

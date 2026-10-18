@@ -4,6 +4,8 @@ import { findUnlinkedMentions, type Mention } from './panels/mentions'
 import { baseName, parentDir, stripExt } from './paths'
 import type { OpenPosition } from './workspace'
 
+// Linking notes drawn at a time.
+const PAGE = 100
 const CONTEXT = 70
 
 // Right-sidebar panel: notes that link to the active note, with the linking text.
@@ -14,6 +16,13 @@ export class BacklinksPanel extends Component {
   private readonly mentionsEl: HTMLElement
   // Unlinked mentions are only searched for while their section is open.
   private mentionsOpen = false
+  // The note the shown mentions were found for (they're found again only on request).
+  private mentionsFor: string | null = null
+  // Notes the shown mentions are in: a change to one of them finds mentions again.
+  private mentionSources = new Set<string>()
+  // Notes linking to the target when last drawn, and how many of them are shown.
+  private sources = new Set<string>()
+  private shown = PAGE
   private timer: number | null = null
 
   constructor(
@@ -32,11 +41,22 @@ export class BacklinksPanel extends Component {
   }
 
   onload(): void {
-    this.register(this.cache.onChange(() => this.renderSoon()))
+    this.register(
+      this.cache.onChange((path) => {
+        // Only changes that can affect this note's backlinks redraw them.
+        const t = this.target
+        if (path === null || path === t || this.sources.has(path) || (t && this.cache.resolvedLinks[path]?.[t])) this.renderSoon()
+        if (path !== null && this.mentionsOpen && this.mentionSources.has(path)) {
+          this.mentionsFor = null
+          this.renderSoon()
+        }
+      })
+    )
     this.refresh()
   }
 
   setTarget(path: string | null): void {
+    if (path !== this.target) this.shown = PAGE
     this.target = path
     this.refresh()
   }
@@ -48,20 +68,28 @@ export class BacklinksPanel extends Component {
 
   private refresh(): void {
     this.render()
-    this.renderMentions()
+    // Mentions need a scan of the whole vault: only when the note changes or on request.
+    if (this.mentionsFor !== this.target) this.renderMentions()
   }
 
   private renderMentions(): void {
     this.mentionsEl.replaceChildren()
     const target = this.target
+    this.mentionsFor = target
+    this.mentionSources.clear()
     if (!target || !target.toLowerCase().endsWith('.md')) return
-    const toggle = el('button', 'zn-mentions-toggle', this.mentionsEl, `${this.mentionsOpen ? '▾' : '▸'} Unlinked mentions`)
+    const head = el('div', 'zn-mentions-head', this.mentionsEl)
+    const toggle = el('button', 'zn-mentions-toggle', head, `${this.mentionsOpen ? '▾' : '▸'} Unlinked mentions`)
     toggle.setAttribute('aria-expanded', String(this.mentionsOpen))
     toggle.addEventListener('click', () => {
       this.mentionsOpen = !this.mentionsOpen
       this.renderMentions()
     })
     if (!this.mentionsOpen) return
+    const again = el('button', 'zn-mentions-refresh', head, '↻')
+    again.title = 'Look again'
+    again.setAttribute('aria-label', 'Look for unlinked mentions again')
+    again.addEventListener('click', () => this.renderMentions())
     const names = [stripExt(baseName(target)), ...(this.cache.getNote(target)?.meta.aliases ?? [])]
     const notes = this.cache
       .allNotes()
@@ -73,6 +101,7 @@ export class BacklinksPanel extends Component {
       return
     }
     for (const m of mentions) {
+      this.mentionSources.add(m.source)
       const row = el('div', 'zn-mention', this.mentionsEl)
       const head = el('div', 'zn-mention-head', row)
       el('span', 'zn-backlink-title', head, stripExt(baseName(m.source)))
@@ -99,13 +128,15 @@ export class BacklinksPanel extends Component {
       return
     }
     const backlinks = this.cache.getBacklinks(this.target)
+    this.sources = new Set(backlinks.map((b) => b.source))
     const total = backlinks.reduce((n, b) => n + b.refs.length, 0)
     this.countEl.textContent = total ? String(total) : ''
     if (!backlinks.length) {
       el('div', 'zn-panel-empty', this.listEl, 'No notes link here yet.')
       return
     }
-    for (const { source, refs } of backlinks) {
+    // A note many others link to shows them a page at a time.
+    for (const { source, refs } of backlinks.slice(0, this.shown)) {
       const note = this.cache.getNote(source)
       if (!note) continue
       const group = el('div', 'zn-backlink-note', this.listEl)
@@ -141,6 +172,14 @@ export class BacklinksPanel extends Component {
         if (to < lineEnd) row.appendChild(document.createTextNode('…'))
         row.addEventListener('click', () => this.onOpen(source, { from: ref.start, to: ref.end }))
       }
+    }
+    const rest = backlinks.length - this.shown
+    if (rest > 0) {
+      const more = el('button', 'zn-btn zn-backlinks-more', this.listEl, `Show ${Math.min(rest, PAGE)} more of ${rest}`)
+      more.addEventListener('click', () => {
+        this.shown += PAGE
+        this.render()
+      })
     }
   }
 }
