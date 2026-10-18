@@ -2,6 +2,25 @@
 
 A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.md` files in a folder you choose (a "vault"), so they stay readable by any editor, including Obsidian.
 
+## Appearance, onboarding & accessibility (M6)
+
+- **Light and dark themes**, or **System** to follow Windows (switching live). Every colour is a theme token, so the accent colour, CSS themes and snippets can restyle everything.
+- **Settings** (Ctrl+, or the gear in the ribbon):
+  - **General**: vault, About, copy diagnostics.
+  - **Editor**: default view, spellcheck, readable line length.
+  - **Files & links**: attachment folder, where deleted files go, unused attachments.
+  - **Appearance**: theme, accent, fonts, text size, zoom, CSS themes and snippets.
+  - **Hotkeys**, **Daily notes**, **Templates**.
+- **Hotkey editor**: press **+** next to any command and press the keys. Clashes are shown, a hotkey can be removed, and ↺ restores the default.
+- **CSS themes and snippets**: `.zenode/themes/<Name>/theme.css` and `.zenode/snippets/*.css`. Themes written for Obsidian's public variables mostly work (`body.theme-dark`/`theme-light` and the common `--background-*`/`--text-*` variables are mapped).
+- **Interface zoom**: Ctrl+= / Ctrl+- / Ctrl+0.
+- **Welcome and vaults**: create a new vault, open a folder, or open the bundled **Zenode Help** vault, a guided tour with examples. Ctrl+Shift+O opens the same choices plus recent vaults, each removable.
+- **Accessibility**:
+  - Checked with axe-core in both themes (WCAG 2.1 AA, no serious issues).
+  - Full keyboard use of the file tree, tabs, palette, switcher and settings.
+  - Visible focus rings, screen-reader names and live notices.
+  - Reduced-motion and Windows high-contrast support.
+
 ## Performance (M5)
 
 Built and measured for big vaults. With 10,000 notes the index is ready in about 2.5 s on a first launch and about 1 s after that (a saved index means only changed files are read again). Search stays under 50 ms, and under 200 ms at 50,000 notes. Long file trees, much-linked notes, big graphs and big canvases draw only what's on screen. A 500-cycle soak test shows no memory growth from opening, editing and closing notes. Numbers, method and limits are in [docs/perf.md](docs/perf.md).
@@ -43,7 +62,7 @@ Daily notes and templates are set up per vault:
 - **Code blocks** are highlighted in their language while editing and reading, with a copy button.
 - **Folding** of headings and lists from the gutter; **hover previews** of linked notes (Ctrl+hover in the editor); spellcheck on/off.
 
-Editor settings live in `<vault>/.zenode/app.json` (a settings screen comes in M6):
+Editor settings are in Settings (Ctrl+,) and saved in `<vault>/.zenode/app.json`:
 
 ```json
 { "defaultView": "live", "spellcheck": true, "attachmentFolder": "./assets", "trashOption": "system" }
@@ -104,7 +123,9 @@ Editor settings live in `<vault>/.zenode/app.json` (a settings screen comes in M
 | Ctrl+Shift+F | Search |
 | Ctrl+G | Graph view |
 | Ctrl+Shift+B | Toggle right sidebar (backlinks, outgoing links, outline, local graph) |
-| Ctrl+Shift+O | Open another vault (in a new window) |
+| Ctrl+Shift+O | Vaults: open another vault (in a new window), create one, or the Help vault |
+| Ctrl+, | Settings |
+| Ctrl+= / Ctrl+- / Ctrl+0 | Zoom in / out / reset |
 | Ctrl+Shift+D | Today's daily note |
 | Alt+← / Alt+→ | Back / forward in the pane's history |
 | Ctrl+Alt+arrows | Focus the pane to the left, right, above or below |
@@ -115,7 +136,7 @@ Editor settings live in `<vault>/.zenode/app.json` (a settings screen comes in M
 
 On a canvas: double-click empty space to add a card, double-click a card to edit it (Esc to stop), Enter to edit the selected card, Delete to remove, Ctrl+Z / Ctrl+Shift+Z to undo and redo, Ctrl+A to select all.
 
-Shortcuts can be changed per vault in `.zenode/hotkeys.json`, keyed by command id (a settings screen for this is planned):
+Shortcuts can be changed in Settings → Hotkeys; they're saved per vault in `.zenode/hotkeys.json`, keyed by command id:
 
 ```json
 { "app:toggle-left-sidebar": [{ "modifiers": ["Mod", "Shift"], "key": "l" }] }
@@ -124,7 +145,7 @@ Shortcuts can be changed per vault in `.zenode/hotkeys.json`, keyed by command i
 ## Your data
 
 - Notes and canvases are plain files in your vault folder. Zenode writes them atomically (temp file, then rename) and only after you edit them: opening or browsing never rewrites a file, and notes with Windows (CRLF) line endings keep them.
-- Per-vault settings live in `<vault>/.zenode/` (pane layout in `workspace.json`, shortcuts in `hotkeys.json`, bookmarks in `bookmarks.json`, property types in `types.json`), like Obsidian's `.obsidian/` folder.
+- Per-vault settings live in `<vault>/.zenode/` (pane layout in `workspace.json`, shortcuts in `hotkeys.json`, appearance in `appearance.json`, bookmarks in `bookmarks.json`, property types in `types.json`, plus `themes/` and `snippets/`), like Obsidian's `.obsidian/` folder.
 - App settings and logs live in `%APPDATA%\Zenode\` (`logs\zenode.log` is useful for bug reports).
 
 ### Data safety
@@ -183,7 +204,7 @@ Towards 1.0 (production-ready core):
 - ~~M3 Workspace: command palette, split panes, drag & drop, outline/tags/bookmarks, daily notes, templates, properties, multiple windows~~ (done)
 - ~~M4 Files: image/PDF/audio/video/text viewers, export to PDF, delete to Recycle Bin or .trash, unused attachments~~ (done)
 - ~~M5 Performance: saved index, 10k-50k note vaults, long lists, graph and canvas at scale, leak check~~ (done)
-- M6 Appearance: light theme, themes and snippets, hotkey editor, onboarding, accessibility
+- ~~M6 Appearance: light theme, settings screen, themes and snippets, hotkey editor, onboarding and Help vault, accessibility~~ (done)
 - M7 Security hardening, M8 installer/updates/file associations, M9 docs and website
 
 After 1.0: Git and sync helpers (1.1), Bases database views (1.2), an Obsidian-compatible plugin API (1.3).
