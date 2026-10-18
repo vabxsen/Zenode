@@ -1,5 +1,6 @@
 import { Component, el } from './component'
 import type { MetadataCache } from './index/metadataCache'
+import { findUnlinkedMentions, type Mention } from './panels/mentions'
 import { baseName, parentDir, stripExt } from './paths'
 import type { OpenPosition } from './workspace'
 
@@ -10,33 +11,84 @@ export class BacklinksPanel extends Component {
   private target: string | null = null
   private readonly countEl: HTMLElement
   private readonly listEl: HTMLElement
+  private readonly mentionsEl: HTMLElement
+  // Unlinked mentions are only searched for while their section is open.
+  private mentionsOpen = false
   private timer: number | null = null
 
   constructor(
     container: HTMLElement,
     private readonly cache: MetadataCache,
-    private readonly onOpen: (path: string, pos?: OpenPosition) => void
+    private readonly onOpen: (path: string, pos?: OpenPosition) => void,
+    // Turn a mention into a link to the target note.
+    private readonly onLinkMention: (mention: Mention, target: string) => Promise<void>
   ) {
     super()
     const header = el('div', 'zn-panel-header', container)
     el('span', 'zn-panel-title', header, 'Backlinks')
     this.countEl = el('span', 'zn-panel-count', header)
     this.listEl = el('div', 'zn-backlinks', container)
+    this.mentionsEl = el('div', 'zn-mentions', container)
   }
 
   onload(): void {
     this.register(this.cache.onChange(() => this.renderSoon()))
-    this.render()
+    this.refresh()
   }
 
   setTarget(path: string | null): void {
     this.target = path
-    this.render()
+    this.refresh()
   }
 
   private renderSoon(): void {
     if (this.timer !== null) window.clearTimeout(this.timer)
-    this.timer = window.setTimeout(() => this.render(), 100)
+    this.timer = window.setTimeout(() => this.refresh(), 100)
+  }
+
+  private refresh(): void {
+    this.render()
+    this.renderMentions()
+  }
+
+  private renderMentions(): void {
+    this.mentionsEl.replaceChildren()
+    const target = this.target
+    if (!target || !target.toLowerCase().endsWith('.md')) return
+    const toggle = el('button', 'zn-mentions-toggle', this.mentionsEl, `${this.mentionsOpen ? '▾' : '▸'} Unlinked mentions`)
+    toggle.setAttribute('aria-expanded', String(this.mentionsOpen))
+    toggle.addEventListener('click', () => {
+      this.mentionsOpen = !this.mentionsOpen
+      this.renderMentions()
+    })
+    if (!this.mentionsOpen) return
+    const names = [stripExt(baseName(target)), ...(this.cache.getNote(target)?.meta.aliases ?? [])]
+    const notes = this.cache
+      .allNotes()
+      .filter((n) => n.path.toLowerCase().endsWith('.md'))
+      .map((n) => ({ path: n.path, content: n.content }))
+    const mentions = findUnlinkedMentions(target, names, notes, (source) => !!this.cache.resolvedLinks[source]?.[target])
+    if (!mentions.length) {
+      el('div', 'zn-panel-empty', this.mentionsEl, 'No unlinked mentions.')
+      return
+    }
+    for (const m of mentions) {
+      const row = el('div', 'zn-mention', this.mentionsEl)
+      const head = el('div', 'zn-mention-head', row)
+      el('span', 'zn-backlink-title', head, stripExt(baseName(m.source)))
+      const link = el('button', 'zn-btn zn-mention-link', head, 'Link')
+      link.addEventListener('click', (e) => {
+        e.stopPropagation()
+        link.disabled = true
+        void this.onLinkMention(m, target)
+      })
+      const line = el('div', 'zn-backlink-line', row)
+      const at = m.line.toLowerCase().indexOf(m.text.toLowerCase())
+      line.appendChild(document.createTextNode(m.line.slice(0, at)))
+      el('mark', '', line, m.line.slice(at, at + m.text.length))
+      line.appendChild(document.createTextNode(m.line.slice(at + m.text.length)))
+      row.addEventListener('click', () => this.onOpen(m.source, { from: m.start, to: m.end }))
+    }
   }
 
   private render(): void {

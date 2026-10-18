@@ -1,4 +1,5 @@
 import { Component, el } from '../component'
+import { icon } from '../icons'
 import type { MetadataCache } from '../index/metadataCache'
 import { baseName, parentDir, stripExt } from '../paths'
 import type { OpenPosition } from '../workspace'
@@ -24,13 +25,25 @@ export class SearchPane extends Component {
   constructor(
     container: HTMLElement,
     private readonly cache: MetadataCache,
-    private readonly onOpen: (path: string, pos?: OpenPosition) => void
+    private readonly onOpen: (path: string, pos?: OpenPosition) => void,
+    onBookmark?: (query: string) => void
   ) {
     super()
     const box = el('div', 'zn-search-box', container)
-    this.input = el('input', 'zn-search-input', box)
+    const row = el('div', 'zn-search-row', box)
+    this.input = el('input', 'zn-search-input', row)
     this.input.placeholder = 'Search notes...'
     this.input.spellcheck = false
+    if (onBookmark) {
+      const save = el('button', 'zn-search-bookmark', row)
+      save.title = 'Bookmark this search'
+      save.setAttribute('aria-label', 'Bookmark this search')
+      save.appendChild(icon('bookmark', 14))
+      save.addEventListener('click', () => {
+        const query = this.input.value.trim()
+        if (query) onBookmark(query)
+      })
+    }
     el('div', 'zn-search-help', box, 'Use "phrase", -exclude, /regex/, path:, file:, tag:')
     this.summaryEl = el('div', 'zn-search-summary', container)
     this.resultsEl = el('div', 'zn-search-results', container)

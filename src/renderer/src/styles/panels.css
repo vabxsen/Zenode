@@ -1,0 +1,190 @@
+/* Sidebar panels: outline, outgoing links, tags, bookmarks, recent files and
+   unlinked mentions. */
+
+.zn-pane-scroll {
+  overflow: auto;
+}
+
+.zn-pane-scroll .zn-backlinks {
+  flex: none;
+  overflow: visible;
+}
+
+.zn-outline,
+.zn-outgoing,
+.zn-tags,
+.zn-bookmarks,
+.zn-recent-files,
+.zn-mentions {
+  padding: 0 6px 12px;
+}
+
+.zn-outline-item,
+.zn-outgoing-item,
+.zn-tag-item,
+.zn-bookmark-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--zn-text);
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.zn-outline-item:hover,
+.zn-outgoing-item:hover,
+.zn-tag-item:hover,
+.zn-bookmark-item:hover {
+  background: var(--zn-bg-hover);
+  color: var(--zn-text-strong);
+}
+
+.zn-outline-item {
+  display: block;
+}
+
+.zn-outline-item.is-h1 {
+  font-weight: 600;
+}
+
+.zn-outline-item.is-h2 { padding-left: 22px; }
+.zn-outline-item.is-h3 { padding-left: 34px; }
+.zn-outline-item.is-h4 { padding-left: 46px; }
+.zn-outline-item.is-h5 { padding-left: 58px; }
+.zn-outline-item.is-h6 { padding-left: 70px; }
+
+.zn-outgoing-name,
+.zn-tag-name,
+.zn-bookmark-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zn-outgoing-folder,
+.zn-bookmark-folder {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+  color: var(--zn-text-faint);
+}
+
+.zn-outgoing-item.is-unresolved .zn-outgoing-name {
+  color: var(--zn-accent-dim);
+  font-style: italic;
+}
+
+.zn-outgoing-count,
+.zn-tag-count {
+  flex: none;
+  font-size: 11px;
+  color: var(--zn-text-faint);
+}
+
+.zn-panel-subhead {
+  padding: 12px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--zn-text-faint);
+}
+
+.zn-tag-name {
+  color: var(--zn-accent);
+}
+
+.zn-bookmark-item.is-search .zn-bookmark-name::before {
+  content: '⌕ ';
+  color: var(--zn-text-faint);
+}
+
+/* Unlinked mentions, below the backlinks. */
+
+.zn-mentions {
+  border-top: 1px solid var(--zn-border);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+.zn-mentions-toggle {
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--zn-text-faint);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.zn-mentions-toggle:hover {
+  background: var(--zn-bg-hover);
+  color: var(--zn-text);
+}
+
+.zn-mention {
+  margin: 4px 0 8px;
+  cursor: pointer;
+}
+
+.zn-mention-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+}
+
+.zn-mention-head .zn-backlink-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.zn-mention-link {
+  flex: none;
+  height: 22px;
+  padding: 0 10px;
+  font-size: 11.5px;
+}
+
+/* Search box with a bookmark button. */
+
+.zn-search-row {
+  display: flex;
+  gap: 6px;
+}
+
+.zn-search-row .zn-search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.zn-search-bookmark {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--zn-border);
+  border-radius: 7px;
+  background: var(--zn-bg);
+  color: var(--zn-text-faint);
+  cursor: pointer;
+}
+
+.zn-search-bookmark:hover {
+  color: var(--zn-accent);
+}

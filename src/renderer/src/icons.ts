@@ -25,6 +25,10 @@ const PATHS = {
   splitRight: 'M3 4h18v16H3zM12 4v16',
   splitDown: 'M3 4h18v16H3zM3 12h18',
   back: 'M15 6l-6 6 6 6',
+  bookmark: 'M6 3h12v18l-6-4-6 4z',
+  tag: 'M3 12V3h9l9 9-9 9zM7.5 7.5h.01',
+  outline: 'M4 6h16M8 12h12M12 18h8',
+  outgoing: 'M7 17L17 7M9 7h8v8',
   logo: 'M5 5h14L5 19h14'
 } as const
 

@@ -19,6 +19,8 @@ export interface FileTreeHandlers {
   onMoveTo(paths: string[]): void
   onReveal(path: string): void
   onHistory(path: string): void
+  isBookmarked(path: string): boolean
+  onToggleBookmark(path: string): void
 }
 
 const INDENT = 14
@@ -331,7 +333,15 @@ export class FileTree extends Component {
       { label: 'Move to…', action: () => this.handlers.onMoveTo([entry.path]) },
       { label: 'Copy path', action: () => void navigator.clipboard.writeText(entry.path) },
       { label: 'Show in Explorer', action: () => this.handlers.onReveal(entry.path) },
-      ...(isFolder ? [] : [{ label: 'Show file history', action: () => this.handlers.onHistory(entry.path) }]),
+      ...(isFolder
+        ? []
+        : [
+            { label: 'Show file history', action: () => this.handlers.onHistory(entry.path) },
+            {
+              label: this.handlers.isBookmarked(entry.path) ? 'Remove bookmark' : 'Bookmark',
+              action: () => this.handlers.onToggleBookmark(entry.path)
+            }
+          ]),
       'separator',
       { label: 'Delete', danger: true, action: () => this.handlers.onDelete([entry]) }
     ]

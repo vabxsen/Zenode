@@ -1,5 +1,4 @@
 import type { TreeEntry, VaultInfo } from '../../shared/api'
-import { BacklinksPanel } from './backlinks'
 import { CanvasView, type CanvasHost } from './canvas/canvasView'
 import { openCommandPalette } from './commandPalette'
 import { CommandRegistry } from './commands'
@@ -8,9 +7,9 @@ import { attachmentDir, DEFAULT_EDITOR_SETTINGS, sanitizeEditorSettings, sanitiz
 import { Component, el } from './component'
 import { registerCoreCommands } from './coreCommands'
 import type { LinkTarget } from './editor/linkCompletion'
-import { FileTree } from './fileTree'
+import type { FileTree } from './fileTree'
 import { GRAPH_ID, makeGraphTab } from './graph/graphTab'
-import { GraphView } from './graph/graphView'
+import type { GraphView } from './graph/graphView'
 import { icon, type IconName } from './icons'
 import { isCanvasPath } from './index/canvasMeta'
 import { MetadataCache } from './index/metadataCache'
@@ -20,12 +19,15 @@ import { attachmentLinks, saveAttachments } from './fileOps'
 import { relativeLinkTarget, subpathPosition } from './links'
 import { FileActions } from './fileActions'
 import { HoverPreview } from './hoverPreview'
+import { registerPanelCommands } from './panelCommands'
 import { registerWorkspaceCommands } from './workspaceCommands'
 import { offerRecovery } from './recovery'
 import type { ReadingContext } from './render/reading'
 import { SyncIndicator } from './sync/syncPanel'
 import { baseName, isMarkdown, parentDir, stripExt, stripMd } from './paths'
-import { SearchPane } from './search/searchPane'
+import { mentionLink, type Mention } from './panels/mentions'
+import { LeftSidebar, RightSidebar, type LeftPane, type RightPane, type SidebarDeps } from './sidebars'
+import { contentHash } from '../../shared/hash'
 import { openSwitcher } from './switcher'
 import { VIEW_PREFIX, Workspace, type OpenPosition } from './workspace'
 
@@ -33,11 +35,7 @@ const api = window.zenode
 const EXTERNAL = /^(https?:|mailto:)/i
 const SIDEBAR_KEY = 'zenode.sidebarWidth'
 const RIGHTBAR_KEY = 'zenode.rightbarHidden'
-const RIGHT_PANE_KEY = 'zenode.rightPane'
 const MAX_RECENT = 30
-
-type LeftPane = 'files' | 'search'
-type RightPane = 'backlinks' | 'localGraph'
 
 export class App extends Component {
   readonly commands = new CommandRegistry()
@@ -49,7 +47,9 @@ export class App extends Component {
     queueIndex: (task) => this.queueIndex(task),
     indexIdle: () => this.indexChain,
     openCanvas: (path) => this.openCanvas(path),
-    notice: (m) => this.notice(m)
+    notice: (m) => this.notice(m),
+    renamed: (from, to) => this.left?.bookmarks.renamed(from, to),
+    removed: (path) => this.left?.bookmarks.removed(path)
   })
   private editorSettings: EditorSettings = { ...DEFAULT_EDITOR_SETTINGS }
   private vault: VaultInfo | null = null
@@ -57,17 +57,11 @@ export class App extends Component {
   private tree: FileTree | null = null
   private workspace: Workspace | null = null
   private cache: MetadataCache | null = null
-  private search: SearchPane | null = null
-  private backlinks: BacklinksPanel | null = null
-  private localGraph: GraphView | null = null
+  private left: LeftSidebar | null = null
+  private right: RightSidebar | null = null
   private globalGraph: GraphView | null = null
-  private rightPaneEls: Record<RightPane, HTMLElement> | null = null
-  private rightTabButtons: Record<RightPane, HTMLElement> | null = null
-  private rightPane: RightPane = 'backlinks'
   private statusEl: HTMLElement | null = null
   private titleEl: HTMLElement | null = null
-  private paneEls: Record<LeftPane, HTMLElement> | null = null
-  private tabButtons: Record<LeftPane, HTMLElement> | null = null
   private treeTimer: number | null = null
   private layoutTimer: number | null = null
   private indexBuilt = false
@@ -87,6 +81,15 @@ export class App extends Component {
     api.onVaultChanged((paths) => this.onVaultChanged(paths))
     this.register(this.registerCommands())
     this.register(registerWorkspaceCommands(this.commands, () => this.workspace))
+    this.register(
+      registerPanelCommands(this.commands, {
+        hasVault: () => this.workspace !== null,
+        activeFile: () => this.workspace?.activePath ?? null,
+        toggleBookmark: (path) => this.left?.bookmarks.toggle(path),
+        showLeft: (pane) => this.showPane(pane),
+        showRight: (pane) => this.showRightPane(pane)
+      })
+    )
     this.registerDomEvent(window, 'keydown', (e) => this.onKeydown(e), { capture: true })
 
     const settings = await api.getSettings()
@@ -155,6 +158,7 @@ export class App extends Component {
     this.buildShell()
     await this.refreshTree()
 
+    await this.left?.bookmarks.load()
     this.commands.setCustomHotkeys(sanitizeHotkeys(await api.readConfig('hotkeys')))
     this.editorSettings = sanitizeEditorSettings(await api.readConfig('app'))
     this.workspace?.setDefaultView(this.editorSettings.defaultView)
@@ -177,9 +181,8 @@ export class App extends Component {
     this.tree = null
     this.workspace = null
     this.cache = null
-    this.search = null
-    this.backlinks = null
-    this.localGraph = null
+    this.left = null
+    this.right = null
     this.globalGraph = null
   }
 
@@ -210,38 +213,10 @@ export class App extends Component {
     this.ribbonButton(ribbon, 'link', 'Toggle right sidebar (Ctrl+Shift+B)', () => this.toggleRightbar())
     this.ribbonButton(ribbon, 'folderOpen', 'Open another vault (Ctrl+Shift+O)', () => void this.chooseVault())
 
-    // Left sidebar: Files and Search panes.
-    const sidebar = el('div', 'zn-sidebar', body)
-    const tabs = el('div', 'zn-sidebar-tabs', sidebar)
-    const filesTab = el('button', 'zn-sidebar-tab', tabs)
-    filesTab.title = 'Files'
-    filesTab.appendChild(icon('files', 16))
-    const searchTab = el('button', 'zn-sidebar-tab', tabs)
-    searchTab.title = 'Search'
-    searchTab.appendChild(icon('search', 16))
-    filesTab.addEventListener('click', () => this.showPane('files'))
-    searchTab.addEventListener('click', () => this.showSearch())
-
-    const filesPane = el('div', 'zn-pane', sidebar)
-    this.tree = shell.addChild(
-      new FileTree(filesPane, this.vault!.name, {
-        onOpen: (entry) => void this.openEntry(entry),
-        onNewNote: (dir) => void this.files.newNote(dir),
-        onNewFolder: (dir) => void this.files.newFolder(dir),
-        onNewCanvas: (dir) => void this.files.newCanvas(dir),
-        onRename: (entry, name) => this.files.rename(entry, name),
-        onDelete: (entries) => void this.files.remove(entries),
-        onMove: (paths, dir) => void this.files.moveAll(paths, dir),
-        onMoveTo: (paths) => void this.files.moveTo(paths),
-        onReveal: (path) => void api.reveal(path),
-        onHistory: (path) => void this.showHistory(path)
-      })
-    )
-    const searchPane = el('div', 'zn-pane zn-pane-search', sidebar)
-    this.search = shell.addChild(new SearchPane(searchPane, cache, (path, pos) => void this.openPath(path, pos)))
-    this.paneEls = { files: filesPane, search: searchPane }
-    this.tabButtons = { files: filesTab, search: searchTab }
-    this.showPane('files')
+    const deps = this.sidebarDeps(shell, cache)
+    this.left = new LeftSidebar(body, deps)
+    this.tree = this.left.tree
+    const sidebar = this.left.bar.el
 
     const resizer = el('div', 'zn-resizer', body)
     this.setupResizer(resizer, sidebar)
@@ -253,10 +228,10 @@ export class App extends Component {
           this.tree?.setActive(path)
           this.titleEl!.textContent = title
           if (path) this.recent = [path, ...this.recent.filter((p) => p !== path)].slice(0, MAX_RECENT)
+          this.left?.bookmarks.renderRecent()
           // Side panels keep showing the last note while a view tab (like the graph) is in front.
           const context = path ?? this.recent[0] ?? null
-          this.backlinks?.setTarget(context)
-          this.localGraph?.setActive(context)
+          this.right?.setTarget(context)
           this.globalGraph?.setActive(context)
         },
         onOpenLink: (href, from) => void this.openLink(href, from),
@@ -283,31 +258,7 @@ export class App extends Component {
       })
     )
 
-    // Right sidebar: backlinks and the local graph.
-    const rightbar = el('div', 'zn-rightbar', body)
-    const rtabs = el('div', 'zn-sidebar-tabs', rightbar)
-    const blTab = el('button', 'zn-sidebar-tab', rtabs)
-    blTab.title = 'Backlinks'
-    blTab.appendChild(icon('link', 16))
-    const lgTab = el('button', 'zn-sidebar-tab', rtabs)
-    lgTab.title = 'Local graph'
-    lgTab.appendChild(icon('graph', 16))
-    blTab.addEventListener('click', () => this.showRightPane('backlinks'))
-    lgTab.addEventListener('click', () => this.showRightPane('localGraph'))
-    const blPane = el('div', 'zn-pane', rightbar)
-    const lgPane = el('div', 'zn-pane zn-pane-graph', rightbar)
-    this.backlinks = shell.addChild(new BacklinksPanel(blPane, cache, (path, pos) => void this.openPath(path, pos)))
-    this.localGraph = shell.addChild(
-      new GraphView(lgPane, {
-        cache,
-        mode: 'local',
-        getActive: () => this.workspace?.activePath ?? this.recent[0] ?? null,
-        onOpen: (path) => void this.openPath(path)
-      })
-    )
-    this.rightPaneEls = { backlinks: blPane, localGraph: lgPane }
-    this.rightTabButtons = { backlinks: blTab, localGraph: lgTab }
-    this.showRightPane(safeGet(RIGHT_PANE_KEY) === 'localGraph' ? 'localGraph' : 'backlinks', false)
+    this.right = new RightSidebar(body, deps)
 
     // Live link styling follows the index.
     shell.register(cache.onChange(() => this.workspace?.refreshLinks()))
@@ -324,40 +275,88 @@ export class App extends Component {
     shell.addChild(new HoverPreview(this.root, { activePath: () => this.workspace?.activePath ?? null, readingContext: (p) => this.readingContext(cache, p) }))
   }
 
-  private showPane(pane: LeftPane): void {
-    if (!this.paneEls || !this.tabButtons) return
-    this.root.classList.remove('is-sidebar-hidden')
-    for (const key of ['files', 'search'] as LeftPane[]) {
-      this.paneEls[key].style.display = key === pane ? '' : 'none'
-      this.tabButtons[key].classList.toggle('is-active', key === pane)
+  private sidebarDeps(shell: Component, cache: MetadataCache): SidebarDeps {
+    return {
+      root: this.root,
+      shell,
+      cache,
+      vaultName: this.vault!.name,
+      tree: {
+        onOpen: (entry) => void this.openEntry(entry),
+        onNewNote: (dir) => void this.files.newNote(dir),
+        onNewFolder: (dir) => void this.files.newFolder(dir),
+        onNewCanvas: (dir) => void this.files.newCanvas(dir),
+        onRename: (entry, name) => this.files.rename(entry, name),
+        onDelete: (entries) => void this.files.remove(entries),
+        onMove: (paths, dir) => void this.files.moveAll(paths, dir),
+        onMoveTo: (paths) => void this.files.moveTo(paths),
+        onReveal: (path) => void api.reveal(path),
+        onHistory: (path) => void this.showHistory(path)
+      },
+      openPath: (path, pos) => void this.openPath(path, pos),
+      createNote: (name) => void this.files.createNamedNote(name),
+      showSearch: (query) => this.showSearch(query),
+      recent: () => this.recent,
+      activePath: () => this.workspace?.activePath ?? null,
+      linkMention: (m, target) => this.linkMention(m, target),
+      notice: (m) => this.notice(m)
     }
+  }
+
+  private showPane(pane: LeftPane): void {
+    this.root.classList.remove('is-sidebar-hidden')
+    this.left?.show(pane)
   }
 
   private showSearch(initial?: string): void {
     this.showPane('search')
-    this.search?.focus(initial)
+    this.left?.search.focus(initial)
+  }
+
+  private toggleLeftbar(): void {
+    this.root.classList.toggle('is-sidebar-hidden')
+    this.left?.bar.notifyVisibility()
   }
 
   private toggleRightbar(): void {
     const hidden = this.root.classList.toggle('is-rightbar-hidden')
     safeSet(RIGHTBAR_KEY, hidden ? '1' : '0')
-    this.localGraph?.setVisible(!hidden && this.rightPane === 'localGraph')
+    this.right?.bar.notifyVisibility()
   }
 
-  private showRightPane(pane: RightPane, reveal = true): void {
-    if (!this.rightPaneEls || !this.rightTabButtons) return
-    this.rightPane = pane
-    safeSet(RIGHT_PANE_KEY, pane)
-    if (reveal && this.root.classList.contains('is-rightbar-hidden')) {
+  private showRightPane(pane: RightPane): void {
+    if (this.root.classList.contains('is-rightbar-hidden')) {
       this.root.classList.remove('is-rightbar-hidden')
       safeSet(RIGHTBAR_KEY, '0')
     }
-    for (const key of ['backlinks', 'localGraph'] as RightPane[]) {
-      this.rightPaneEls[key].style.display = key === pane ? '' : 'none'
-      this.rightTabButtons[key].classList.toggle('is-active', key === pane)
+    this.right?.show(pane)
+  }
+
+  // Turns an unlinked mention into a link. An open note is edited in its tab
+  // (so unsaved typing is kept); otherwise the file is written if unchanged.
+  private async linkMention(m: Mention, target: string): Promise<void> {
+    const cache = this.cache
+    const note = cache?.getNote(m.source)
+    if (!cache || !note || note.content.slice(m.start, m.end) !== m.text) {
+      this.notice('That note changed. The list has been refreshed.')
+      return
     }
-    const shown = !this.root.classList.contains('is-rightbar-hidden')
-    this.localGraph?.setVisible(shown && pane === 'localGraph')
+    const updated = note.content.slice(0, m.start) + mentionLink(cache.linktext(target, m.source), m.text) + note.content.slice(m.end)
+    if (this.workspace?.isOpen(m.source)) {
+      this.workspace.replaceText(m.source, updated)
+      await this.workspace.save()
+      return
+    }
+    try {
+      const result = await api.writeChecked(m.source, updated, contentHash(note.content))
+      if (result.status === 'conflict') {
+        this.notice(`${stripExt(baseName(m.source))} changed on disk; not linked.`)
+        return
+      }
+      await this.queueIndex(() => cache.setContent(m.source, updated))
+    } catch (e) {
+      this.notice(`Could not link the mention: ${(e as Error).message}`)
+    }
   }
 
   // ---------- Graph view tab ----------
@@ -614,7 +613,7 @@ export class App extends Component {
       openSwitcher: () => this.openQuickSwitcher(),
       showSearch: () => this.showSearch(),
       openGraph: () => this.openGraph(),
-      toggleLeftSidebar: () => this.root.classList.toggle('is-sidebar-hidden'),
+      toggleLeftSidebar: () => this.toggleLeftbar(),
       toggleRightSidebar: () => this.toggleRightbar(),
       newNote: () => void this.files.newNote(this.currentDir()),
       newCanvas: () => void this.files.newCanvas(this.currentDir()),

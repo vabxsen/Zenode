@@ -20,6 +20,9 @@ export interface FileActionDeps {
   indexIdle(): Promise<void>
   openCanvas(path: string): void
   notice(message: string): void
+  // Told after a file or folder moved or went to the Recycle Bin.
+  renamed(from: string, to: string): void
+  removed(path: string): void
 }
 
 export class FileActions {
@@ -95,6 +98,7 @@ export class FileActions {
       const pending = cache ? cache.collectRenameRefs(from, isFolder) : []
       const to = await perform()
       this.d.workspace()?.renamed(from, to)
+      this.d.renamed(from, to)
       if (isFolder) this.d.tree()?.renamePath(from, to)
       await this.d.refreshTree()
       if (cache && to !== from && pending.length) {
@@ -133,6 +137,7 @@ export class FileActions {
     for (const entry of entries) {
       try {
         this.d.workspace()?.removed(entry.path)
+        this.d.removed(entry.path)
         await api.trash(entry.path)
       } catch (e) {
         this.d.notice(`Could not delete ${entry.path}: ${(e as Error).message}`)

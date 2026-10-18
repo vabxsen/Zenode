@@ -3,6 +3,8 @@ import { markdownLanguage } from '@codemirror/lang-markdown'
 import { commentSyntax, frontmatterSyntax, hashtagSyntax, highlightSyntax, mathSyntax, wikiLinkSyntax } from '../src/renderer/src/editor/wikilink'
 import { formatTable, splitRow } from '../src/renderer/src/editor/tables'
 import { relativeLinkTarget, subpathPosition } from '../src/renderer/src/links'
+import { findUnlinkedMentions, mentionLink } from '../src/renderer/src/panels/mentions'
+import { countTags } from '../src/renderer/src/panels/tagCount'
 import { eq } from './harness'
 
 const parser = markdownLanguage.parser.configure([frontmatterSyntax, wikiLinkSyntax, hashtagSyntax, highlightSyntax, commentSyntax, mathSyntax])
@@ -38,6 +40,24 @@ const linkMeta = { links: [], tags: [], frontmatterTags: [], aliases: [], headin
 eq('subpath: heading offset', subpathPosition('# Title\nx\n## Plans\ny', linkMeta, '#plans'), { from: 10 })
 eq('subpath: block offset', subpathPosition('a\nsome text ^b1\n', linkMeta, '#^b1'), { from: 2 })
 eq('subpath: missing', subpathPosition('a', linkMeta, '#nope'), undefined)
+
+// Unlinked mentions and tag counts.
+const mentionNotes = [
+  { path: 'A.md', content: 'I met Project Atlas today. project atlas again!' },
+  { path: 'B.md', content: 'Linked [[Project Atlas]] and `Project Atlas` in code.' },
+  { path: 'C.md', content: '---\ntitle: Project Atlas\n---\nNothing else. Atlas alone.' },
+  { path: 'D.md', content: 'The ProjectAtlases page and https://x.com/Project Atlas' },
+  { path: 'E.md', content: 'Already links: see Project Atlas.' }
+]
+const mentions = findUnlinkedMentions('Project Atlas.md', ['Project Atlas', 'PA'], mentionNotes, (s) => s === 'E.md')
+eq('mentions: plain text matches, any case', mentions.map((m) => [m.source, m.text]), [['A.md', 'Project Atlas'], ['A.md', 'project atlas']])
+eq('mentions: line context', mentions[0].line, 'I met Project Atlas today. project atlas again!')
+eq('mentions: link text', [mentionLink('Project Atlas', 'Project Atlas'), mentionLink('Project Atlas', 'project atlas')], ['[[Project Atlas]]', '[[Project Atlas|project atlas]]'])
+const tagCounts = countTags([
+  { meta: { tags: [{ tag: '#work/launch' }, { tag: '#work' }], frontmatterTags: ['#idea'] } },
+  { meta: { tags: [{ tag: '#Work/launch' }], frontmatterTags: [] } }
+])
+eq('tags: counted with nested parents', tagCounts.map((t) => [t.tag, t.count, t.depth]), [['#idea', 1, 0], ['#work', 1, 0], ['#work/launch', 2, 1]])
 
 const KINDS = ['Highlight', 'Comment', 'CommentBlock', 'InlineMath', 'BlockMath', 'WikiEmbed', 'Hashtag']
 eq('lezer: highlight', nodes('a ==b c== d', KINDS), [['Highlight', '==b c==']])

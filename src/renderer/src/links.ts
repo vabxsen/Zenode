@@ -30,7 +30,15 @@ export function subpathPosition(content: string, meta: NoteMeta, subpath: string
   const wanted = subpath.slice(1).split('#').pop()!.trim().toLowerCase()
   const heading = meta.headings.find((h) => h.text.trim().toLowerCase() === wanted)
   if (!heading) return undefined
+  return { from: lineOffset(content, heading.line) }
+}
+
+// The offset where a 0-based line starts.
+export function lineOffset(content: string, line: number): number {
   let offset = 0
-  for (let i = 0; i < heading.line; i++) offset = content.indexOf('\n', offset) + 1
-  return { from: offset }
+  for (let i = 0; i < line && offset !== -1; i++) {
+    const next = content.indexOf('\n', offset)
+    offset = next === -1 ? content.length : next + 1
+  }
+  return offset
 }

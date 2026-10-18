@@ -87,6 +87,20 @@ export function sanitizeWorkspace(raw: unknown): WorkspaceState | null {
   return layout ? { openFiles, activeFile, layout, activePane } : { openFiles, activeFile }
 }
 
+// .zenode/bookmarks.json: bookmarked files and searches, in order.
+export type Bookmark = { type: 'file'; path: string } | { type: 'search'; query: string }
+
+export function sanitizeBookmarks(raw: unknown): Bookmark[] {
+  if (!isRecord(raw) || !Array.isArray(raw.items)) return []
+  const out: Bookmark[] = []
+  for (const item of raw.items) {
+    if (!isRecord(item)) continue
+    if (item.type === 'file' && isString(item.path) && item.path) out.push({ type: 'file', path: item.path })
+    else if (item.type === 'search' && isString(item.query) && item.query) out.push({ type: 'search', query: item.query })
+  }
+  return out
+}
+
 function sanitizeHotkey(raw: unknown): Hotkey | null {
   if (!isRecord(raw) || !isString(raw.key) || !raw.key || !Array.isArray(raw.modifiers)) return null
   const modifiers = raw.modifiers.filter((m): m is Modifier => MODIFIERS.has(m as Modifier))
