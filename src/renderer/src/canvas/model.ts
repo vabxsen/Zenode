@@ -65,6 +65,20 @@ export interface CanvasData {
 
 export const KNOWN_TYPES = new Set(['text', 'file', 'link', 'group'])
 
+// JSON Canvas colors are "1"–"6" (preset) or any CSS hex color.
+export const PRESET_COLORS: Record<string, string> = {
+  '1': '#f87171',
+  '2': '#fb923c',
+  '3': '#facc15',
+  '4': '#4ade80',
+  '5': '#22d3ee',
+  '6': '#c084fc'
+}
+
+export function colorOf(c?: string): string | null {
+  return c ? (PRESET_COLORS[c] ?? c) : null
+}
+
 export function isText(n: CanvasNode): n is TextNode {
   return n.type === 'text'
 }

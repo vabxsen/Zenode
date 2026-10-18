@@ -8,6 +8,7 @@ import { CommandRegistry, hotkeyFromEvent, hotkeyLabel } from '../src/renderer/s
 import { registerCoreCommands } from '../src/renderer/src/coreCommands'
 import { parseCanvasMeta } from '../src/renderer/src/index/canvasMeta'
 import { sanitizeHotkeys, sanitizeWorkspace } from '../src/renderer/src/config'
+import { CanvasDocument } from '../src/renderer/src/canvas/canvasDocument'
 import { configPath, readConfig, writeConfig } from '../src/main/config'
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -210,6 +211,34 @@ core.execute(core.match(key('o', { ctrl: true }))!.id)
 eq('core commands: Ctrl+O without a vault picks one', [calls, core.match(key('n', { ctrl: true }))], [['choose'], null])
 dispose()
 eq('core commands: dispose removes all', core.list().length, 0)
+
+// Canvas editing operations and undo.
+const cdoc = new CanvasDocument()
+cdoc.load(parseCanvas(board))
+const before1 = cdoc.snapshot()
+const card = cdoc.addText({ x: 1000, y: 1000 })
+eq('canvas doc: new card snaps to grid and is selected', [card.x % 20, card.y % 20, [...cdoc.selected]], [0, 0, [card.id]])
+eq('canvas doc: commit records a change', cdoc.commit(before1), true)
+eq('canvas doc: commit without change is ignored', cdoc.commit(cdoc.snapshot()), false)
+eq('canvas doc: undo removes the card', [cdoc.undo(), cdoc.node(card.id)], [true, undefined])
+eq('canvas doc: redo restores it', [cdoc.redo(), !!cdoc.node(card.id)], [true, true])
+eq('canvas doc: nothing more to redo', cdoc.redo(), false)
+cdoc.selectOnly('g4')
+eq('canvas doc: moving a group carries the cards inside it', [...cdoc.moveSet().keys()].sort(), ['a1', 'b2', 'c3', 'g4'])
+cdoc.selectOnly('a1')
+cdoc.setColor('4')
+eq('canvas doc: set color', cdoc.node('a1')?.color, '4')
+cdoc.setColor('')
+eq('canvas doc: clear color', 'color' in cdoc.node('a1')!, false)
+const toId = cdoc.connect('a1', 'right', { at: { x: 2000, y: 0 } })
+eq('canvas doc: connecting to empty space makes a card', [!!toId && cdoc.node(toId)?.type, cdoc.data.edges.some((e) => e.toNode === toId)], ['text', true])
+cdoc.selectOnly('a1')
+cdoc.deleteSelection()
+eq('canvas doc: deleting a card removes its edges', cdoc.data.edges.some((e) => e.fromNode === 'a1' || e.toNode === 'a1'), false)
+eq('canvas doc: topmost card under a point', cdoc.nodeAt({ x: 410, y: 10 })?.id, 'b2')
+cdoc.clearSelection()
+const newGroup = cdoc.groupSelection({ x: 0, y: 0 })
+eq('canvas doc: grouping with nothing selected makes an empty group at the centre', [newGroup.type, newGroup.width, newGroup.height], ['group', 480, 380])
 
 // Per-vault config (.zenode/*.json).
 eq('config: workspace sanitized', sanitizeWorkspace({ openFiles: ['a.md', 3, null], activeFile: 7 }), { openFiles: ['a.md'], activeFile: null })
