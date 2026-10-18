@@ -16,8 +16,11 @@ test('a folder with many files draws only the rows in view', async ({ page, vaul
   expect(await page.locator('.zn-tree-row').count()).toBeLessThan(150)
 
   // Scrolling to the end draws the last rows.
-  await page.locator('.zn-sidebar-tree').evaluate((el) => (el.scrollTop = el.scrollHeight))
-  await expect(treeRow(page, `Item ${MANY - 1}`)).toBeVisible()
+  // The watcher may still be delivering the new files: scroll again until the last one is in.
+  await expect(async () => {
+    await page.locator('.zn-sidebar-tree').evaluate((el) => (el.scrollTop = el.scrollHeight))
+    await expect(treeRow(page, `Item ${MANY - 1}`)).toBeVisible({ timeout: 1000 })
+  }).toPass()
   await expect(treeRow(page, 'Item 0000')).toHaveCount(0)
 
   // Opening a far-away note from the switcher, then revealing it, scrolls the tree there.

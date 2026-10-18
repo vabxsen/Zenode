@@ -9,7 +9,7 @@ import katex from 'katex'
 import { renderMarkdown } from '../render/markdown'
 import { renderEmbedSlot, renderMermaid, sanitize, type ReadingContext } from '../render/reading'
 import { vaultUrl } from '../vaultUrl'
-import { sourceMode } from './livePreview'
+import { linksChanged, sourceMode } from './livePreview'
 
 export type RenderContextGetter = () => ReadingContext | null
 
@@ -20,7 +20,17 @@ function keepEvent(e: Event): boolean {
   return !!target?.closest('a, button, audio, video, iframe, input, summary, [data-zn-wikilink], [data-zn-href], [data-zn-tag]')
 }
 
+// Advances when the whole index is rebuilt, so embeds drawn before the index
+// was ready (showing "not found") draw again once it is.
+let indexGeneration = 0
+
+export function embedsNeedRedraw(): void {
+  indexGeneration++
+}
+
 class EmbedWidget extends WidgetType {
+  readonly generation = indexGeneration
+
   constructor(
     readonly target: string,
     readonly size: string,
@@ -30,7 +40,7 @@ class EmbedWidget extends WidgetType {
     super()
   }
   eq(other: EmbedWidget): boolean {
-    return other.target === this.target && other.size === this.size && other.block === this.block
+    return other.target === this.target && other.size === this.size && other.block === this.block && other.generation === this.generation
   }
   toDOM(): HTMLElement {
     const wrap = document.createElement(this.block ? 'div' : 'span')
@@ -171,7 +181,8 @@ export function richBlocks(ctx: RenderContextGetter): Extension {
     update(deco, tr) {
       const treeChanged = syntaxTree(tr.state) !== syntaxTree(tr.startState)
       const modeChanged = tr.state.field(sourceMode, false) !== tr.startState.field(sourceMode, false)
-      if (!tr.docChanged && !tr.selection && !treeChanged && !modeChanged) return deco
+      const linksMoved = tr.effects.some((e) => e.is(linksChanged))
+      if (!tr.docChanged && !tr.selection && !treeChanged && !modeChanged && !linksMoved) return deco
       return build(tr.state, ctx)
     },
     provide: (field) => EditorView.decorations.from(field)

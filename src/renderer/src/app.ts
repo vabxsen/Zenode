@@ -3,6 +3,7 @@ import { CanvasView, type CanvasHost } from './canvas/canvasView'
 import { openCommandPalette } from './commandPalette'
 import { CommandRegistry } from './commands'
 import { setSpellcheckDefault } from './editor/editor'
+import { embedsNeedRedraw } from './editor/richBlocks'
 import { attachmentDir, DEFAULT_EDITOR_SETTINGS, sanitizeEditorSettings, sanitizeHotkeys, sanitizeWorkspace, type EditorSettings } from './config'
 import { Component, el } from './component'
 import { registerCoreCommands } from './coreCommands'
@@ -308,7 +309,12 @@ export class App extends Component {
     this.right = new RightSidebar(body, deps)
 
     // Live link styling follows the index.
-    shell.register(cache.onChange(() => this.workspace?.refreshLinks()))
+    shell.register(
+      cache.onChange((path) => {
+        if (path === null) embedsNeedRedraw()
+        this.workspace?.refreshLinks()
+      })
+    )
 
     const status = el('div', 'zn-statusbar', this.root)
     el('div', 'zn-status-vault', status, this.vault!.root)

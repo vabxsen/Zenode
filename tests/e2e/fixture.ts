@@ -40,6 +40,8 @@ async function launch(workDir: string, vaultDir: string): Promise<ElectronApplic
 async function ready(app: ElectronApplication, withVault = true): Promise<Page> {
   const page = await app.firstWindow()
   await page.waitForSelector(withVault ? '.zn-tree-row' : '.zn-app')
+  // Tests start once the vault is indexed (on a slow machine that can lag the tree).
+  if (withVault) await page.waitForSelector('.zn-app[data-index="ready"]', { state: 'attached' })
   return page
 }
 
