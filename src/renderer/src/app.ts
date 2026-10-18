@@ -20,6 +20,7 @@ import { relativeLinkTarget, subpathPosition } from './links'
 import { FileActions } from './fileActions'
 import { HoverPreview } from './hoverPreview'
 import { registerPanelCommands } from './panelCommands'
+import { loadPropertyTypes } from './properties/types'
 import { registerTemplateCommands } from './templates/commands'
 import { NoteTemplates } from './templates/noteTemplates'
 import { registerWorkspaceCommands } from './workspaceCommands'
@@ -171,6 +172,7 @@ export class App extends Component {
     await this.refreshTree()
 
     await this.left?.bookmarks.load()
+    await loadPropertyTypes((m) => this.notice(m))
     this.commands.setCustomHotkeys(sanitizeHotkeys(await api.readConfig('hotkeys')))
     this.editorSettings = sanitizeEditorSettings(await api.readConfig('app'))
     this.workspace?.setDefaultView(this.editorSettings.defaultView)

@@ -11,6 +11,7 @@ import { tableEditing } from './tables'
 import { wikiLinkCompletion, type LinkTarget } from './linkCompletion'
 import type { ReadingContext } from '../render/reading'
 import { livePreview, sourceMode } from './livePreview'
+import { propertiesEditor } from '../properties/widget'
 import { richBlocks } from './richBlocks'
 import { fileDropAndPaste } from './attachments'
 import { commentSyntax, frontmatterSyntax, hashtagSyntax, highlightSyntax, mathSyntax, wikiLinkSyntax } from './wikilink'
@@ -134,6 +135,7 @@ export function createEditorState(doc: string, cb: EditorCallbacks, extra: Exten
         isResolved: cb.isResolved
       }),
       richBlocks(() => cb.renderContext?.() ?? null),
+      propertiesEditor(),
       cb.onFiles ? fileDropAndPaste(cb.onFiles) : [],
       wikiLinkCompletion(cb.linkTargets),
       spellcheckSetting.of(spellcheckAttrs(spellcheckDefault)),

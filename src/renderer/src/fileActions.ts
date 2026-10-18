@@ -1,6 +1,7 @@
 // Creating, renaming, moving and deleting files and folders, with the open tabs,
 // the file tree and every link in the vault kept in step.
 import type { TreeEntry } from '../../shared/api'
+import { fileNameProblem } from '../../shared/fileNames'
 import { rewriteLinksAfterRename } from './fileOps'
 import { displayName, type FileTree } from './fileTree'
 import { allFolders, pickFolder } from './folderPicker'
@@ -82,6 +83,13 @@ export class FileActions {
   }
 
   async rename(entry: TreeEntry, newName: string): Promise<void> {
+    // Say what's wrong with the name at once, before saving and waiting for the index.
+    const problem = fileNameProblem(newName)
+    if (problem) {
+      this.d.notice(problem)
+      await this.d.refreshTree()
+      return
+    }
     const wasActive = this.d.workspace()?.activePath === entry.path
     await this.relocate(entry.path, entry.kind === 'folder', () => api.rename(entry.path, newName))
     // Naming the open note moves you straight into writing it.

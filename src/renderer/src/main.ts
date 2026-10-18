@@ -5,6 +5,7 @@ import './styles/livepreview.css'
 import './styles/editor-tools.css'
 import './styles/workspace.css'
 import './styles/panels.css'
+import './styles/properties.css'
 import { App } from './app'
 
 // Anything that slips past local error handling goes to the app log.

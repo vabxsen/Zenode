@@ -1,0 +1,174 @@
+/* The Properties table that front matter shows as in Live Preview. */
+
+.cm-editor .zn-props {
+  /* Same column as the note text. */
+  margin: 4px max(32px, calc((100% - 760px) / 2)) 18px;
+  cursor: default;
+}
+
+.zn-props {
+  padding: 10px 4px 6px;
+  border-bottom: 1px solid var(--zn-border);
+  font-family: var(--zn-font-ui);
+  font-size: 13.5px;
+}
+
+.zn-props-title {
+  padding: 0 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--zn-text-faint);
+}
+
+.zn-prop-row {
+  display: grid;
+  grid-template-columns: 26px minmax(90px, 160px) 1fr;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 1px 2px;
+  border-radius: 6px;
+}
+
+.zn-prop-row:hover,
+.zn-prop-row:focus-within {
+  background: var(--zn-bg-hover);
+}
+
+.zn-prop-type {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--zn-text-faint);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+button.zn-prop-type:hover {
+  background: var(--zn-bg-raised);
+  color: var(--zn-accent);
+}
+
+.zn-prop-key,
+.zn-prop-input,
+.zn-prop-chip-input {
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--zn-text);
+  font: inherit;
+  outline: none;
+}
+
+.zn-prop-key {
+  color: var(--zn-text-muted);
+}
+
+.zn-prop-key:focus,
+.zn-prop-input:focus,
+.zn-prop-chip-input:focus {
+  border-color: var(--zn-accent-dim);
+  background: var(--zn-bg);
+}
+
+.zn-prop-input::placeholder,
+.zn-prop-chip-input::placeholder,
+.zn-prop-key::placeholder {
+  color: var(--zn-text-faint);
+}
+
+.zn-prop-input[type='date'],
+.zn-prop-input[type='datetime-local'] {
+  color-scheme: dark;
+}
+
+.zn-prop-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.zn-prop-value > .zn-prop-input:not(.zn-prop-check) {
+  flex: 1;
+}
+
+.zn-prop-check {
+  width: 16px;
+  height: 16px;
+  margin: 0 6px;
+  accent-color: var(--zn-accent-strong);
+}
+
+.zn-prop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 1px 2px 1px 8px;
+  border-radius: 10px;
+  background: var(--zn-bg-raised);
+  color: var(--zn-text);
+  font-size: 12.5px;
+}
+
+.zn-prop-chip.is-tag {
+  background: rgba(139, 92, 246, 0.16);
+  color: var(--zn-accent);
+}
+
+.zn-prop-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zn-prop-chip-remove {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.zn-prop-chip-remove:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.zn-prop-chip-input {
+  flex: 1;
+  min-width: 60px;
+}
+
+.zn-props-add {
+  margin: 4px 0 0 2px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--zn-text-faint);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.zn-props-add:hover {
+  background: var(--zn-bg-hover);
+  color: var(--zn-text);
+}
