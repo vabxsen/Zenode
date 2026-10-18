@@ -4,22 +4,26 @@ import { attachmentName } from './editor/attachments'
 import { applyEdits, type MetadataCache, type PendingRename } from './index/metadataCache'
 import { mediaKind } from './vaultUrl'
 
-// Saves pasted/dropped files next to (or for) the note at notePath and returns
-// the Markdown to insert: ![[embeds]] for things that can be shown, [[links]] otherwise.
-export async function importAttachments(
-  files: File[],
-  notePath: string,
-  dir: string,
-  linktext: (path: string, from: string) => string
-): Promise<string> {
-  const parts: string[] = []
+// Saves pasted/dropped files into dir; returns their vault paths.
+export async function saveAttachments(files: File[], dir: string): Promise<string[]> {
+  const saved: string[] = []
   for (const file of files) {
     const bytes = new Uint8Array(await file.arrayBuffer())
-    const saved = await window.zenode.saveAttachment(dir, attachmentName(file), bytes)
-    const link = linktext(saved, notePath)
-    parts.push(mediaKind(saved) === 'other' ? `[[${link}]]` : `![[${link}]]`)
+    saved.push(await window.zenode.saveAttachment(dir, attachmentName(file), bytes))
   }
-  return parts.join('\n')
+  return saved
+}
+
+// The Markdown to insert for saved files: ![[embeds]] for things that can be
+// shown, [[links]] otherwise. Call after the index knows the files, so the
+// shortest unique link text is used.
+export function attachmentLinks(paths: string[], notePath: string, linktext: (path: string, from: string) => string): string {
+  return paths
+    .map((p) => {
+      const link = linktext(p, notePath)
+      return mediaKind(p) === 'other' ? `[[${link}]]` : `![[${link}]]`
+    })
+    .join('\n')
 }
 
 export interface LinkRewriteResult {

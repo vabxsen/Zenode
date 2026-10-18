@@ -2,7 +2,26 @@
 
 A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.md` files in a folder you choose (a "vault"), so they stay readable by any editor, including Obsidian.
 
-## Phase 4 (current)
+## Editor (M2)
+
+- **Reading view** (Ctrl+E): the note rendered and read-only, with clickable task boxes. **Source mode** (command) shows plain Markdown.
+- **Embeds**: `![[Note]]`, `![[Note#Heading]]`, `![[Note#^block]]`, images with size (`![[photo.png|300]]`), audio, video and PDF, in Live Preview and Reading view.
+- **Paste or drop files** into a note: they're saved to the attachment folder (never overwriting) and embedded.
+- **Obsidian syntax**: callouts (`> [!tip]`, foldable with `-` / `+`), `==highlights==`, `%%comments%%`, footnotes, `$math$` and `$$math$$` (KaTeX), Mermaid diagrams, front matter as properties.
+- **Tables** render in place; inside one, Tab / Shift+Tab move between cells and realign the columns.
+- **Find & replace** in a note (Ctrl+F / Ctrl+H) with regex, case and whole-word options.
+- **Code blocks** are highlighted in their language while editing and reading, with a copy button.
+- **Folding** of headings and lists from the gutter; **hover previews** of linked notes (Ctrl+hover in the editor); spellcheck on/off.
+
+Editor settings live in `<vault>/.zenode/app.json` (a settings screen comes in M6):
+
+```json
+{ "defaultView": "live", "spellcheck": true, "attachmentFolder": "./assets" }
+```
+
+`defaultView` is `live`, `source` or `reading`. `attachmentFolder` is `""` (vault root), `"./"` (the note's folder), `"./name"` (a subfolder there) or a vault folder.
+
+## Phase 4
 
 - Canvas: `.canvas` files in the open [JSON Canvas 1.0](https://jsoncanvas.org) format, compatible with Obsidian
 - Cards: text (a full Live Preview editor), notes and images from the vault, web links, and labelled groups with optional backgrounds
@@ -56,6 +75,9 @@ A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.
 | Ctrl+Shift+B | Toggle right sidebar (backlinks, local graph) |
 | Ctrl+Shift+O | Open another vault |
 | Ctrl+\\ | Toggle left sidebar |
+| Ctrl+E | Toggle Reading view |
+| Ctrl+F / Ctrl+H | Find / find & replace in the note |
+| Ctrl+Shift+[ / ] | Fold / unfold |
 
 On a canvas: double-click empty space to add a card, double-click a card to edit it (Esc to stop), Enter to edit the selected card, Delete to remove, Ctrl+Z / Ctrl+Shift+Z to undo and redo, Ctrl+A to select all.
 
@@ -87,7 +109,7 @@ Known limits: OneDrive "online-only" files are downloaded when Zenode first inde
 npm install
 npm run dev        # run with hot reload
 npm run typecheck  # TypeScript checks for main, preload and renderer
-npm test           # unit tests (tests/run.ts): parser, links, rename, search, graph, canvas, commands, config, data safety
+npm test           # unit tests (tests/run.ts): parser, links, rename, search, graph, canvas, commands, config, data safety, rendering
 npm run test:e2e   # builds, then drives the real app with Playwright against tests/fixtures/vault
 npm run build      # production bundles in out/
 npm run dist       # Windows installer in dist/
@@ -102,7 +124,7 @@ src/
   shared/     Types shared by main and renderer (the IPC contract)
   renderer/   The UI: app shell, file tree, tabs, CodeMirror editor + Live Preview
 tests/
-  run.ts          Runs the unit tests (index.test.ts, safety.test.ts) bundled with esbuild in Node
+  run.ts          Runs the unit tests (index, safety, render, editor) bundled with esbuild in Node
   e2e/            Playwright tests that launch the built app
   fixtures/vault  The sample vault the end-to-end tests run against (copied per test)
 ```
@@ -121,7 +143,7 @@ Towards 1.0 (production-ready core):
 
 - ~~M0 Foundations: Electron 44, command registry, per-vault config, E2E tests, CI, error log~~ (done)
 - ~~M1 Data safety: conflict handling for outside edits, crash recovery, file snapshots, sync-folder conflict copies~~ (done)
-- M2 Editor: embeds, paste/drop attachments, tables, callouts, find & replace, math, Mermaid, Reading view
+- ~~M2 Editor: embeds, paste/drop attachments, tables, callouts, find & replace, math, Mermaid, Reading view~~ (done)
 - M3 Workspace: command palette, split panes, drag & drop, outline/tags/bookmarks, daily notes, templates, properties
 - M4 Files: PDF/audio/video viewers, export to PDF
 - M5 Performance: persistent index cache, 10k+ note vaults

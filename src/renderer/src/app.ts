@@ -14,7 +14,7 @@ import { isCanvasPath } from './index/canvasMeta'
 import { MetadataCache } from './index/metadataCache'
 import { splitLinktext } from './index/parser'
 import { openFileRecovery, restoreVersion } from './fileRecovery'
-import { importAttachments, rewriteLinksAfterRename } from './fileOps'
+import { attachmentLinks, rewriteLinksAfterRename, saveAttachments } from './fileOps'
 import { relativeLinkTarget, subpathPosition } from './links'
 import { HoverPreview } from './hoverPreview'
 import { offerRecovery } from './recovery'
@@ -258,9 +258,9 @@ export class App extends Component {
         preserve: (path, text) => this.preserve(path, text),
         importFiles: async (notePath, files) => {
           const dir = attachmentDir(this.editorSettings.attachmentFolder, notePath)
-          const markdown = await importAttachments(files, notePath, dir, (p, from) => cache.linktext(p, from))
+          const saved = await saveAttachments(files, dir)
           await this.refreshTree()
-          return markdown
+          return attachmentLinks(saved, notePath, (p, from) => cache.linktext(p, from))
         },
         readingContext: (path) => this.readingContext(cache, path)
       })

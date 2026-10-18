@@ -223,7 +223,7 @@ export class Workspace extends Component {
     const state = tab === this.active ? this.view.state : tab.state!
     if (line < 0 || line >= state.doc.lines) return
     const text = state.doc.line(line + 1)
-    const m = /^(s*(?:[-*+]|d+[.)])s+[)([ xX])]/.exec(text.text)
+    const m = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])\]/.exec(text.text)
     if (!m) return
     const at = text.from + m[1].length
     const spec = { changes: { from: at, to: at + 1, insert: checked ? 'x' : ' ' } }
