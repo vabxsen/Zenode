@@ -59,13 +59,26 @@ A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.
 
 On a canvas: double-click empty space to add a card, double-click a card to edit it (Esc to stop), Enter to edit the selected card, Delete to remove, Ctrl+Z / Ctrl+Shift+Z to undo and redo, Ctrl+A to select all.
 
+Shortcuts can be changed per vault in `.zenode/hotkeys.json`, keyed by command id (a settings screen for this is planned):
+
+```json
+{ "app:toggle-left-sidebar": [{ "modifiers": ["Mod", "Shift"], "key": "l" }] }
+```
+
+## Your data
+
+- Notes and canvases are plain files in your vault folder; Zenode writes them atomically (temp file, then rename).
+- Per-vault settings live in `<vault>/.zenode/` (open tabs in `workspace.json`, custom shortcuts in `hotkeys.json`), like Obsidian's `.obsidian/` folder.
+- App settings and logs live in `%APPDATA%\Zenode\` (`logs\zenode.log` is useful for bug reports).
+
 ## Development
 
 ```bash
 npm install
 npm run dev        # run with hot reload
 npm run typecheck  # TypeScript checks for main, preload and renderer
-npm test           # unit tests: parser, link resolution, rename edits, search, fuzzy, graph, canvas
+npm test           # unit tests: parser, link resolution, rename edits, search, fuzzy, graph, canvas, commands, config
+npm run test:e2e   # builds, then drives the real app with Playwright against tests/fixtures/vault
 npm run build      # production bundles in out/
 npm run dist       # Windows installer in dist/
 ```
@@ -78,7 +91,13 @@ src/
   preload/    The only bridge to the page (contextBridge); exposes window.zenode
   shared/     Types shared by main and renderer (the IPC contract)
   renderer/   The UI: app shell, file tree, tabs, CodeMirror editor + Live Preview
+tests/
+  index.test.ts   Unit tests (bundled with esbuild, run in Node)
+  e2e/            Playwright tests that launch the built app
+  fixtures/vault  The sample vault the end-to-end tests run against (copied per test)
 ```
+
+Every action is a command in a registry (`src/renderer/src/commands.ts`), shaped like Obsidian's `addCommand`, so the command palette, hotkey editor and plugin API can share it. CI runs typecheck, unit and end-to-end tests and builds the installer on every push.
 
 Security: the page runs with `contextIsolation`, `sandbox` and no Node integration. Every file path from the page is resolved inside the open vault and rejected if it escapes it.
 
@@ -87,4 +106,16 @@ Security: the page runs with `contextIsolation`, `sandbox` and no Node integrati
 2. ~~`[[wikilinks]]`, backlinks, quick switcher, full-text search~~ (done)
 3. ~~Graph view (d3-force physics in a worker, WebGL rendering)~~ (done)
 4. ~~Canvas (JSON Canvas files with cards, links and groups)~~ (done)
-5. Database views (Bases-style), plugin API
+
+Towards 1.0 (production-ready core):
+
+- ~~M0 Foundations: Electron 44, command registry, per-vault config, E2E tests, CI, error log~~ (done)
+- M1 Data safety: conflict handling for outside edits, crash recovery, file snapshots, sync-folder conflict copies
+- M2 Editor: embeds, paste/drop attachments, tables, callouts, find & replace, math, Mermaid, Reading view
+- M3 Workspace: command palette, split panes, drag & drop, outline/tags/bookmarks, daily notes, templates, properties
+- M4 Files: PDF/audio/video viewers, export to PDF
+- M5 Performance: persistent index cache, 10k+ note vaults
+- M6 Appearance: light theme, themes and snippets, hotkey editor, onboarding, accessibility
+- M7 Security hardening, M8 installer/updates/file associations, M9 docs and website
+
+After 1.0: Git and sync helpers (1.1), Bases database views (1.2), an Obsidian-compatible plugin API (1.3).
