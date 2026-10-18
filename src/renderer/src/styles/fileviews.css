@@ -183,3 +183,42 @@
   width: 760px;
   pointer-events: none;
 }
+
+/* Unused attachments dialog. */
+
+.zn-cleanup-dialog {
+  width: min(560px, calc(100vw - 48px));
+}
+
+.zn-cleanup-intro {
+  margin: 0 0 10px;
+  color: var(--zn-text-muted);
+}
+
+.zn-cleanup-list {
+  max-height: 50vh;
+  overflow: auto;
+  border: 1px solid var(--zn-border);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.zn-cleanup-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.zn-cleanup-row:hover {
+  background: var(--zn-bg-hover);
+}
+
+.zn-cleanup-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

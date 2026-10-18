@@ -23,6 +23,7 @@ export interface CoreActions {
   toggleSource(): void
   toggleSpellcheck(): void
   toggleTrashOption(): void
+  findUnusedAttachments(): void
   save(): void
   closeTab(): void
   cycleTab(step: 1 | -1): void
@@ -128,6 +129,11 @@ export function registerCoreCommands(registry: CommandRegistry, a: CoreActions):
       id: 'app:toggle-trash-option',
       name: "Deleted files: switch between the Recycle Bin and the vault's .trash folder",
       checkCallback: inVault(() => a.toggleTrashOption())
+    }),
+    registry.register({
+      id: 'file-explorer:find-unused-attachments',
+      name: 'Find unused attachments',
+      checkCallback: inVault(() => a.findUnusedAttachments())
     }),
     registry.register({
       id: 'file-explorer:reveal-active-file',

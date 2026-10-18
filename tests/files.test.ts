@@ -1,5 +1,6 @@
 // Files: which viewer opens what.
 import { fileKind } from '../src/renderer/src/views/fileKinds'
+import { findUnusedAttachments } from '../src/renderer/src/files/unusedAttachments'
 import { sanitizeEditorSettings } from '../src/renderer/src/config'
 import { startsWithTitle } from '../src/renderer/src/export/title'
 import { eq } from './harness'
@@ -17,3 +18,12 @@ eq('title: h2 is not the title', startsWithTitle('## Plan\n', 'Plan'), false)
 eq('trash: default is the Recycle Bin', sanitizeEditorSettings({}).trashOption, 'system')
 eq('trash: vault folder', sanitizeEditorSettings({ trashOption: 'local' }).trashOption, 'local')
 eq('trash: unknown falls back', sanitizeEditorSettings({ trashOption: 'none' }).trashOption, 'system')
+
+// Unused attachments.
+const files = ['img/used.png', 'img/linked by path.png', 'img/in yaml.jpg', 'img/encoded name.png', 'orphan.png', 'old.pdf', 'Note.md', 'Board.canvas', 'script.js', 'other/orphan.png']
+const texts = [
+  { path: 'Note.md', content: '---\ncover: in yaml.jpg\n---\n![[used.png]] ![x](img/encoded%20name.png)' },
+  { path: 'Board.canvas', content: '{"nodes":[]}' }
+]
+const resolved = { 'Note.md': { 'img/used.png': 1 }, 'Board.canvas': { 'img/linked by path.png': 1 } }
+eq('unused: only attachments nothing uses', findUnusedAttachments(files, texts, resolved), ['old.pdf', 'orphan.png', 'other/orphan.png'])

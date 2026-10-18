@@ -35,7 +35,9 @@ import { openSwitcher } from './switcher'
 import { setVaultUrlHost } from './vaultUrl'
 import { hasViewer } from './views/fileKinds'
 import { exportNoteToPdf } from './export/pdfExport'
+import { cleanUpAttachments } from './files/attachmentCleanup'
 import { FileView } from './views/fileView'
+import { renderWelcome } from './welcome'
 import { VIEW_PREFIX, Workspace, type OpenPosition } from './workspace'
 
 const api = window.zenode
@@ -135,38 +137,17 @@ export class App extends Component {
 
   private async showWelcome(): Promise<void> {
     this.teardownShell()
-    this.root.empty()
-    this.root.className = 'zn-app is-welcome'
-    el('div', 'zn-titlebar zn-drag', this.root)
-    const panel = el('div', 'zn-welcome', this.root)
-    const brand = el('div', 'zn-welcome-brand', panel)
-    brand.appendChild(icon('logo', 44))
-    el('div', 'zn-welcome-name', brand, 'Zenode')
-    el('div', 'zn-welcome-tag', panel, 'Your notes, connected. Plain Markdown files on your own disk.')
-
-    const open = el('button', 'zn-btn zn-btn-primary', panel)
-    open.appendChild(icon('folderOpen', 16))
-    el('span', '', open, 'Open folder as vault')
-    open.addEventListener('click', () => void this.chooseVault())
-
-    const settings = await api.getSettings()
-    if (settings.recentVaults.length) {
-      el('div', 'zn-welcome-section', panel, 'Recent vaults')
-      const list = el('div', 'zn-recent', panel)
-      for (const root of settings.recentVaults) {
-        const row = el('button', 'zn-recent-row', list)
-        el('span', 'zn-recent-name', row, root.split(/[\\/]/).pop() ?? root)
-        el('span', 'zn-recent-path', row, root)
-        row.addEventListener('click', async () => {
-          try {
-            const info = await api.openVault(root)
-            if (info) await this.enterVault(info)
-          } catch (e) {
-            this.notice(`Could not open vault: ${(e as Error).message}`)
-          }
-        })
+    await renderWelcome(this.root, {
+      chooseVault: () => void this.chooseVault(),
+      openRecent: async (root) => {
+        try {
+          const info = await api.openVault(root)
+          if (info) await this.enterVault(info)
+        } catch (e) {
+          this.notice(`Could not open vault: ${(e as Error).message}`)
+        }
       }
-    }
+    })
   }
 
   // With a vault open, another vault opens in a new window; otherwise in this one.
@@ -674,6 +655,7 @@ export class App extends Component {
       toggleReading: () => this.workspace?.toggleReading(),
       toggleSource: () => this.workspace?.toggleSource(),
       toggleSpellcheck: () => void this.updateEditorSettings({ spellcheck: !this.editorSettings.spellcheck }),
+      findUnusedAttachments: () => void this.findUnusedAttachments(),
       toggleTrashOption: () => void this.updateEditorSettings({ trashOption: this.editorSettings.trashOption === 'local' ? 'system' : 'local' }),
       showHistory: () => void this.showHistory(this.workspace?.activePath ?? ''),
       revealActiveFile: () => this.revealInTree(this.workspace?.activePath ?? ''),
@@ -713,6 +695,22 @@ export class App extends Component {
       onOpenLink: (href) => void this.openLink(href, path),
       onOpenTag: (tag) => this.showSearch(`tag:${tag}`)
     }
+  }
+
+  private async findUnusedAttachments(): Promise<void> {
+    const cache = this.cache
+    if (!cache) return
+    await this.indexChain
+    await cleanUpAttachments({
+      cache,
+      trashOption: this.editorSettings.trashOption,
+      removed: (path) => {
+        this.workspace?.removed(path)
+        this.left?.bookmarks.removed(path)
+      },
+      refreshTree: () => this.refreshTree(),
+      notice: (m) => this.notice(m)
+    }).catch((e: Error) => this.notice(`Could not look for unused attachments: ${e.message}`))
   }
 
   private async exportActiveNote(): Promise<void> {
