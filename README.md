@@ -67,9 +67,19 @@ Shortcuts can be changed per vault in `.zenode/hotkeys.json`, keyed by command i
 
 ## Your data
 
-- Notes and canvases are plain files in your vault folder; Zenode writes them atomically (temp file, then rename).
+- Notes and canvases are plain files in your vault folder. Zenode writes them atomically (temp file, then rename) and only after you edit them: opening or browsing never rewrites a file, and notes with Windows (CRLF) line endings keep them.
 - Per-vault settings live in `<vault>/.zenode/` (open tabs in `workspace.json`, custom shortcuts in `hotkeys.json`), like Obsidian's `.obsidian/` folder.
 - App settings and logs live in `%APPDATA%\Zenode\` (`logs\zenode.log` is useful for bug reports).
+
+### Data safety
+
+- **Nothing outside Zenode is overwritten silently.** Every save checks that the file on disk is still the version Zenode last saw. If another app, a sync client or another device changed it while you had unsaved edits, a bar offers **Compare** (side by side, copy changes across), **Keep my version** or **Use the version on disk**. A note deleted or moved outside Zenode keeps your unsaved text, with **Save it again**. Autosave pauses and the tab can't be closed until you choose.
+- **Crash recovery.** Text that couldn't be saved yet is journaled outside the vault; after a crash or forced quit, Zenode offers it back, and opens it in compare mode if the note changed in the meantime.
+- **File recovery.** Before saving over a file, Zenode keeps a copy of the previous version (at most every 5 minutes per file), plus any version you discard. Right-click a file > **Show file history** to preview, copy or restore one. Copies live in `%APPDATA%\Zenode\snapshots\` for 7 days (up to 50 per file).
+- **Sync folders** (OneDrive, Dropbox, Syncthing, Nextcloud, Git): conflict copies such as `Note-DESKTOP-ABC.md` or `Note (Pat's conflicted copy …).md`, and notes with merge markers, show a badge in the status bar. Open it to compare and merge a copy into the note, or move the copy to the Recycle Bin.
+- **Windows file names** are checked up front (no `< > : " / \ | ? *`, reserved names like `CON`, or trailing dots), long paths over 260 characters work, and files briefly locked by sync or antivirus tools are retried.
+
+Known limits: OneDrive "online-only" files are downloaded when Zenode first indexes them; symbolic-linked folders aren't shown; canvases aren't in the crash journal (they save within half a second of an edit).
 
 ## Development
 
@@ -77,7 +87,7 @@ Shortcuts can be changed per vault in `.zenode/hotkeys.json`, keyed by command i
 npm install
 npm run dev        # run with hot reload
 npm run typecheck  # TypeScript checks for main, preload and renderer
-npm test           # unit tests: parser, link resolution, rename edits, search, fuzzy, graph, canvas, commands, config
+npm test           # unit tests (tests/run.ts): parser, links, rename, search, graph, canvas, commands, config, data safety
 npm run test:e2e   # builds, then drives the real app with Playwright against tests/fixtures/vault
 npm run build      # production bundles in out/
 npm run dist       # Windows installer in dist/
@@ -92,7 +102,7 @@ src/
   shared/     Types shared by main and renderer (the IPC contract)
   renderer/   The UI: app shell, file tree, tabs, CodeMirror editor + Live Preview
 tests/
-  index.test.ts   Unit tests (bundled with esbuild, run in Node)
+  run.ts          Runs the unit tests (index.test.ts, safety.test.ts) bundled with esbuild in Node
   e2e/            Playwright tests that launch the built app
   fixtures/vault  The sample vault the end-to-end tests run against (copied per test)
 ```
@@ -110,7 +120,7 @@ Security: the page runs with `contextIsolation`, `sandbox` and no Node integrati
 Towards 1.0 (production-ready core):
 
 - ~~M0 Foundations: Electron 44, command registry, per-vault config, E2E tests, CI, error log~~ (done)
-- M1 Data safety: conflict handling for outside edits, crash recovery, file snapshots, sync-folder conflict copies
+- ~~M1 Data safety: conflict handling for outside edits, crash recovery, file snapshots, sync-folder conflict copies~~ (done)
 - M2 Editor: embeds, paste/drop attachments, tables, callouts, find & replace, math, Mermaid, Reading view
 - M3 Workspace: command palette, split panes, drag & drop, outline/tags/bookmarks, daily notes, templates, properties
 - M4 Files: PDF/audio/video viewers, export to PDF

@@ -2118,3 +2118,63 @@ button {
   color: var(--zn-text-muted);
   text-align: center;
 }
+
+/* Compare view: match the editor's look (CodeMirror's defaults are a light theme). */
+.zn-merge-body .cm-editor {
+  background: var(--zn-bg);
+  color: var(--zn-text);
+}
+
+.zn-merge-body .cm-content {
+  padding: 10px 0;
+  font-family: var(--zn-font-text);
+  line-height: 1.6;
+}
+
+.zn-merge-body .cm-line {
+  padding: 0 14px;
+}
+
+.zn-merge-body .cm-gutters {
+  border: none;
+  background: transparent;
+}
+
+.zn-merge-body .cm-changeGutter {
+  width: 4px;
+  padding: 0;
+}
+
+.zn-merge-body .cm-merge-a .cm-changedLineGutter {
+  background: #f59e0b;
+}
+
+.zn-merge-body .cm-merge-b .cm-changedLineGutter {
+  background: var(--zn-accent-strong);
+}
+
+.zn-merge-body .cm-merge-a .cm-changedText,
+.zn-merge-body .cm-merge-b .cm-changedText {
+  border-bottom: none;
+}
+
+.zn-merge-body .cm-merge-revert {
+  width: 30px;
+  background: #0f0f15;
+}
+
+.zn-merge-body .cm-merge-revert button {
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  font-size: 12px;
+}
+
+.zn-merge-body .cm-cursor {
+  border-left-color: var(--zn-accent);
+}
+
+.zn-merge-body .cm-selectionBackground,
+.zn-merge-body .cm-focused .cm-selectionBackground {
+  background: var(--zn-selection) !important;
+}
