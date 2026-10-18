@@ -28,6 +28,7 @@ const api: ZenodeAPI = {
   createFolder: (dir, name) => invoke('fs:createFolder', dir, name),
   saveAttachment: (dir, fileName, bytes) => invoke('fs:saveAttachment', dir, fileName, bytes),
   rename: (path, newName) => invoke('fs:rename', path, newName),
+  move: (path, destDir) => invoke('fs:move', path, destDir),
   trash: (path) => invoke('fs:trash', path),
   reveal: (path) => invoke('fs:reveal', path),
   openExternal: (path) => invoke('fs:openExternal', path),

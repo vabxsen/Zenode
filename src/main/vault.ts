@@ -49,15 +49,25 @@ export class Vault {
   private async listDir(dir: string): Promise<TreeEntry[]> {
     const dirents = await fs.readdir(dir, { withFileTypes: true })
     const entries: TreeEntry[] = []
-    for (const d of dirents) {
-      if (d.name.startsWith('.')) continue
-      const full = join(dir, d.name)
-      if (d.isDirectory()) {
-        entries.push({ name: d.name, path: this.rel(full), kind: 'folder', ext: '', children: await this.listDir(full) })
-      } else if (d.isFile()) {
-        entries.push({ name: d.name, path: this.rel(full), kind: 'file', ext: extname(d.name).slice(1).toLowerCase() })
-      }
-    }
+    await Promise.all(
+      dirents.map(async (d) => {
+        if (d.name.startsWith('.')) return
+        const full = join(dir, d.name)
+        if (d.isDirectory()) {
+          entries.push({ name: d.name, path: this.rel(full), kind: 'folder', ext: '', children: await this.listDir(full) })
+        } else if (d.isFile()) {
+          const stat = await fs.stat(full).catch(() => null)
+          entries.push({
+            name: d.name,
+            path: this.rel(full),
+            kind: 'file',
+            ext: extname(d.name).slice(1).toLowerCase(),
+            mtime: stat?.mtimeMs,
+            ctime: stat?.birthtimeMs
+          })
+        }
+      })
+    )
     const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
     return entries.sort((a, b) => (a.kind === b.kind ? collator.compare(a.name, b.name) : a.kind === 'folder' ? -1 : 1))
   }
@@ -157,6 +167,20 @@ export class Vault {
     // Windows paths are case-insensitive: "note" -> "Note" is a rename of the same file.
     const caseOnly = from.toLowerCase() === to.toLowerCase()
     if (!caseOnly && (await exists(to))) throw new Error(`"${name}" already exists`)
+    await withRetry(() => fs.rename(from, to))
+    return this.rel(to)
+  }
+
+  // Moves a file or folder into another folder ('' = vault root), keeping its name.
+  async move(rel: string, destDirRel: string): Promise<string> {
+    const from = this.abs(rel)
+    const destDir = this.abs(destDirRel)
+    const stat = await fs.stat(destDir).catch(() => null)
+    if (!stat?.isDirectory()) throw new Error(`"${destDirRel || 'the vault root'}" is not a folder`)
+    const to = join(destDir, basename(from))
+    if (to === from) return rel
+    if (`${destDir}${sep}`.toLowerCase().startsWith(`${from}${sep}`.toLowerCase())) throw new Error("A folder can't be moved into itself")
+    if (await exists(to)) throw new Error(`"${basename(from)}" already exists in ${destDirRel || 'the vault root'}`)
     await withRetry(() => fs.rename(from, to))
     return this.rel(to)
   }

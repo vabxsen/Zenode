@@ -20,6 +20,8 @@ const PATHS = {
   settings:
     'M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
   pin: 'M9 3h6l-1 6 3 3H7l3-3zM12 12v9',
+  sort: 'M7 4v16M4 17l3 3 3-3M14 6h7M14 11h5M14 16h3',
+  collapse: 'M7 9l5-5 5 5M7 15l5 5 5-5',
   splitRight: 'M3 4h18v16H3zM12 4v16',
   splitDown: 'M3 4h18v16H3zM3 12h18',
   back: 'M15 6l-6 6 6 6',

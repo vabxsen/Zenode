@@ -167,6 +167,7 @@ function registerIpc(): void {
   })
   handle('fs:createFolder', (dir: string, name: string) => requireVault().createFolder(dir, name))
   handle('fs:rename', (path: string, newName: string) => requireVault().rename(path, newName))
+  handle('fs:move', (path: string, destDir: string) => requireVault().move(path, destDir))
   handle('fs:trash', async (path: string) => {
     const file = requireVault().abs(path)
     // End-to-end tests use their own trash folder instead of the user's Recycle Bin.

@@ -8,7 +8,7 @@ import { attachmentDir, DEFAULT_EDITOR_SETTINGS, sanitizeEditorSettings, sanitiz
 import { Component, el } from './component'
 import { registerCoreCommands } from './coreCommands'
 import type { LinkTarget } from './editor/linkCompletion'
-import { displayName, FileTree } from './fileTree'
+import { FileTree } from './fileTree'
 import { GRAPH_ID, makeGraphTab } from './graph/graphTab'
 import { GraphView } from './graph/graphView'
 import { icon, type IconName } from './icons'
@@ -16,8 +16,9 @@ import { isCanvasPath } from './index/canvasMeta'
 import { MetadataCache } from './index/metadataCache'
 import { splitLinktext } from './index/parser'
 import { openFileRecovery, restoreVersion } from './fileRecovery'
-import { attachmentLinks, rewriteLinksAfterRename, saveAttachments } from './fileOps'
+import { attachmentLinks, saveAttachments } from './fileOps'
 import { relativeLinkTarget, subpathPosition } from './links'
+import { FileActions } from './fileActions'
 import { HoverPreview } from './hoverPreview'
 import { registerWorkspaceCommands } from './workspaceCommands'
 import { offerRecovery } from './recovery'
@@ -40,6 +41,16 @@ type RightPane = 'backlinks' | 'localGraph'
 
 export class App extends Component {
   readonly commands = new CommandRegistry()
+  private readonly files = new FileActions({
+    cache: () => this.cache,
+    workspace: () => this.workspace,
+    tree: () => this.tree,
+    refreshTree: () => this.refreshTree(),
+    queueIndex: (task) => this.queueIndex(task),
+    indexIdle: () => this.indexChain,
+    openCanvas: (path) => this.openCanvas(path),
+    notice: (m) => this.notice(m)
+  })
   private editorSettings: EditorSettings = { ...DEFAULT_EDITOR_SETTINGS }
   private vault: VaultInfo | null = null
   private shell: Component | null = null
@@ -192,9 +203,9 @@ export class App extends Component {
     this.ribbonButton(ribbon, 'switcher', 'Quick switcher (Ctrl+O)', () => this.openQuickSwitcher())
     this.ribbonButton(ribbon, 'search', 'Search (Ctrl+Shift+F)', () => this.showSearch())
     this.ribbonButton(ribbon, 'graph', 'Graph view (Ctrl+G)', () => this.openGraph())
-    this.ribbonButton(ribbon, 'filePlus', 'New note (Ctrl+N)', () => void this.newNote(this.currentDir()))
-    this.ribbonButton(ribbon, 'folderPlus', 'New folder', () => void this.newFolder(this.currentDir()))
-    this.ribbonButton(ribbon, 'canvas', 'New canvas', () => void this.newCanvas(this.currentDir()))
+    this.ribbonButton(ribbon, 'filePlus', 'New note (Ctrl+N)', () => void this.files.newNote(this.currentDir()))
+    this.ribbonButton(ribbon, 'folderPlus', 'New folder', () => void this.files.newFolder(this.currentDir()))
+    this.ribbonButton(ribbon, 'canvas', 'New canvas', () => void this.files.newCanvas(this.currentDir()))
     el('div', 'zn-ribbon-spacer', ribbon)
     this.ribbonButton(ribbon, 'link', 'Toggle right sidebar (Ctrl+Shift+B)', () => this.toggleRightbar())
     this.ribbonButton(ribbon, 'folderOpen', 'Open another vault (Ctrl+Shift+O)', () => void this.chooseVault())
@@ -212,17 +223,16 @@ export class App extends Component {
     searchTab.addEventListener('click', () => this.showSearch())
 
     const filesPane = el('div', 'zn-pane', sidebar)
-    const header = el('div', 'zn-sidebar-header', filesPane)
-    el('div', 'zn-sidebar-title', header, this.vault!.name)
-    const treeHost = el('div', 'zn-sidebar-tree', filesPane)
     this.tree = shell.addChild(
-      new FileTree(treeHost, {
+      new FileTree(filesPane, this.vault!.name, {
         onOpen: (entry) => void this.openEntry(entry),
-        onNewNote: (dir) => void this.newNote(dir),
-        onNewFolder: (dir) => void this.newFolder(dir),
-        onNewCanvas: (dir) => void this.newCanvas(dir),
-        onRename: (entry, name) => this.rename(entry, name),
-        onDelete: (entry) => void this.remove(entry),
+        onNewNote: (dir) => void this.files.newNote(dir),
+        onNewFolder: (dir) => void this.files.newFolder(dir),
+        onNewCanvas: (dir) => void this.files.newCanvas(dir),
+        onRename: (entry, name) => this.files.rename(entry, name),
+        onDelete: (entries) => void this.files.remove(entries),
+        onMove: (paths, dir) => void this.files.moveAll(paths, dir),
+        onMoveTo: (paths) => void this.files.moveTo(paths),
         onReveal: (path) => void api.reveal(path),
         onHistory: (path) => void this.showHistory(path)
       })
@@ -269,10 +279,7 @@ export class App extends Component {
         },
         readingContext: (path) => this.readingContext(cache, path),
         reopen: (path) => this.openTabPath(path),
-        revealInTree: (path) => {
-          this.showPane('files')
-          this.tree?.setActive(path)
-        }
+        revealInTree: (path) => this.revealInTree(path)
       })
     )
 
@@ -484,50 +491,6 @@ export class App extends Component {
     }
   }
 
-  private async newNote(dir: string): Promise<void> {
-    if (!this.vault) return
-    try {
-      const path = await api.createFile(dir, 'Untitled', 'md')
-      await this.refreshTree()
-      await this.workspace?.open(path)
-      this.tree?.startRename(path)
-    } catch (e) {
-      this.notice(`Could not create note: ${(e as Error).message}`)
-    }
-  }
-
-  // Create a note from a name typed in the switcher or an unresolved link ("Folder/Name" allowed).
-  private async createNamedNote(name: string): Promise<void> {
-    const clean = stripMd(name.trim().replace(/\\/g, '/'))
-    if (!clean) return
-    const dir = parentDir(clean)
-    const base = baseName(clean)
-    let path: string
-    try {
-      path = await api.createFile(dir, base, 'md')
-    } catch {
-      try {
-        path = await api.createFile('', base, 'md')
-      } catch (e) {
-        this.notice(`Could not create note: ${(e as Error).message}`)
-        return
-      }
-    }
-    await this.refreshTree()
-    await this.workspace?.open(path)
-  }
-
-  private async newCanvas(dir: string): Promise<void> {
-    try {
-      const path = await api.createFile(dir, 'Untitled', 'canvas')
-      await this.refreshTree()
-      this.openCanvas(path)
-      this.tree?.startRename(path)
-    } catch (e) {
-      this.notice(`Could not create canvas: ${(e as Error).message}`)
-    }
-  }
-
   // ---------- Canvas ----------
 
   private openCanvas(path: string): void {
@@ -570,54 +533,6 @@ export class App extends Component {
     }
   }
 
-  private async newFolder(dir: string): Promise<void> {
-    try {
-      const path = await api.createFolder(dir, 'Untitled folder')
-      await this.refreshTree()
-      this.tree?.startRename(path)
-    } catch (e) {
-      this.notice(`Could not create folder: ${(e as Error).message}`)
-    }
-  }
-
-  // Rename a file or folder, then rewrite every link in the vault that pointed at it.
-  private async rename(entry: TreeEntry, newName: string): Promise<void> {
-    const cache = this.cache
-    try {
-      await this.workspace?.saveAll()
-      await this.indexChain
-      const wasActive = this.workspace?.activePath === entry.path
-      const pending = cache ? cache.collectRenameRefs(entry.path, entry.kind === 'folder') : []
-      const to = await api.rename(entry.path, newName)
-      this.workspace?.renamed(entry.path, to)
-      if (entry.kind === 'folder') this.tree?.renamePath(entry.path, to)
-      await this.refreshTree()
-      if (cache && to !== entry.path && pending.length) {
-        const reindex = (path: string, content: string): Promise<void> => this.queueIndex(() => cache.setContent(path, content))
-        const { links, files, skipped } = await rewriteLinksAfterRename(cache, pending, entry.path, to, reindex)
-        if (links) this.notice(`Updated ${links} link${links === 1 ? '' : 's'} in ${files} file${files === 1 ? '' : 's'}.`)
-        if (skipped.length) this.notice(`Links not updated in ${skipped.join(', ')}: changed outside Zenode just now. Rename again to retry.`)
-      }
-      // Naming the open note moves you straight into writing it.
-      if (wasActive) this.workspace?.focus()
-    } catch (e) {
-      this.notice((e as Error).message)
-      await this.refreshTree()
-    }
-  }
-
-  private async remove(entry: TreeEntry): Promise<void> {
-    const what = entry.kind === 'folder' ? `the folder "${entry.name}" and everything in it` : `"${displayName(entry)}"`
-    if (!window.confirm(`Move ${what} to the Recycle Bin?`)) return
-    try {
-      this.workspace?.removed(entry.path)
-      await api.trash(entry.path)
-      await this.refreshTree()
-    } catch (e) {
-      this.notice(`Could not delete: ${(e as Error).message}`)
-    }
-  }
-
   // ---------- Links ----------
 
   private async openWikiLink(target: string, fromPath: string): Promise<void> {
@@ -626,7 +541,7 @@ export class App extends Component {
     const { link, subpath } = splitLinktext(target)
     const resolved = link ? cache.resolve(link, fromPath) : fromPath
     if (!resolved) {
-      await this.createNamedNote(link)
+      await this.files.createNamedNote(link)
       return
     }
     await this.openPath(resolved, subpath ? this.subpathPosition(resolved, subpath) : undefined)
@@ -658,7 +573,7 @@ export class App extends Component {
       items: cache.allNotes().map((n) => ({ path: n.path, aliases: n.meta.aliases })),
       recent: this.recent,
       onOpen: (path) => void this.openPath(path),
-      onCreate: (name) => void this.createNamedNote(name)
+      onCreate: (name) => void this.files.createNamedNote(name)
     })
   }
 
@@ -701,14 +616,16 @@ export class App extends Component {
       openGraph: () => this.openGraph(),
       toggleLeftSidebar: () => this.root.classList.toggle('is-sidebar-hidden'),
       toggleRightSidebar: () => this.toggleRightbar(),
-      newNote: () => void this.newNote(this.currentDir()),
-      newCanvas: () => void this.newCanvas(this.currentDir()),
+      newNote: () => void this.files.newNote(this.currentDir()),
+      newCanvas: () => void this.files.newCanvas(this.currentDir()),
       hasActiveFile: () => !!this.workspace?.activePath,
       hasActiveNote: () => this.workspace?.activeMode() != null,
       toggleReading: () => this.workspace?.toggleReading(),
       toggleSource: () => this.workspace?.toggleSource(),
       toggleSpellcheck: () => void this.updateEditorSettings({ spellcheck: !this.editorSettings.spellcheck }),
       showHistory: () => void this.showHistory(this.workspace?.activePath ?? ''),
+      revealActiveFile: () => this.revealInTree(this.workspace?.activePath ?? ''),
+      collapseTree: () => this.tree?.collapseAll(),
       save: () => void ws().save(),
       closeTab: () => void ws().close(),
       cycleTab: (step) => ws().cycle(step)
@@ -743,6 +660,12 @@ export class App extends Component {
       onOpenLink: (href) => void this.openLink(href, path),
       onOpenTag: (tag) => this.showSearch(`tag:${tag}`)
     }
+  }
+
+  private revealInTree(path: string): void {
+    if (!path) return
+    this.showPane('files')
+    this.tree?.reveal(path)
   }
 
   // Keep a copy of text the user is throwing away, in the local file history.

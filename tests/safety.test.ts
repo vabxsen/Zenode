@@ -9,6 +9,7 @@ import { SnapshotStore } from '../src/main/snapshots'
 import { fileNameProblem } from '../src/shared/fileNames'
 import { findConflictCopies, hasMergeMarkers } from '../src/renderer/src/sync/conflictCopies'
 import { attachmentName } from '../src/renderer/src/editor/attachments'
+import { sortTree } from '../src/renderer/src/treeSort'
 import { contentHash } from '../src/shared/hash'
 import { eq } from './harness'
 
@@ -53,6 +54,36 @@ eq('rename: refuses to overwrite another file', clash, '"Note.md" already exists
 let escaped = ''
 try { vault.abs('../outside.md') } catch (e) { escaped = (e as Error).message }
 eq('paths: cannot escape the vault', escaped, 'Path is outside the vault: ../outside.md')
+
+// Moving into folders.
+mkdirSync(join(dir, 'Inbox'))
+mkdirSync(join(dir, 'Archive/2026'), { recursive: true })
+writeFileSync(join(dir, 'Inbox/todo.md'), 't')
+eq('move: file into a folder', await vault.move('Inbox/todo.md', 'Archive/2026'), 'Archive/2026/todo.md')
+eq('move: to the vault root', await vault.move('Archive/2026/todo.md', ''), 'todo.md')
+let moveError = ''
+try { await vault.move('Archive', 'Archive/2026') } catch (e) { moveError = (e as Error).message }
+eq('move: a folder into itself is refused', moveError, "A folder can't be moved into itself")
+writeFileSync(join(dir, 'Inbox/todo.md'), 'other')
+try { await vault.move('todo.md', 'Inbox') } catch (e) { moveError = (e as Error).message }
+eq('move: never overwrites', moveError, '"todo.md" already exists in Inbox')
+try { await vault.move('todo.md', 'Nope') } catch (e) { moveError = (e as Error).message }
+eq('move: destination must be a folder', moveError, '"Nope" is not a folder')
+
+// File tree ordering.
+const entries = [
+  { name: 'b.md', path: 'b.md', kind: 'file' as const, ext: 'md', mtime: 30, ctime: 1 },
+  { name: 'Zeta', path: 'Zeta', kind: 'folder' as const, ext: '', children: [] },
+  { name: 'a.md', path: 'a.md', kind: 'file' as const, ext: 'md', mtime: 10, ctime: 3 },
+  { name: 'Alpha', path: 'Alpha', kind: 'folder' as const, ext: '', children: [{ name: 'c10.md', path: 'Alpha/c10.md', kind: 'file' as const, ext: 'md' }, { name: 'c9.md', path: 'Alpha/c9.md', kind: 'file' as const, ext: 'md' }] }
+]
+const names = (list: Array<{ name: string }>) => list.map((e) => e.name)
+eq('sort: folders first, then names A-Z', names(sortTree(entries, 'name-asc')), ['Alpha', 'Zeta', 'a.md', 'b.md'])
+eq('sort: numbers in names sort naturally', names(sortTree(entries, 'name-asc')[0].children!), ['c9.md', 'c10.md'])
+eq('sort: Z-A', names(sortTree(entries, 'name-desc')), ['Zeta', 'Alpha', 'b.md', 'a.md'])
+eq('sort: modified newest first', names(sortTree(entries, 'modified-new')).slice(2), ['b.md', 'a.md'])
+eq('sort: created oldest first', names(sortTree(entries, 'created-old')).slice(2), ['b.md', 'a.md'])
+eq('sort: input left unchanged', names(entries), ['b.md', 'Zeta', 'a.md', 'Alpha'])
 
 // Long paths (> 260 characters) work through Node's long-path support.
 const deep = Array.from({ length: 6 }, (_, i) => `folder-with-a-fairly-long-name-${i}-${'x'.repeat(20)}`).join('/')

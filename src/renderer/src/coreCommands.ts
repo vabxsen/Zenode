@@ -15,6 +15,8 @@ export interface CoreActions {
   // Only when a file is open.
   hasActiveFile(): boolean
   showHistory(): void
+  revealActiveFile(): void
+  collapseTree(): void
   // Only when a note (not a canvas or the graph) is active.
   hasActiveNote(): boolean
   toggleReading(): void
@@ -120,6 +122,20 @@ export function registerCoreCommands(registry: CommandRegistry, a: CoreActions):
       id: 'editor:toggle-spellcheck',
       name: 'Toggle spellcheck',
       checkCallback: inVault(() => a.toggleSpellcheck())
+    }),
+    registry.register({
+      id: 'file-explorer:reveal-active-file',
+      name: 'Reveal current file in the file tree',
+      checkCallback: (checking) => {
+        if (!a.hasActiveFile()) return false
+        if (!checking) a.revealActiveFile()
+        return true
+      }
+    }),
+    registry.register({
+      id: 'file-explorer:collapse-all',
+      name: 'Collapse all folders',
+      checkCallback: inVault(() => a.collapseTree())
     }),
     registry.register({
       id: 'editor:save',

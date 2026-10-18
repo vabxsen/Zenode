@@ -7,6 +7,9 @@ export interface TreeEntry {
   kind: 'file' | 'folder'
   ext: string
   children?: TreeEntry[]
+  // Files only: last modified and created (ms since 1970), for sorting.
+  mtime?: number
+  ctime?: number
 }
 
 export interface VaultInfo {
@@ -82,6 +85,8 @@ export interface ZenodeAPI {
   saveAttachment(dir: string, fileName: string, bytes: Uint8Array): Promise<string>
   createFolder(dir: string, name: string): Promise<string>
   rename(path: string, newName: string): Promise<string>
+  // Into another folder ('' = vault root), keeping the name. Returns the new path.
+  move(path: string, destDir: string): Promise<string>
   trash(path: string): Promise<void>
   reveal(path: string): Promise<void>
   openExternal(path: string): Promise<void>

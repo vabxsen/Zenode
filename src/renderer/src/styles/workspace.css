@@ -152,3 +152,61 @@ body.is-resizing {
 .zn-drop-overlay.is-down {
   inset: 50% 4px 4px;
 }
+
+/* ---------- File tree: header tools, selection, drag and drop ---------- */
+
+.zn-pane > .zn-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zn-pane > .zn-sidebar-header .zn-sidebar-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.zn-tree-tools {
+  display: flex;
+  gap: 1px;
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+
+.zn-pane:hover .zn-tree-tools {
+  opacity: 1;
+}
+
+.zn-tree-tool {
+  width: 24px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--zn-text-muted);
+  cursor: pointer;
+}
+
+.zn-tree-tool:hover {
+  background: var(--zn-bg-hover);
+  color: var(--zn-text-strong);
+}
+
+.zn-tree-row.is-selected:not(.is-active) {
+  background: rgba(139, 92, 246, 0.09);
+  color: var(--zn-text);
+}
+
+.zn-tree-row.is-drop-target,
+.zn-tree.is-drop-target {
+  outline: 1px dashed var(--zn-accent-strong);
+  outline-offset: -1px;
+  background: rgba(139, 92, 246, 0.12);
+}
+
+.zn-tree {
+  min-height: 100%;
+  border-radius: 6px;
+}
