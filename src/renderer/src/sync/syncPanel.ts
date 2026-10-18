@@ -138,13 +138,13 @@ export class SyncIndicator extends Component {
       this.deps.openPath(copy.path)
       return false
     })
-    action('Move copy to Recycle Bin', async () => {
+    action('Delete copy', async () => {
       await api.trash(copy.path)
     })
   }
 
   // Compare the copy with the current note; saving writes the merge into the note
-  // and moves the copy to the Recycle Bin.
+  // and deletes the copy (to the Recycle Bin or the vault's .trash).
   private async merge(copy: ConflictCopy): Promise<boolean> {
     const [copyText, current] = await Promise.all([api.read(copy.path), api.read(copy.original)])
     const merged = await openCompareDialog(baseName(copy.original), copyText, current, {

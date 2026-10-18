@@ -19,12 +19,17 @@ export interface EditorSettings {
   // Where pasted or dropped files go: '' = vault root, './' = the note's folder,
   // './name' = a subfolder of the note's folder, anything else = that vault folder.
   attachmentFolder: string
+  // Deleted files go to the Recycle Bin ('system') or the vault's .trash folder ('local').
+  trashOption: TrashOption
 }
+
+export type TrashOption = 'system' | 'local'
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   defaultView: 'live',
   spellcheck: true,
-  attachmentFolder: ''
+  attachmentFolder: '',
+  trashOption: 'system'
 }
 
 const VIEWS = new Set<DefaultView>(['live', 'source', 'reading'])
@@ -35,7 +40,8 @@ export function sanitizeEditorSettings(raw: unknown): EditorSettings {
   return {
     defaultView: VIEWS.has(raw.defaultView as DefaultView) ? (raw.defaultView as DefaultView) : d.defaultView,
     spellcheck: typeof raw.spellcheck === 'boolean' ? raw.spellcheck : d.spellcheck,
-    attachmentFolder: isString(raw.attachmentFolder) ? cleanFolder(raw.attachmentFolder) : d.attachmentFolder
+    attachmentFolder: isString(raw.attachmentFolder) ? cleanFolder(raw.attachmentFolder) : d.attachmentFolder,
+    trashOption: raw.trashOption === 'local' ? 'local' : 'system'
   }
 }
 

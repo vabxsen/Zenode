@@ -235,8 +235,8 @@ const newGroup = cdoc.groupSelection({ x: 0, y: 0 })
 eq('canvas doc: grouping with nothing selected makes an empty group at the centre', [newGroup.type, newGroup.width, newGroup.height], ['group', 480, 380])
 
 // Editor settings (.zenode/app.json).
-eq('editor settings: defaults', sanitizeEditorSettings(null), { defaultView: 'live', spellcheck: true, attachmentFolder: '' })
-eq('editor settings: bad values fall back', sanitizeEditorSettings({ defaultView: 'weird', spellcheck: 'yes', attachmentFolder: 5 }), { defaultView: 'live', spellcheck: true, attachmentFolder: '' })
+eq('editor settings: defaults', sanitizeEditorSettings(null), { defaultView: 'live', spellcheck: true, attachmentFolder: '', trashOption: 'system' })
+eq('editor settings: bad values fall back', sanitizeEditorSettings({ defaultView: 'weird', spellcheck: 'yes', attachmentFolder: 5 }), { defaultView: 'live', spellcheck: true, attachmentFolder: '', trashOption: 'system' })
 eq('editor settings: folders cleaned', ['./', '.', '\\Assets\\', './img/'].map((f) => sanitizeEditorSettings({ attachmentFolder: f }).attachmentFolder), ['./', './', 'Assets', './img'])
 eq('attachment dir', [attachmentDir('', 'A/B/n.md'), attachmentDir('./', 'A/n.md'), attachmentDir('./img', 'A/n.md'), attachmentDir('./img', 'n.md'), attachmentDir('Assets', 'A/n.md')], ['', 'A', 'A/img', 'img', 'Assets'])
 

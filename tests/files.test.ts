@@ -1,5 +1,6 @@
 // Files: which viewer opens what.
 import { fileKind } from '../src/renderer/src/views/fileKinds'
+import { sanitizeEditorSettings } from '../src/renderer/src/config'
 import { startsWithTitle } from '../src/renderer/src/export/title'
 import { eq } from './harness'
 
@@ -11,3 +12,8 @@ eq('kind: other', ['archive.zip', 'tool.exe', 'noext'].map(fileKind), ['other', 
 eq('title: first heading matches', startsWithTitle('---\na: 1\n---\n\n# Plan\ntext', 'Plan'), true)
 eq('title: different heading', startsWithTitle('# Other\n', 'Plan'), false)
 eq('title: h2 is not the title', startsWithTitle('## Plan\n', 'Plan'), false)
+
+// Delete behaviour setting.
+eq('trash: default is the Recycle Bin', sanitizeEditorSettings({}).trashOption, 'system')
+eq('trash: vault folder', sanitizeEditorSettings({ trashOption: 'local' }).trashOption, 'local')
+eq('trash: unknown falls back', sanitizeEditorSettings({ trashOption: 'none' }).trashOption, 'system')

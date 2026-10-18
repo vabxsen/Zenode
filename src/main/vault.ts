@@ -5,6 +5,9 @@ import { fileNameProblem } from '../shared/fileNames'
 import { contentHash } from '../shared/hash'
 import { atomicWrite, readIfExists, withRetry } from './fsutil'
 
+// Deleted files go here when the vault is set to keep them (like Obsidian's .trash).
+export const TRASH_DIR = '.trash'
+
 // Called with a file's old content just before a write replaces it (for snapshots).
 export type BeforeOverwrite = (rel: string, oldContent: string) => Promise<void>
 
@@ -118,6 +121,20 @@ export class Vault {
     if (this.beforeOverwrite) await this.beforeOverwrite(rel, disk)
     await atomicWrite(file, content)
     return { status: 'ok' }
+  }
+
+  // Moves a file or folder into the vault's .trash folder (hidden from the tree),
+  // under a unique name. Returns its new vault-relative path.
+  async moveToVaultTrash(rel: string): Promise<string> {
+    const from = this.abs(rel)
+    const dir = join(this.root, TRASH_DIR)
+    await fs.mkdir(dir, { recursive: true })
+    const name = basename(from)
+    const isDir = (await fs.stat(from)).isDirectory()
+    const ext = isDir ? '' : extname(name)
+    const to = await this.uniquePath(dir, ext ? name.slice(0, -ext.length) : name, ext)
+    await withRetry(() => fs.rename(from, to))
+    return this.rel(to)
   }
 
   // Creates a file with content (and any missing folders). Never overwrites:

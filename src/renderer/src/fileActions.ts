@@ -5,6 +5,7 @@ import { fileNameProblem } from '../../shared/fileNames'
 import { rewriteLinksAfterRename } from './fileOps'
 import { displayName, type FileTree } from './fileTree'
 import { allFolders, pickFolder } from './folderPicker'
+import type { TrashOption } from './config'
 import type { MetadataCache } from './index/metadataCache'
 import { baseName, parentDir, stripMd } from './paths'
 import type { Workspace } from './workspace'
@@ -24,6 +25,8 @@ export interface FileActionDeps {
   // Told after a file or folder moved or went to the Recycle Bin.
   renamed(from: string, to: string): void
   removed(path: string): void
+  // Where deletes go, for the confirmation.
+  trashOption(): TrashOption
 }
 
 export class FileActions {
@@ -141,12 +144,19 @@ export class FileActions {
         : first.kind === 'folder'
           ? `the folder "${first.name}" and everything in it`
           : `"${displayName(first)}"`
-    if (!window.confirm(`Move ${what} to the Recycle Bin?`)) return
+    const where = this.d.trashOption() === 'local' ? "the vault's .trash folder" : 'the Recycle Bin'
+    if (!window.confirm(`Move ${what} to ${where}?`)) return
+    // Save first; tabs close only once their file is really gone, so a failed
+    // delete never loses unsaved typing.
+    await this.d.workspace()?.saveAll()
     for (const entry of entries) {
       try {
+        const result = await api.trash(entry.path)
         this.d.workspace()?.removed(entry.path)
         this.d.removed(entry.path)
-        await api.trash(entry.path)
+        if (result.where === 'vault' && this.d.trashOption() !== 'local') {
+          this.d.notice(`The Recycle Bin isn't available here, so "${entry.name}" went to ${result.path} in the vault.`)
+        }
       } catch (e) {
         this.d.notice(`Could not delete ${entry.path}: ${(e as Error).message}`)
       }

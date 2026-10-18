@@ -22,6 +22,7 @@ export interface CoreActions {
   toggleReading(): void
   toggleSource(): void
   toggleSpellcheck(): void
+  toggleTrashOption(): void
   save(): void
   closeTab(): void
   cycleTab(step: 1 | -1): void
@@ -122,6 +123,11 @@ export function registerCoreCommands(registry: CommandRegistry, a: CoreActions):
       id: 'editor:toggle-spellcheck',
       name: 'Toggle spellcheck',
       checkCallback: inVault(() => a.toggleSpellcheck())
+    }),
+    registry.register({
+      id: 'app:toggle-trash-option',
+      name: "Deleted files: switch between the Recycle Bin and the vault's .trash folder",
+      checkCallback: inVault(() => a.toggleTrashOption())
     }),
     registry.register({
       id: 'file-explorer:reveal-active-file',

@@ -2,7 +2,7 @@ import { app, dialog, ipcMain, net, protocol, shell, type IpcMainInvokeEvent } f
 import { promises as fs } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { PdfExportRequest, VaultInfo } from '../shared/api'
+import type { PdfExportRequest, TrashResult, VaultInfo } from '../shared/api'
 import { exportPdf } from './exportPdf'
 import { readConfig, writeConfig } from './config'
 import { errorCode, friendlyError } from './fsutil'
@@ -124,15 +124,27 @@ function registerIpc(): void {
   handle('fs:createFolder', (w, dir: string, name: string) => w.requireVault().createFolder(dir, name))
   handle('fs:rename', (w, path: string, newName: string) => w.requireVault().rename(path, newName))
   handle('fs:move', (w, path: string, destDir: string) => w.requireVault().move(path, destDir))
-  handle('fs:trash', async (w, path: string) => {
-    const file = w.requireVault().abs(path)
-    // End-to-end tests use their own trash folder instead of the user's Recycle Bin.
+  // Deletes go to the Recycle Bin, or to the vault's .trash folder when
+  // .zenode/app.json says "trashOption": "local" (or the Recycle Bin can't take it).
+  handle('fs:trash', async (w, path: string): Promise<TrashResult> => {
+    const vault = w.requireVault()
+    const file = vault.abs(path)
+    const config = (await readConfig(vault.root, 'app')) as { trashOption?: unknown } | null
+    if (config?.trashOption === 'local') return { where: 'vault', path: await vault.moveToVaultTrash(path) }
+    // End-to-end tests use their own folder instead of the user's Recycle Bin.
     if (testTrash) {
       await fs.mkdir(testTrash, { recursive: true })
       await fs.rename(file, join(testTrash, `${Date.now()}-${basename(file)}`))
-      return
+      return { where: 'system' }
     }
-    await shell.trashItem(file)
+    try {
+      await shell.trashItem(file)
+      return { where: 'system' }
+    } catch (e) {
+      // Some network and cloud drives have no Recycle Bin: keep the file in the vault instead.
+      void log('warn', `Recycle Bin refused ${path}: ${describeError(e)}`)
+      return { where: 'vault', path: await vault.moveToVaultTrash(path) }
+    }
   })
   handle('fs:reveal', (w, path: string) => shell.showItemInFolder(w.requireVault().abs(path)))
   handle('fs:openExternal', async (w, path: string) => {

@@ -55,6 +55,7 @@ export class App extends Component {
     indexIdle: () => this.indexChain,
     openCanvas: (path) => this.openCanvas(path),
     notice: (m) => this.notice(m),
+    trashOption: () => this.editorSettings.trashOption,
     renamed: (from, to) => this.left?.bookmarks.renamed(from, to),
     removed: (path) => this.left?.bookmarks.removed(path)
   })
@@ -673,6 +674,7 @@ export class App extends Component {
       toggleReading: () => this.workspace?.toggleReading(),
       toggleSource: () => this.workspace?.toggleSource(),
       toggleSpellcheck: () => void this.updateEditorSettings({ spellcheck: !this.editorSettings.spellcheck }),
+      toggleTrashOption: () => void this.updateEditorSettings({ trashOption: this.editorSettings.trashOption === 'local' ? 'system' : 'local' }),
       showHistory: () => void this.showHistory(this.workspace?.activePath ?? ''),
       revealActiveFile: () => this.revealInTree(this.workspace?.activePath ?? ''),
       collapseTree: () => this.tree?.collapseAll(),
@@ -698,6 +700,7 @@ export class App extends Component {
     this.workspace?.applySpellcheck(this.editorSettings.spellcheck)
     this.workspace?.setDefaultView(this.editorSettings.defaultView)
     if (change.spellcheck !== undefined) this.notice(`Spellcheck ${change.spellcheck ? 'on' : 'off'}`)
+    if (change.trashOption) this.notice(`Deleted files now go to ${change.trashOption === 'local' ? "the vault's .trash folder" : 'the Recycle Bin'}.`)
     await api.writeConfig('app', this.editorSettings).catch((e: Error) => this.notice(`Could not save settings: ${e.message}`))
   }
 

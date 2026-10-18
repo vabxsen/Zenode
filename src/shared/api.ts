@@ -19,6 +19,9 @@ export interface VaultInfo {
   id: string
 }
 
+// Where a deleted file went: the Recycle Bin, or the vault's .trash folder (at `path`).
+export type TrashResult = { where: 'system' } | { where: 'vault'; path: string }
+
 // A note rendered for printing, with page settings.
 export interface PdfExportRequest {
   // Self-contained HTML (images inlined) and the CSS it needs.
@@ -110,7 +113,7 @@ export interface ZenodeAPI {
   rename(path: string, newName: string): Promise<string>
   // Into another folder ('' = vault root), keeping the name. Returns the new path.
   move(path: string, destDir: string): Promise<string>
-  trash(path: string): Promise<void>
+  trash(path: string): Promise<TrashResult>
   reveal(path: string): Promise<void>
   openExternal(path: string): Promise<void>
   openUrl(url: string): Promise<void>
