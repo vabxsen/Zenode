@@ -4,6 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { PdfExportRequest, TrashResult, VaultInfo } from '../shared/api'
 import { exportPdf } from './exportPdf'
+import { createVaultFolder, forgetVault, helpVault } from './vaults'
 import { cssFolder, listCss, readCss, readConfig, writeConfig, type CssKind } from './config'
 import { errorCode, friendlyError } from './fsutil'
 import { describeError, isLogLevel, log } from './log'
@@ -21,6 +22,8 @@ if (!app.isPackaged) {
   if (process.env.ZENODE_USER_DATA) app.setPath('userData', process.env.ZENODE_USER_DATA)
 }
 const testTrash = app.isPackaged ? undefined : process.env.ZENODE_TEST_TRASH
+// End-to-end tests create vaults here instead of asking for a folder.
+const testVaultParent = app.isPackaged ? undefined : process.env.ZENODE_TEST_VAULT_PARENT
 
 // One Zenode process: launching it again brings the open window forward.
 // (The lock is per settings folder, so test instances don't collide.)
@@ -100,6 +103,35 @@ function registerIpc(): void {
     else await VaultWindow.create(folder)
   })
   handle('vault:current', (w) => w.info())
+  // A new vault: asks where (unless given), creates the folder, opens it here or in a new window.
+  handle('vault:create', async (w, name: string, newWindow: boolean) => {
+    let parent = testVaultParent
+    if (!parent) {
+      const result = await dialog.showOpenDialog(w.win, { title: 'Where should the new vault go?', properties: ['openDirectory', 'createDirectory'] })
+      if (result.canceled || !result.filePaths.length) return null
+      parent = result.filePaths[0]
+    }
+    const root = await createVaultFolder(parent, String(name ?? ''))
+    if (newWindow) {
+      await VaultWindow.create(root)
+      return null
+    }
+    return openVaultIn(w, root)
+  })
+  handle('vault:openHelp', async (w, newWindow: boolean) => {
+    const root = await helpVault()
+    const open = windowWithVault(root)
+    if (open) {
+      open.focus()
+      return null
+    }
+    if (newWindow) {
+      await VaultWindow.create(root)
+      return null
+    }
+    return openVaultIn(w, root)
+  })
+  handle('settings:forgetVault', (_w, root: string) => forgetVault(String(root)))
   handle('app:titleBar', (w, color: string, symbolColor: string) => {
     const hex = /^#[0-9a-f]{6}$/i
     if (!hex.test(color) || !hex.test(symbolColor)) throw new Error('Invalid colour')

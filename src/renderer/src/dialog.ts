@@ -56,3 +56,40 @@ export function openDialog<T>(opts: DialogOptions<T>): Promise<T> {
     requestAnimationFrame(() => first?.focus())
   })
 }
+
+// Asks for one line of text; null if cancelled. `check` returns a problem to
+// show (and blocks OK) or null when the value is fine.
+export async function promptText(title: string, label: string, okLabel: string, check: (v: string) => string | null = () => null): Promise<string | null> {
+  const body = el('div', 'zn-prompt')
+  const id = `zn-prompt-${Date.now()}`
+  const lab = el('label', 'zn-prompt-label', body, label)
+  lab.htmlFor = id
+  const input = el('input', 'zn-set-text zn-prompt-input', body)
+  input.id = id
+  input.spellcheck = false
+  const problem = el('div', 'zn-prompt-problem', body)
+  problem.setAttribute('role', 'alert')
+  const pending = openDialog({
+    title,
+    body,
+    buttons: [
+      { label: 'Cancel', value: false },
+      { label: okLabel, value: true, primary: true }
+    ],
+    cancelValue: false
+  })
+  const ok = body.closest('.zn-dialog')?.querySelector<HTMLButtonElement>('.zn-btn-primary') ?? null
+  const validate = (): boolean => {
+    const msg = input.value.trim() ? check(input.value.trim()) : 'Enter a name.'
+    problem.textContent = input.value ? (msg ?? '') : ''
+    if (ok) ok.disabled = msg !== null
+    return msg === null
+  }
+  input.addEventListener('input', validate)
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && validate()) ok?.click()
+  })
+  validate()
+  requestAnimationFrame(() => requestAnimationFrame(() => input.focus()))
+  return (await pending) ? input.value.trim() : null
+}

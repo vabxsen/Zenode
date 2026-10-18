@@ -102,6 +102,13 @@ export interface ZenodeAPI {
   openVault(root: string): Promise<VaultInfo | null>
   // Opens a vault in a new window (asks for a folder when no root is given).
   openVaultInNewWindow(root?: string): Promise<void>
+  // Asks for a parent folder, creates the vault folder and opens it (null when
+  // cancelled or opened in a new window).
+  createVault(name: string, newWindow: boolean): Promise<VaultInfo | null>
+  // The Help vault that ships with Zenode (a copy in the app's data folder).
+  openHelpVault(newWindow: boolean): Promise<VaultInfo | null>
+  // Removes a vault from the recent list (its files are not touched).
+  forgetVault(root: string): Promise<void>
   // Interface zoom (1 = 100%), and the window frame's colours to match the theme.
   setZoom(factor: number): void
   setTitleBarColors(color: string, symbolColor: string): Promise<void>

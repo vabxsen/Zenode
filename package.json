@@ -29,6 +29,12 @@
       "out/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "resources/help-vault",
+        "to": "help-vault"
+      }
+    ],
     "win": {
       "target": "nsis",
       "signAndEditExecutable": false

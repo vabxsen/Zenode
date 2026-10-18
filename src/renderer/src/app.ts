@@ -40,18 +40,19 @@ import { LeftSidebar, RightSidebar, type LeftPane, type RightPane, type SidebarD
 import { contentHash } from '../../shared/hash'
 import { showNotice } from './notices'
 import { buildRibbon } from './ribbon'
+import { safeGet, safeSet, setupSidebarResizer } from './uiState'
 import { openSwitcher } from './switcher'
 import { setVaultUrlHost } from './vaultUrl'
 import { hasViewer } from './views/fileKinds'
 import { exportNoteToPdf } from './export/pdfExport'
 import { cleanUpAttachments } from './files/attachmentCleanup'
 import { FileView } from './views/fileView'
+import { openVaultManager, type VaultActions } from './vaults/vaultPicker'
 import { renderWelcome } from './welcome'
 import { VIEW_PREFIX, Workspace, type OpenPosition } from './workspace'
 
 const api = window.zenode
 const EXTERNAL = /^(https?:|mailto:)/i
-const SIDEBAR_KEY = 'zenode.sidebarWidth'
 const RIGHTBAR_KEY = 'zenode.rightbarHidden'
 const MAX_RECENT = 30
 
@@ -150,24 +151,30 @@ export class App extends Component {
 
   private async showWelcome(): Promise<void> {
     this.teardownShell()
-    await renderWelcome(this.root, {
-      chooseVault: () => void this.chooseVault(),
-      openRecent: async (root) => {
-        try {
-          const info = await api.openVault(root)
-          if (info) await this.enterVault(info)
-        } catch (e) {
-          this.notice(`Could not open vault: ${(e as Error).message}`)
-        }
-      }
-    })
+    await renderWelcome(this.root, this.vaultActions())
   }
 
-  // With a vault open, another vault opens in a new window; otherwise in this one.
+  // Opening vaults: in this window from the welcome screen, otherwise in a new one.
+  private vaultActions(): VaultActions {
+    const enter = async (info: VaultInfo | null): Promise<void> => {
+      if (info) await this.enterVault(info)
+    }
+    const here = !this.vault
+    return {
+      current: this.vault?.root ?? null,
+      open: async (root) => (here ? enter(await api.openVault(root)) : api.openVaultInNewWindow(root)),
+      create: async (name) => enter(await api.createVault(name, !here)),
+      openFolder: async () => (here ? enter(await api.chooseVault()) : api.openVaultInNewWindow()),
+      openHelp: async () => enter(await api.openHelpVault(!here)),
+      notice: (m) => this.notice(m)
+    }
+  }
+
+  // With a vault open, the vault manager opens; on the welcome screen, a folder picker.
   private async chooseVault(): Promise<void> {
     try {
       if (this.vault) {
-        await api.openVaultInNewWindow()
+        openVaultManager(this.vaultActions())
         return
       }
       const info = await api.chooseVault()
@@ -259,7 +266,7 @@ export class App extends Component {
     const sidebar = this.left.bar.el
 
     const resizer = el('div', 'zn-resizer', body)
-    this.setupResizer(resizer, sidebar)
+    setupSidebarResizer(resizer, sidebar)
 
     const main = el('div', 'zn-main', body)
     this.workspace = shell.addChild(
@@ -429,27 +436,6 @@ export class App extends Component {
   private openFileView(path: string): void {
     if (!this.workspace || this.workspace.activateById(path)) return
     this.workspace.openView(new FileView(path, { notice: (m) => this.notice(m) }))
-  }
-
-  private setupResizer(handle: HTMLElement, sidebar: HTMLElement): void {
-    const saved = Number(safeGet(SIDEBAR_KEY))
-    if (saved >= 160 && saved <= 600) sidebar.style.width = `${saved}px`
-    handle.addEventListener('pointerdown', (e) => {
-      e.preventDefault()
-      handle.setPointerCapture(e.pointerId)
-      const startX = e.clientX
-      const startW = sidebar.getBoundingClientRect().width
-      const move = (ev: PointerEvent): void => {
-        sidebar.style.width = `${Math.max(160, Math.min(600, startW + ev.clientX - startX))}px`
-      }
-      const up = (): void => {
-        handle.removeEventListener('pointermove', move)
-        handle.removeEventListener('pointerup', up)
-        safeSet(SIDEBAR_KEY, String(Math.round(sidebar.getBoundingClientRect().width)))
-      }
-      handle.addEventListener('pointermove', move)
-      handle.addEventListener('pointerup', up)
-    })
   }
 
   // ---------- Index ----------
@@ -777,21 +763,5 @@ export class App extends Component {
 
   notice(message: string): void {
     showNotice(message)
-  }
-}
-
-function safeGet(key: string): string | null {
-  try {
-    return localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-function safeSet(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    // Storage unavailable; the setting just won't be remembered.
   }
 }

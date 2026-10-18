@@ -1,0 +1,11 @@
+{
+	"nodes":[
+		{"id":"intro","type":"text","text":"# A canvas\nCards can hold **Markdown**, like [[Welcome to Zenode]].","x":-420,"y":-180,"width":340,"height":160},
+		{"id":"note","type":"file","file":"Linking notes.md","x":40,"y":-200,"width":380,"height":300,"color":"5"},
+		{"id":"idea","type":"text","text":"Drag from a side handle to connect cards.","x":-420,"y":60,"width":340,"height":100,"color":"4"},
+		{"id":"group","type":"group","label":"Ideas","x":-460,"y":-240,"width":420,"height":440}
+	],
+	"edges":[
+		{"id":"e1","fromNode":"intro","fromSide":"right","toNode":"note","toSide":"left","label":"see"}
+	]
+}

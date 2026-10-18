@@ -15,7 +15,8 @@ export interface ZenodeFixtures {
   app: ElectronApplication
   page: Page
   // Start another app instance on the same settings and vault (e.g. after a kill).
-  relaunch: () => Promise<{ app: ElectronApplication; page: Page }>
+  // withVault false: don't wait for a vault (e.g. to land on the welcome screen).
+  relaunch: (opts?: { withVault?: boolean }) => Promise<{ app: ElectronApplication; page: Page }>
 }
 
 // Starts Zenode with settings that point straight at `vaultDir`.
@@ -31,13 +32,14 @@ async function launch(workDir: string, vaultDir: string): Promise<ElectronApplic
   return electron.launch({
     // Built by `npm run test:e2e` into out-e2e/, apart from the dev server's out/.
     args: [join(ROOT, 'out-e2e/main/index.js')],
-    env: { ...env, ZENODE_USER_DATA: userData, ZENODE_TEST_TRASH: join(workDir, 'trash'), ZENODE_TEST_EXPORT_DIR: join(workDir, 'exports') }
+    env: { ...env, ZENODE_USER_DATA: userData, ZENODE_TEST_TRASH: join(workDir, 'trash'), ZENODE_TEST_EXPORT_DIR: join(workDir, 'exports'), ZENODE_TEST_VAULT_PARENT: join(workDir, 'vaults') }
   })
 }
 
-async function ready(app: ElectronApplication): Promise<Page> {
+// The first window, once its vault is shown (or, with withVault false, once the page is up).
+async function ready(app: ElectronApplication, withVault = true): Promise<Page> {
   const page = await app.firstWindow()
-  await page.waitForSelector('.zn-tree-row')
+  await page.waitForSelector(withVault ? '.zn-tree-row' : '.zn-app')
   return page
 }
 
@@ -63,10 +65,10 @@ export const test = base.extend<ZenodeFixtures>({
   },
   relaunch: async ({ workDir, vaultDir }, use) => {
     const started: ElectronApplication[] = []
-    await use(async () => {
+    await use(async (opts) => {
       const app = await launch(workDir, vaultDir)
       started.push(app)
-      return { app, page: await ready(app) }
+      return { app, page: await ready(app, opts?.withVault !== false) }
     })
     for (const app of started) await app.close().catch(() => undefined)
   }

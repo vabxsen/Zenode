@@ -53,7 +53,7 @@ export function registerCoreCommands(registry: CommandRegistry, a: CoreActions):
     }),
     registry.register({
       id: 'app:open-vault',
-      name: 'Open another vault',
+      name: 'Open another vault (manage vaults)',
       hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'o' }],
       callback: () => a.chooseVault()
     }),

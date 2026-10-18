@@ -9,6 +9,7 @@ import './styles/panels.css'
 import './styles/properties.css'
 import './styles/fileviews.css'
 import './styles/settings.css'
+import './styles/vaults.css'
 import { App } from './app'
 
 // Anything that slips past local error handling goes to the app log.
