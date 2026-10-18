@@ -17,8 +17,9 @@
   --zn-line: #6e6e80;
   --zn-text: #d4d4dc;
   --zn-text-strong: #f4f4f8;
-  --zn-text-muted: #8b8b98;
-  --zn-text-faint: #55555f;
+  --zn-text-muted: #9a9aa6;
+  /* Faint text still meets WCAG AA (4.5:1) on every surface. */
+  --zn-text-faint: #868693;
   --zn-accent: #a78bfa;
   --zn-accent-strong: #8b5cf6;
   --zn-accent-dim: #7c6bb5;
@@ -79,8 +80,8 @@
   --zn-line: #9a9aab;
   --zn-text: #2a2a32;
   --zn-text-strong: #0e0e13;
-  --zn-text-muted: #64646f;
-  --zn-text-faint: #8e8e9a;
+  --zn-text-muted: #55555f;
+  --zn-text-faint: #666672;
   --zn-accent: #6d28d9;
   --zn-accent-strong: #7c3aed;
   --zn-accent-dim: #8b7cc4;

@@ -3,6 +3,7 @@
 import { hotkeyLabel, type CommandRegistry } from './commands'
 import { el } from './component'
 import { fuzzyMatch, highlight } from './fuzzy'
+import { wireListbox } from './a11y/listbox'
 
 const RECENT_KEY = 'zenode.recentCommands'
 const MAX_RECENT = 8
@@ -64,7 +65,7 @@ export function openCommandPalette(registry: CommandRegistry): void {
   input.spellcheck = false
   input.setAttribute('aria-label', 'Command')
   const list = el('div', 'zn-switcher-list', modal)
-  list.setAttribute('role', 'listbox')
+  wireListbox(input, list, 'Commands')
   const footer = el('div', 'zn-switcher-footer', modal)
   for (const [key, label] of [
     ['↑↓', 'navigate'],

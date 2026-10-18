@@ -39,7 +39,7 @@ eq('plain quote untouched', html('> just a quote'), '<blockquote>\n<p>just a quo
 has('inline math', 'Energy $E=mc^2$ here', 'class="katex"', 'mc')
 has('block math', '$$\n\\int_0^1 x\\,dx\n$$', '<div class="zn-math-block">', 'katex-display')
 eq('dollar amounts are not math', html('Costs $5 and $6 today').includes('katex'), false)
-has('tasks', '- [ ] todo\n- [x] done', '<li class="zn-task"><input type="checkbox" class="zn-task-box" data-zn-line="0">todo</li>', 'class="zn-task is-done"', 'data-zn-line="1" checked>done')
+has('tasks', '- [ ] todo\n- [x] done', '<li class="zn-task"><input type="checkbox" class="zn-task-box" aria-label="Task done" data-zn-line="0">todo</li>', 'class="zn-task is-done"', 'data-zn-line="1" checked>done')
 has('footnotes', 'Claim[^1]\n\n[^1]: Source.', 'class="footnote-ref"', 'class="footnotes"', 'Source.')
 has('front matter as properties', '---\ntags: [a, b]\ntitle: Hello\n---\n# Body', '<div class="zn-properties">', 'zn-prop-key">tags</span>', '<h1>Body</h1>')
 eq('front matter only at the top', html('Text\n\n---\nnot: yaml\n---').includes('zn-properties'), false)

@@ -84,6 +84,8 @@ export class FileTree extends Component {
   // Rows in display order (expanded folders' children included).
   private rows: Array<{ entry: TreeEntry; depth: number }> = []
   private windowFrame: number | null = null
+  // The row that takes keyboard focus (one row is tabbable at a time).
+  private focusPath: string | null = null
 
   constructor(
     private readonly container: HTMLElement,
@@ -108,6 +110,8 @@ export class FileTree extends Component {
     this.scrollEl = el('div', 'zn-sidebar-tree', container)
     this.listEl = el('div', 'zn-tree', this.scrollEl)
     this.listEl.setAttribute('role', 'tree')
+    this.listEl.setAttribute('aria-label', 'Files')
+    this.listEl.setAttribute('aria-multiselectable', 'true')
   }
 
   onload(): void {
@@ -124,6 +128,7 @@ export class FileTree extends Component {
     this.registerDomEvent(this.listEl, 'dragover', (e) => this.onDragOver(e, ''))
     this.registerDomEvent(this.listEl, 'dragleave', () => this.clearDropTarget())
     this.registerDomEvent(this.listEl, 'drop', (e) => this.onDrop(e, ''))
+    this.registerDomEvent(this.listEl, 'keydown', (e) => this.onTreeKey(e))
     // Long trees redraw the rows in view as you scroll or resize.
     this.registerDomEvent(this.scrollEl, 'scroll', () => this.drawWindowSoon())
     const resize = new ResizeObserver(() => this.drawWindowSoon())
@@ -273,7 +278,10 @@ export class FileTree extends Component {
       el('div', 'zn-tree-empty', this.listEl, 'No notes yet. Press Ctrl+N to create one.')
       return
     }
+    const hadFocus = this.listEl.contains(document.activeElement) && !!document.activeElement?.closest('.zn-tree-row')
+    if (!this.focusPath || !this.rows.some((r) => r.entry.path === this.focusPath)) this.focusPath = this.active ?? this.rows[0].entry.path
     for (let i = from; i < to; i++) this.renderRow(this.rows[i].entry, this.rows[i].depth)
+    if (hadFocus) this.rowEl(this.focusPath)?.focus({ preventScroll: true })
   }
 
   private renderRow(entry: TreeEntry, depth: number): void {
@@ -282,6 +290,9 @@ export class FileTree extends Component {
     row.style.paddingLeft = `${8 + depth * INDENT}px`
     row.dataset.path = entry.path
     row.setAttribute('role', 'treeitem')
+    row.setAttribute('aria-level', String(depth + 1))
+    row.setAttribute('aria-selected', String(this.selected.has(entry.path)))
+    row.tabIndex = entry.path === this.focusPath ? 0 : -1
     if (isFolder) row.setAttribute('aria-expanded', String(this.expanded.has(entry.path)))
     if (entry.path === this.active) row.classList.add('is-active')
     if (this.selected.has(entry.path)) row.classList.add('is-selected')
@@ -327,7 +338,83 @@ export class FileTree extends Component {
     this.render()
   }
 
+  private rowEl(path: string | null): HTMLElement | null {
+    return path ? this.listEl.querySelector<HTMLElement>(`[data-path="${CSS.escape(path)}"]`) : null
+  }
+
+  // Moves keyboard focus to a row (drawing it first in a long tree).
+  private focusRow(path: string): void {
+    this.focusPath = path
+    this.scrollToRow(path)
+    this.listEl.querySelectorAll<HTMLElement>('.zn-tree-row').forEach((r) => (r.tabIndex = r.dataset.path === path ? 0 : -1))
+    const row = this.rowEl(path)
+    row?.focus()
+    row?.scrollIntoView({ block: 'nearest' })
+  }
+
+  // Arrow keys move, Right/Left open and close folders, Enter opens, F2 renames, Delete deletes.
+  private onTreeKey(e: KeyboardEvent): void {
+    const row = (e.target as HTMLElement).closest<HTMLElement>('.zn-tree-row')
+    if (!row || (e.target as HTMLElement).closest('.zn-tree-rename')) return
+    const i = this.rows.findIndex((r) => r.entry.path === row.dataset.path)
+    if (i === -1) return
+    const { entry, depth } = this.rows[i]
+    const isFolder = entry.kind === 'folder'
+    const go = (j: number): void => {
+      if (j >= 0 && j < this.rows.length) this.focusRow(this.rows[j].entry.path)
+    }
+    switch (e.key) {
+      case 'ArrowDown':
+        go(i + 1)
+        break
+      case 'ArrowUp':
+        go(i - 1)
+        break
+      case 'Home':
+        go(0)
+        break
+      case 'End':
+        go(this.rows.length - 1)
+        break
+      case 'ArrowRight':
+        if (isFolder && !this.expanded.has(entry.path)) {
+          this.expanded.add(entry.path)
+          this.render()
+          this.focusRow(entry.path)
+        } else if (isFolder) go(i + 1)
+        break
+      case 'ArrowLeft':
+        if (isFolder && this.expanded.has(entry.path)) {
+          this.expanded.delete(entry.path)
+          this.render()
+          this.focusRow(entry.path)
+        } else if (depth > 0) {
+          const parent = parentDir(entry.path)
+          if (parent) this.focusRow(parent)
+        }
+        break
+      case 'Enter':
+        this.focusPath = entry.path
+        this.onRowClick(new MouseEvent('click'), entry)
+        this.rowEl(entry.path)?.focus()
+        break
+      case 'F2':
+        this.startRename(entry.path)
+        break
+      case 'Delete': {
+        const paths = this.selected.has(entry.path) ? [...this.selected] : [entry.path]
+        this.handlers.onDelete(paths.map((p) => this.find(p)).filter((x): x is TreeEntry => !!x))
+        break
+      }
+      default:
+        return
+    }
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
   private onRowClick(e: MouseEvent, entry: TreeEntry): void {
+    this.focusPath = entry.path
     if (this.renaming === entry.path) return
     if (e.ctrlKey || e.metaKey) {
       // Ctrl+click adds to or removes from the selection without opening.

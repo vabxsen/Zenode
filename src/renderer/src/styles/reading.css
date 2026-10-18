@@ -87,12 +87,15 @@
 
 .zn-rendered a {
   color: var(--zn-accent);
-  text-decoration: none;
+  /* Underlined, so links don't rely on colour alone. */
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--zn-accent) 45%, transparent);
+  text-underline-offset: 2px;
   cursor: pointer;
 }
 
 .zn-rendered a:hover {
-  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 .zn-rendered a.is-unresolved {
@@ -472,4 +475,10 @@ details.callout[open] > summary .callout-title::after {
   padding: 10px 16px 14px;
   overflow: auto;
   font-size: 0.92em;
+}
+
+/* Callout colours are tuned for dark backgrounds; darken titles in the light theme for contrast. */
+:root[data-theme='light'] .callout-title,
+:root[data-theme='light'] .cm-editor .cm-line.zn-callout-title {
+  color: color-mix(in srgb, rgb(var(--callout)) 55%, black);
 }

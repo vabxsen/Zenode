@@ -291,7 +291,7 @@ function taskRule(state: StateCore): void {
     const checked = m[1] !== ' '
     first.content = first.content.slice(m[0].length)
     const box = new state.Token('html_inline', '', 0)
-    box.content = `<input type="checkbox" class="zn-task-box" data-zn-line="${line}"${checked ? ' checked' : ''}>`
+    box.content = `<input type="checkbox" class="zn-task-box" aria-label="Task done" data-zn-line="${line}"${checked ? ' checked' : ''}>`
     inline.children!.unshift(box)
     item.attrJoin('class', `zn-task${checked ? ' is-done' : ''}`)
   }

@@ -24,9 +24,12 @@ function chromeClick(button: HTMLElement, focusTarget: HTMLElement, action: () =
 
 export function buildToolbar(parent: HTMLElement, focusTarget: HTMLElement, a: ToolbarActions): HTMLElement {
   const bar = el('div', 'zn-canvas-toolbar', parent)
+  bar.setAttribute('role', 'toolbar')
+  bar.setAttribute('aria-label', 'Canvas')
   const button = (name: IconName, label: string, action: () => void): void => {
     const b = el('button', 'zn-canvas-btn', bar)
     b.title = label
+    b.setAttribute('aria-label', label)
     b.appendChild(icon(name, 16))
     chromeClick(b, focusTarget, action)
   }
@@ -83,6 +86,7 @@ export function renderColorBar(
   const swatch = (value: string, css: string | null, title: string): void => {
     const b = el('button', 'zn-canvas-swatch', bar)
     b.title = title
+    b.setAttribute('aria-label', title)
     if (css) b.style.background = css
     else b.classList.add('is-clear')
     chromeClick(b, focusTarget, () => onColor(value))
@@ -91,6 +95,7 @@ export function renderColorBar(
   for (const [k, css] of Object.entries(PRESET_COLORS)) swatch(k, css, `Color ${k}`)
   const del = el('button', 'zn-canvas-btn is-danger', bar)
   del.title = 'Delete (Del)'
+  del.setAttribute('aria-label', 'Delete selected')
   del.appendChild(icon('close', 14))
   chromeClick(del, focusTarget, onDelete)
 }

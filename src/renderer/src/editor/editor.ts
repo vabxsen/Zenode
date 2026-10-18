@@ -161,6 +161,8 @@ export function createEditorState(doc: string, cb: EditorCallbacks, extra: Exten
       syntaxHighlighting(highlight),
       theme,
       themeMode.of(EditorView.darkTheme.of(isDarkTheme())),
+      // The text area's name for screen readers.
+      EditorView.contentAttributes.of({ 'aria-label': 'Note text' }),
       sourceMode,
       livePreview({
         onOpenLink: cb.onOpenLink,

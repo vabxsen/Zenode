@@ -2,6 +2,7 @@
 import type { TreeEntry } from '../../shared/api'
 import { el } from './component'
 import { fuzzyMatch, highlight } from './fuzzy'
+import { wireListbox } from './a11y/listbox'
 
 const MAX_RESULTS = 60
 
@@ -34,7 +35,7 @@ export function pickFromList(choices: string[], title: string, label: (choice: s
     input.placeholder = title
     input.spellcheck = false
     const list = el('div', 'zn-switcher-list', modal)
-    list.setAttribute('role', 'listbox')
+    wireListbox(input, list, title)
     let rows: Array<{ path: string; indices: number[] }> = []
     let selected = 0
 

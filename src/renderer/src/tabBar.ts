@@ -15,8 +15,13 @@ export interface TabBarHandlers {
 
 export function renderTabBar(bar: HTMLElement, tabs: Tab[], active: Tab | null, h: TabBarHandlers): void {
   bar.replaceChildren()
+  bar.setAttribute('role', 'tablist')
+  bar.setAttribute('aria-label', 'Open tabs')
   for (const tab of tabs) {
     const tabEl = el('div', 'zn-tab', bar)
+    tabEl.setAttribute('role', 'tab')
+    tabEl.setAttribute('aria-selected', String(tab === active))
+    tabEl.tabIndex = tab === active ? 0 : -1
     if (tab === active) tabEl.classList.add('is-active')
     if (tab.dirty) tabEl.classList.add('is-dirty')
     if (tab.conflict) tabEl.classList.add('has-conflict')
@@ -39,6 +44,8 @@ export function renderTabBar(bar: HTMLElement, tabs: Tab[], active: Tab | null, 
       pin.appendChild(icon('pin', 12))
     } else {
       const closeBtn = el('span', 'zn-tab-close', tabEl)
+      closeBtn.setAttribute('role', 'button')
+      closeBtn.setAttribute('aria-label', `Close ${h.title(tab)}`)
       closeBtn.appendChild(icon('close', 12))
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation()
@@ -52,6 +59,21 @@ export function renderTabBar(bar: HTMLElement, tabs: Tab[], active: Tab | null, 
       }
     })
     tabEl.addEventListener('click', () => h.onActivate(tab))
+    // Left/Right move between tabs, Enter or Space shows one, Delete closes it.
+    tabEl.addEventListener('keydown', (e) => {
+      const i = tabs.indexOf(tab)
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        const next = (bar.children[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length] as HTMLElement | undefined)
+        next?.focus()
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        h.onActivate(tab)
+      } else if (e.key === 'Delete') {
+        h.onClose(tab)
+      } else {
+        return
+      }
+      e.preventDefault()
+    })
   }
 }
 

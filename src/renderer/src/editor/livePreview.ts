@@ -70,6 +70,7 @@ class CheckboxWidget extends WidgetType {
     const box = document.createElement('input')
     box.type = 'checkbox'
     box.className = 'zn-task-box'
+    box.setAttribute('aria-label', 'Task done')
     box.checked = this.checked
     box.addEventListener('mousedown', (e) => {
       e.preventDefault()

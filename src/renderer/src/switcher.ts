@@ -1,6 +1,7 @@
 import { el } from './component'
 import { fuzzyMatch, highlight } from './fuzzy'
 import { baseName, parentDir, stripMd } from './paths'
+import { wireListbox } from './a11y/listbox'
 
 export interface SwitcherItem {
   path: string
@@ -36,6 +37,9 @@ export function openSwitcher(opts: SwitcherOptions): void {
   input.placeholder = 'Find or create a note...'
   input.spellcheck = false
   const list = el('div', 'zn-switcher-list', modal)
+  modal.setAttribute('role', 'dialog')
+  modal.setAttribute('aria-label', 'Quick switcher')
+  wireListbox(input, list, 'Notes')
   const footer = el('div', 'zn-switcher-footer', modal)
   for (const [key, label] of [
     ['↑↓', 'navigate'],

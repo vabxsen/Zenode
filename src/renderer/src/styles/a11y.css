@@ -1,0 +1,71 @@
+/* Accessibility: visible keyboard focus, reduced motion, Windows high contrast. */
+
+/* A ring wherever keyboard focus lands (mouse clicks don't show it). */
+:focus-visible {
+  outline: 2px solid var(--zn-accent-strong);
+  outline-offset: 1px;
+}
+
+.zn-tree-row:focus-visible,
+.zn-settings-tab:focus-visible,
+.zn-switcher-row:focus-visible,
+.zn-hotkey-row:focus-visible {
+  outline-offset: -2px;
+}
+
+/* The note text shows its caret instead. */
+.cm-content:focus-visible,
+.cm-editor:focus-visible {
+  outline: none;
+}
+
+/* Windows "reduce animations" setting. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Windows high-contrast themes replace colours; keep selection and focus visible. */
+@media (forced-colors: active) {
+  .zn-tree-row.is-active,
+  .zn-tree-row.is-selected,
+  .zn-tab.is-active,
+  .zn-settings-tab.is-active,
+  .zn-sidebar-tab.is-active,
+  .zn-switcher-row.is-selected,
+  .zn-cnode.is-selected {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  :focus-visible {
+    outline-color: Highlight;
+  }
+
+  .zn-switch {
+    border: 1px solid CanvasText;
+  }
+
+  .zn-switch:checked {
+    background: Highlight;
+  }
+}
+
+/* Visually hidden, still read by screen readers. */
+.zn-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
