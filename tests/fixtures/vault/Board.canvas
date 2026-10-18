@@ -1,0 +1,9 @@
+{
+	"nodes":[
+		{"id":"a1b2c3d4e5f60708","type":"text","text":"See [[Ideas]]","x":0,"y":0,"width":260,"height":80},
+		{"id":"b1b2c3d4e5f60708","type":"file","file":"Projects/Roadmap.md","x":360,"y":0,"width":400,"height":300}
+	],
+	"edges":[
+		{"id":"c1b2c3d4e5f60708","fromNode":"a1b2c3d4e5f60708","fromSide":"right","toNode":"b1b2c3d4e5f60708","toSide":"left"}
+	]
+}

@@ -90,7 +90,7 @@ function renderFile(file: string, v: NodeView, ctx: CardContext): void {
   const header = el('div', 'zn-cnode-header', v.content)
   header.appendChild(icon(note ? 'note' : 'files', 13))
   el('span', '', header, note ? stripMd(baseName(target)) : baseName(target))
-  const body = el('div', 'zn-cnode-file', v.content)
+  const body = el('div', 'zn-cnode-body', v.content)
   if (isImage(target)) {
     const img = el('img', 'zn-cnode-image', body)
     img.src = vaultUrl(target)

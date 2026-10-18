@@ -14,8 +14,12 @@ let win: BrowserWindow | null = null
 let vault: Vault | null = null
 let readyToClose = false
 
-// In development, never reuse cached renderer modules across reloads (stale code after edits).
-if (!app.isPackaged) app.commandLine.appendSwitch('disable-http-cache')
+if (!app.isPackaged) {
+  // In development, never reuse cached renderer modules across reloads (stale code after edits).
+  app.commandLine.appendSwitch('disable-http-cache')
+  // End-to-end tests run with their own settings folder, so they never touch the user's.
+  if (process.env.ZENODE_USER_DATA) app.setPath('userData', process.env.ZENODE_USER_DATA)
+}
 
 // vault://file/<path> serves files from the open vault (images in canvases and notes).
 protocol.registerSchemesAsPrivileged([

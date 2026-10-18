@@ -1503,7 +1503,7 @@ button {
   color: var(--zn-accent);
 }
 
-.zn-cnode-file {
+.zn-cnode-body {
   position: absolute;
   top: 30px;
   left: 0;
@@ -1512,7 +1512,7 @@ button {
   overflow: hidden;
 }
 
-.zn-cnode-file .cm-editor {
+.zn-cnode-body .cm-editor {
   height: 100%;
 }
 
