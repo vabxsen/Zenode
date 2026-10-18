@@ -2,6 +2,25 @@
 
 A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.md` files in a folder you choose (a "vault"), so they stay readable by any editor, including Obsidian.
 
+## Workspace & navigation (M3)
+
+- **Command palette** (Ctrl+P): every command, fuzzy-searched, recent ones first, with their shortcuts.
+- **Split panes**: split right or down (tab menu or commands), drag tabs between panes or onto a pane's edge to split, resize by dragging the divider, move focus with Ctrl+Alt+arrows. Pinned tabs, and back/forward through each pane's history (Alt+← / Alt+→). The layout is restored on launch.
+- **File tree**: drag files and folders to move them (links update), Ctrl/Shift+click to select several, **Move to…**, sort (name, modified, created), collapse all, reveal the current file.
+- **Sidebar panels**: left: files, search, bookmarks (files and searches) with recent files, tags with counts; right: backlinks with **unlinked mentions** (one click turns a mention into a link), outgoing links, outline, local graph.
+- **Daily notes** (Ctrl+Shift+D or the calendar button) and **templates** (command "Insert template"): `{{title}}`, `{{date}}`, `{{time}}`, `{{date:dddd, MMMM Do}}`. A template's properties are merged into the note.
+- **Properties**: front matter shows as an editable table in Live Preview: text, number, checkbox, date, date & time, list and tags. Changing a property rewrites only the YAML and keeps its comments and order; a property's type applies across the vault.
+- **Several vaults at once**: "Open another vault" opens it in its own window. Launching Zenode again brings the running window forward.
+
+Daily notes and templates are set up per vault:
+
+```jsonc
+// .zenode/daily-notes.json
+{ "folder": "Journal", "format": "YYYY-MM-DD", "template": "Templates/Daily" }
+// .zenode/templates.json
+{ "folder": "Templates", "dateFormat": "YYYY-MM-DD", "timeFormat": "HH:mm" }
+```
+
 ## Editor (M2)
 
 - **Reading view** (Ctrl+E): the note rendered and read-only, with clickable task boxes. **Source mode** (command) shows plain Markdown.
@@ -69,11 +88,15 @@ Editor settings live in `<vault>/.zenode/app.json` (a settings screen comes in M
 | Ctrl+S | Save now (autosave also runs after you pause typing) |
 | Ctrl+W | Close tab |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab |
+| Ctrl+P | Command palette |
 | Ctrl+O | Quick switcher |
 | Ctrl+Shift+F | Search |
 | Ctrl+G | Graph view |
-| Ctrl+Shift+B | Toggle right sidebar (backlinks, local graph) |
-| Ctrl+Shift+O | Open another vault |
+| Ctrl+Shift+B | Toggle right sidebar (backlinks, outgoing links, outline, local graph) |
+| Ctrl+Shift+O | Open another vault (in a new window) |
+| Ctrl+Shift+D | Today's daily note |
+| Alt+← / Alt+→ | Back / forward in the pane's history |
+| Ctrl+Alt+arrows | Focus the pane to the left, right, above or below |
 | Ctrl+\\ | Toggle left sidebar |
 | Ctrl+E | Toggle Reading view |
 | Ctrl+F / Ctrl+H | Find / find & replace in the note |
@@ -90,7 +113,7 @@ Shortcuts can be changed per vault in `.zenode/hotkeys.json`, keyed by command i
 ## Your data
 
 - Notes and canvases are plain files in your vault folder. Zenode writes them atomically (temp file, then rename) and only after you edit them: opening or browsing never rewrites a file, and notes with Windows (CRLF) line endings keep them.
-- Per-vault settings live in `<vault>/.zenode/` (open tabs in `workspace.json`, custom shortcuts in `hotkeys.json`), like Obsidian's `.obsidian/` folder.
+- Per-vault settings live in `<vault>/.zenode/` (pane layout in `workspace.json`, shortcuts in `hotkeys.json`, bookmarks in `bookmarks.json`, property types in `types.json`), like Obsidian's `.obsidian/` folder.
 - App settings and logs live in `%APPDATA%\Zenode\` (`logs\zenode.log` is useful for bug reports).
 
 ### Data safety
@@ -119,12 +142,12 @@ npm run dist       # Windows installer in dist/
 
 ```
 src/
-  main/       Electron main process: window, vault file access, file watcher, settings
+  main/       Electron main process: one window per vault, vault file access, file watcher, settings
   preload/    The only bridge to the page (contextBridge); exposes window.zenode
   shared/     Types shared by main and renderer (the IPC contract)
   renderer/   The UI: app shell, file tree, tabs, CodeMirror editor + Live Preview
 tests/
-  run.ts          Runs the unit tests (index, safety, render, editor) bundled with esbuild in Node
+  run.ts          Runs the unit tests (index, safety, render, editor, notes, properties) bundled with esbuild in Node
   e2e/            Playwright tests that launch the built app
   fixtures/vault  The sample vault the end-to-end tests run against (copied per test)
 ```
@@ -144,7 +167,7 @@ Towards 1.0 (production-ready core):
 - ~~M0 Foundations: Electron 44, command registry, per-vault config, E2E tests, CI, error log~~ (done)
 - ~~M1 Data safety: conflict handling for outside edits, crash recovery, file snapshots, sync-folder conflict copies~~ (done)
 - ~~M2 Editor: embeds, paste/drop attachments, tables, callouts, find & replace, math, Mermaid, Reading view~~ (done)
-- M3 Workspace: command palette, split panes, drag & drop, outline/tags/bookmarks, daily notes, templates, properties
+- ~~M3 Workspace: command palette, split panes, drag & drop, outline/tags/bookmarks, daily notes, templates, properties, multiple windows~~ (done)
 - M4 Files: PDF/audio/video viewers, export to PDF
 - M5 Performance: persistent index cache, 10k+ note vaults
 - M6 Appearance: light theme, themes and snippets, hotkey editor, onboarding, accessibility
