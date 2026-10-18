@@ -4,6 +4,7 @@ import { MergeView } from '@codemirror/merge'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { el } from './component'
+import { usesCrlf } from './editor/editor'
 
 export interface ConflictActions {
   // Compare side by side (notes only).
@@ -89,7 +90,12 @@ export function openCompareDialog(title: string, disk: string, mine: string, tex
     const cancel = el('button', 'zn-btn', footer, 'Cancel')
     cancel.addEventListener('click', () => finish(null))
     const save = el('button', 'zn-btn zn-btn-primary', footer, text.save)
-    save.addEventListener('click', () => finish(view.b.state.doc.toString()))
+    // The merge view works in LF; hand back the note's own line endings.
+    const crlf = usesCrlf(mine)
+    save.addEventListener('click', () => {
+      const merged = view.b.state.doc.toString()
+      finish(crlf ? merged.replace(/\n/g, '\r\n') : merged)
+    })
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.preventDefault()

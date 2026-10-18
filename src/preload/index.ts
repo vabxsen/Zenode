@@ -1,35 +1,43 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { ZenodeAPI } from '../shared/api'
 
+// Electron reports main-process errors as "Error invoking remote method 'x': Error: msg";
+// the page only needs the message, which main already words for people.
+const REMOTE_PREFIX = /^Error invoking remote method '[^']+': (?:[A-Za-z]*Error: )?/
+const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> =>
+  ipcRenderer.invoke(channel, ...args).catch((e: unknown) => {
+    throw new Error(String((e as Error)?.message ?? e).replace(REMOTE_PREFIX, ''))
+  })
+
 // The only bridge between the page and the system. The page gets these
 // functions and nothing else: no Node, no raw ipcRenderer.
 const api: ZenodeAPI = {
-  chooseVault: () => ipcRenderer.invoke('vault:choose'),
-  openVault: (root) => ipcRenderer.invoke('vault:open', root),
-  currentVault: () => ipcRenderer.invoke('vault:current'),
-  getSettings: () => ipcRenderer.invoke('settings:get'),
-  readConfig: (name) => ipcRenderer.invoke('config:read', name),
-  writeConfig: (name, data) => ipcRenderer.invoke('config:write', name, data),
+  chooseVault: () => invoke('vault:choose'),
+  openVault: (root) => invoke('vault:open', root),
+  currentVault: () => invoke('vault:current'),
+  getSettings: () => invoke('settings:get'),
+  readConfig: (name) => invoke('config:read', name),
+  writeConfig: (name, data) => invoke('config:write', name, data),
 
-  list: () => ipcRenderer.invoke('fs:list'),
-  read: (path) => ipcRenderer.invoke('fs:read', path),
-  readMany: (paths) => ipcRenderer.invoke('fs:readMany', paths),
-  write: (path, content) => ipcRenderer.invoke('fs:write', path, content),
-  writeChecked: (path, content, expectHash) => ipcRenderer.invoke('fs:writeChecked', path, content, expectHash),
-  createFile: (dir, baseName, ext) => ipcRenderer.invoke('fs:createFile', dir, baseName, ext),
-  createFolder: (dir, name) => ipcRenderer.invoke('fs:createFolder', dir, name),
-  rename: (path, newName) => ipcRenderer.invoke('fs:rename', path, newName),
-  trash: (path) => ipcRenderer.invoke('fs:trash', path),
-  reveal: (path) => ipcRenderer.invoke('fs:reveal', path),
-  openExternal: (path) => ipcRenderer.invoke('fs:openExternal', path),
-  openUrl: (url) => ipcRenderer.invoke('app:openUrl', url),
-  log: (level, message) => ipcRenderer.invoke('app:log', level, message),
-  listSnapshots: (path) => ipcRenderer.invoke('snapshots:list', path),
-  readSnapshot: (path, id) => ipcRenderer.invoke('snapshots:read', path, id),
-  keepSnapshot: (path, content) => ipcRenderer.invoke('snapshots:keep', path, content),
-  journalPut: (path, content, baseHash) => ipcRenderer.invoke('journal:put', path, content, baseHash),
-  journalRemove: (path) => ipcRenderer.invoke('journal:remove', path),
-  journalList: () => ipcRenderer.invoke('journal:list'),
+  list: () => invoke('fs:list'),
+  read: (path) => invoke('fs:read', path),
+  readMany: (paths) => invoke('fs:readMany', paths),
+  write: (path, content) => invoke('fs:write', path, content),
+  writeChecked: (path, content, expectHash) => invoke('fs:writeChecked', path, content, expectHash),
+  createFile: (dir, baseName, ext) => invoke('fs:createFile', dir, baseName, ext),
+  createFolder: (dir, name) => invoke('fs:createFolder', dir, name),
+  rename: (path, newName) => invoke('fs:rename', path, newName),
+  trash: (path) => invoke('fs:trash', path),
+  reveal: (path) => invoke('fs:reveal', path),
+  openExternal: (path) => invoke('fs:openExternal', path),
+  openUrl: (url) => invoke('app:openUrl', url),
+  log: (level, message) => invoke('app:log', level, message),
+  listSnapshots: (path) => invoke('snapshots:list', path),
+  readSnapshot: (path, id) => invoke('snapshots:read', path, id),
+  keepSnapshot: (path, content) => invoke('snapshots:keep', path, content),
+  journalPut: (path, content, baseHash) => invoke('journal:put', path, content, baseHash),
+  journalRemove: (path) => invoke('journal:remove', path),
+  journalList: () => invoke('journal:list'),
 
   onVaultChanged: (cb) => {
     const listener = (_e: IpcRendererEvent, paths: string[]): void => cb(paths)

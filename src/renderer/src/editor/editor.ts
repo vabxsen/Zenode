@@ -67,10 +67,17 @@ export interface EditorCallbacks {
   linkTargets(): LinkTarget[]
 }
 
+// A file whose every line break is CRLF (typical of Windows editors).
+export function usesCrlf(text: string): boolean {
+  return text.includes('\r\n') && !/(^|[^\r])\n/.test(text)
+}
+
 export function createEditorState(doc: string, cb: EditorCallbacks, extra: Extension[] = []): EditorState {
   return EditorState.create({
     doc,
     extensions: [
+      // Keep a CRLF file CRLF when it's saved (CodeMirror would otherwise write LF).
+      usesCrlf(doc) ? EditorState.lineSeparator.of('\r\n') : [],
       history(),
       drawSelection(),
       dropCursor(),

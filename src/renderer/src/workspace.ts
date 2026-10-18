@@ -4,6 +4,7 @@ import type { WorkspaceState } from '../../shared/api'
 import { contentHash } from '../../shared/hash'
 import { Component, el } from './component'
 import { hideConflictBar, openCompareDialog, renderConflictBar } from './conflictUi'
+import { openDialog } from './dialog'
 import { createEditorState, fromDisk } from './editor/editor'
 import type { LinkTarget } from './editor/linkCompletion'
 import { linksChanged } from './editor/livePreview'
@@ -73,6 +74,23 @@ export interface WorkspaceHost {
   onError(message: string): void
   // Text about to be thrown away (the user chose another version): keep a copy.
   preserve(path: string, text: string): void
+}
+
+// Notes bigger than this (in characters) ask before opening: the live editor
+// gets slow on multi-megabyte files, and they're often logs or exports.
+const LARGE_NOTE = 5_000_000
+
+async function confirmLargeNote(path: string, length: number): Promise<boolean> {
+  const mb = (length / 1_000_000).toFixed(1)
+  return openDialog({
+    title: 'Open a very large note?',
+    body: `"${noteTitle(path)}" is about ${mb} million characters. Editing it in Zenode may be slow. It won't be changed unless you edit it.`,
+    buttons: [
+      { label: 'Cancel', value: false },
+      { label: 'Open anyway', value: true, primary: true }
+    ],
+    cancelValue: false
+  })
 }
 
 export function noteTitle(path: string): string {
@@ -165,6 +183,7 @@ export class Workspace extends Component {
       this.host.onError(`Could not open ${path}: ${(e as Error).message}`)
       return
     }
+    if (content.length > LARGE_NOTE && !(await confirmLargeNote(path, content.length))) return
     this.addNoteTab(path, content)
     if (pos) this.reveal(pos)
   }
@@ -323,7 +342,8 @@ export class Workspace extends Component {
   }
 
   private docOf(tab: Tab): string {
-    return (tab === this.active ? this.view.state : tab.state!).doc.toString()
+    // sliceDoc() joins lines with the note's own line break (CRLF notes stay CRLF).
+    return (tab === this.active ? this.view.state : tab.state!).sliceDoc()
   }
 
   private onEdited(tab: Tab): void {
@@ -349,6 +369,8 @@ export class Workspace extends Component {
     }
     // Waiting for the user to pick a version in the conflict bar.
     if (tab.conflict) return
+    // Only edits are saved: a note Zenode merely opened is never rewritten.
+    if (!tab.dirty) return
     if (tab.saving) await tab.saving
     const run = this.writeTab(tab)
     tab.saving = run

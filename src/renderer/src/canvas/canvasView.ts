@@ -165,7 +165,9 @@ export class CanvasView extends Component implements WorkspaceView {
       window.clearTimeout(this.saveTimer)
       this.saveTimer = null
     }
-    if (this.error || !this.ready || this.conflict) return
+    // Only edits are saved: a file Zenode merely opened is never rewritten, even
+    // if its formatting differs from how Zenode would write it.
+    if (this.error || !this.ready || this.conflict || !this.dirty) return
     const content = serializeCanvas(this.doc.data)
     if (content === this.lastSaved) {
       this.dirty = false
