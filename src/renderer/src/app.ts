@@ -13,6 +13,7 @@ import { icon, type IconName } from './icons'
 import { isCanvasPath } from './index/canvasMeta'
 import { applyEdits, MetadataCache } from './index/metadataCache'
 import { splitLinktext } from './index/parser'
+import { offerRecovery } from './recovery'
 import { baseName, isMarkdown, joinPath, parentDir, stripMd } from './paths'
 import { SearchPane } from './search/searchPane'
 import { openSwitcher } from './switcher'
@@ -140,6 +141,7 @@ export class App extends Component {
       for (const path of ws.openFiles) await this.openTabPath(path)
       if (ws.activeFile) await this.openTabPath(ws.activeFile)
     }
+    if (this.workspace) await offerRecovery(this.workspace, (m) => this.notice(m))
   }
 
   private teardownShell(): void {

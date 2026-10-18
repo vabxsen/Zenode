@@ -7,6 +7,7 @@ import { readConfig, writeConfig } from './config'
 import { errorCode, friendlyError } from './fsutil'
 import { describeError, isLogLevel, log } from './log'
 import { loadSettings, rememberVault, saveSettings } from './settings'
+import { RecoveryJournal } from './recovery'
 import { SnapshotStore } from './snapshots'
 import { Vault } from './vault'
 
@@ -16,6 +17,7 @@ const EXTERNAL_URL = /^(https?:|mailto:)/i
 let win: BrowserWindow | null = null
 let vault: Vault | null = null
 let snapshots: SnapshotStore | null = null
+let journal: RecoveryJournal | null = null
 let readyToClose = false
 
 if (!app.isPackaged) {
@@ -110,6 +112,7 @@ async function openVault(root: string): Promise<VaultInfo> {
   vault?.unwatch()
   const store = new SnapshotStore(app.getPath('userData'), root)
   snapshots = store
+  journal = new RecoveryJournal(app.getPath('userData'), root)
   vault = new Vault(root, async (rel, old) => {
     // History must never block a save.
     await store.save(rel, old, 'auto').catch((e) => log('warn', `snapshot ${rel}: ${describeError(e)}`))
@@ -176,6 +179,14 @@ function registerIpc(): void {
   handle('snapshots:keep', async (path: string, content: string) => {
     await snapshotsFor(path).save(path, content, 'kept')
   })
+  const journalFor = (path?: string): RecoveryJournal => {
+    if (path !== undefined) requireVault().abs(path)
+    if (!journal) throw new Error('No vault is open')
+    return journal
+  }
+  handle('journal:put', (path: string, content: string, baseHash: string) => journalFor(path).put(path, content, baseHash))
+  handle('journal:remove', (path: string) => journalFor(path).remove(path))
+  handle('journal:list', () => journalFor().list())
   handle('app:log', (level: unknown, message: unknown) => {
     if (!isLogLevel(level) || typeof message !== 'string') throw new Error('Invalid log entry')
     return log(level, `renderer: ${message}`)

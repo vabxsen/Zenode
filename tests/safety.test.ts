@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Vault } from '../src/main/vault'
 import { friendlyError, withRetry } from '../src/main/fsutil'
+import { RecoveryJournal } from '../src/main/recovery'
+import { SnapshotStore } from '../src/main/snapshots'
 import { fileNameProblem } from '../src/shared/fileNames'
 import { contentHash } from '../src/shared/hash'
 import { eq } from './harness'
@@ -69,5 +71,32 @@ let permanent = ''
 try { await withRetry(async () => { attempts++; throw Object.assign(new Error('gone'), { code: 'ENOENT' }) }) } catch (e) { permanent = (e as Error).message }
 eq('retry: other errors fail at once', [permanent, attempts], ['gone', 1])
 eq('errors: friendly message', friendlyError(Object.assign(new Error('x'), { code: 'ENOSPC' })).message, 'The disk is full.')
+
+// Local file history.
+const userData = join(dir, 'userdata')
+const snaps = new SnapshotStore(userData, 'C:/Vault')
+const t0 = Date.UTC(2026, 9, 18, 10, 0, 0)
+eq('snapshots: first auto snapshot is kept', await snaps.save('n.md', 'one', 'auto', t0), true)
+eq('snapshots: auto snapshots are throttled', await snaps.save('n.md', 'two', 'auto', t0 + 60_000), false)
+eq('snapshots: kept snapshots always save', await snaps.save('n.md', 'mine', 'kept', t0 + 61_000), true)
+eq('snapshots: identical to the latest is skipped', await snaps.save('n.md', 'mine', 'kept', t0 + 62_000), false)
+eq('snapshots: auto again after the interval', await snaps.save('n.md', 'three', 'auto', t0 + 7 * 60_000), true)
+const listed = await snaps.list('n.md')
+eq('snapshots: listed newest first', await Promise.all(listed.map((s) => snaps.read('n.md', s.id))), ['three', 'mine', 'one'])
+eq('snapshots: other files are separate', await snaps.list('other.md'), [])
+let badId = ''
+try { await snaps.read('n.md', '../../x') } catch (e) { badId = (e as Error).message }
+eq('snapshots: ids are validated', badId, 'Invalid snapshot id')
+await snaps.prune(t0 + 7 * 24 * 60 * 60_000 + 2 * 60_000)
+eq('snapshots: a week later only recent ones remain', (await snaps.list('n.md')).length, 1)
+
+// Crash-recovery journal.
+const journal = new RecoveryJournal(userData, 'C:/Vault')
+await journal.put('a.md', 'draft', contentHash('base'), t0)
+await journal.put('b.md', 'other', contentHash('x'), t0 + 1)
+eq('journal: lists entries newest first', (await journal.list()).map((e) => [e.path, e.content]), [['b.md', 'other'], ['a.md', 'draft']])
+await Promise.all([journal.put('a.md', 'newer', 'h', t0 + 2), journal.remove('a.md')])
+eq('journal: a remove queued after a put wins', (await journal.list()).map((e) => e.path), ['b.md'])
+eq('journal: another vault has its own entries', await new RecoveryJournal(userData, 'D:/Other').list(), [])
 
 rmSync(dir, { recursive: true, force: true })

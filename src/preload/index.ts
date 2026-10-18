@@ -27,6 +27,9 @@ const api: ZenodeAPI = {
   listSnapshots: (path) => ipcRenderer.invoke('snapshots:list', path),
   readSnapshot: (path, id) => ipcRenderer.invoke('snapshots:read', path, id),
   keepSnapshot: (path, content) => ipcRenderer.invoke('snapshots:keep', path, content),
+  journalPut: (path, content, baseHash) => ipcRenderer.invoke('journal:put', path, content, baseHash),
+  journalRemove: (path) => ipcRenderer.invoke('journal:remove', path),
+  journalList: () => ipcRenderer.invoke('journal:list'),
 
   onVaultChanged: (cb) => {
     const listener = (_e: IpcRendererEvent, paths: string[]): void => cb(paths)

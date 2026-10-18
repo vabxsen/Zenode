@@ -1,7 +1,7 @@
 // Launches the built app against a fresh copy of tests/fixtures/vault, with its
 // own settings folder, so tests never touch the user's vaults or settings.
 import { test as base, _electron as electron, type ElectronApplication, type Locator, type Page } from '@playwright/test'
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -13,6 +13,31 @@ export interface ZenodeFixtures {
   vaultDir: string
   app: ElectronApplication
   page: Page
+  // Start another app instance on the same settings and vault (e.g. after a kill).
+  relaunch: () => Promise<{ app: ElectronApplication; page: Page }>
+}
+
+// Starts Zenode with settings that point straight at `vaultDir`.
+async function launch(workDir: string, vaultDir: string): Promise<ElectronApplication> {
+  const userData = join(workDir, 'userdata')
+  const settings = join(userData, 'zenode-settings.json')
+  if (!existsSync(settings)) {
+    mkdirSync(userData, { recursive: true })
+    writeFileSync(settings, JSON.stringify({ lastVault: vaultDir, recentVaults: [vaultDir], workspaces: {} }))
+  }
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== 'ELECTRON_RENDERER_URL') env[k] = v
+  return electron.launch({
+    // Built by `npm run test:e2e` into out-e2e/, apart from the dev server's out/.
+    args: [join(ROOT, 'out-e2e/main/index.js')],
+    env: { ...env, ZENODE_USER_DATA: userData }
+  })
+}
+
+async function ready(app: ElectronApplication): Promise<Page> {
+  const page = await app.firstWindow()
+  await page.waitForSelector('.zn-tree-row')
+  return page
 }
 
 export const test = base.extend<ZenodeFixtures>({
@@ -27,24 +52,22 @@ export const test = base.extend<ZenodeFixtures>({
     await use(vault)
   },
   app: async ({ workDir, vaultDir }, use) => {
-    // Settings that point the app straight at the copied vault.
-    const userData = join(workDir, 'userdata')
-    mkdirSync(userData, { recursive: true })
-    writeFileSync(join(userData, 'zenode-settings.json'), JSON.stringify({ lastVault: vaultDir, recentVaults: [vaultDir], workspaces: {} }))
-    const env: Record<string, string> = {}
-    for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== 'ELECTRON_RENDERER_URL') env[k] = v
-    const app = await electron.launch({
-      // Built by `npm run test:e2e` into out-e2e/, apart from the dev server's out/.
-      args: [join(ROOT, 'out-e2e/main/index.js')],
-      env: { ...env, ZENODE_USER_DATA: userData }
-    })
+    const app = await launch(workDir, vaultDir)
     await use(app)
-    await app.close()
+    // A test may already have killed it.
+    await app.close().catch(() => undefined)
   },
   page: async ({ app }, use) => {
-    const page = await app.firstWindow()
-    await page.waitForSelector('.zn-tree-row')
-    await use(page)
+    await use(await ready(app))
+  },
+  relaunch: async ({ workDir, vaultDir }, use) => {
+    const started: ElectronApplication[] = []
+    await use(async () => {
+      const app = await launch(workDir, vaultDir)
+      started.push(app)
+      return { app, page: await ready(app) }
+    })
+    for (const app of started) await app.close().catch(() => undefined)
   }
 })
 

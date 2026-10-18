@@ -38,6 +38,15 @@ export interface SnapshotInfo {
   size: number
 }
 
+// Unsaved note text kept for crash recovery. baseHash is the hash of the disk
+// version the edits started from.
+export interface RecoveryEntry {
+  path: string
+  content: string
+  baseHash: string
+  time: number
+}
+
 export interface ZenodeAPI {
   chooseVault(): Promise<VaultInfo | null>
   openVault(root: string): Promise<VaultInfo>
@@ -67,6 +76,11 @@ export interface ZenodeAPI {
   readSnapshot(path: string, id: string): Promise<string>
   // Keep a copy of text that's about to be thrown away.
   keepSnapshot(path: string, content: string): Promise<void>
+
+  // Crash-recovery journal of unsaved note text (outside the vault).
+  journalPut(path: string, content: string, baseHash: string): Promise<void>
+  journalRemove(path: string): Promise<void>
+  journalList(): Promise<RecoveryEntry[]>
 
   // Appends to the app log (%APPDATA%\Zenode\logs\zenode.log).
   log(level: 'info' | 'warn' | 'error', message: string): Promise<void>

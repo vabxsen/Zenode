@@ -10,6 +10,9 @@ import { linksChanged } from './editor/livePreview'
 import { icon } from './icons'
 
 const SAVE_DELAY = 600
+// Unsaved text still unsaved after this long goes to the crash-recovery journal
+// (continuous typing keeps postponing autosave, so this bounds what a crash can lose).
+const JOURNAL_DELAY = 1500
 
 // A non-note tab (e.g. the graph). The workspace mounts `el` and shows/hides it.
 export interface WorkspaceView {
@@ -44,6 +47,9 @@ interface Tab {
   conflict: { disk: string | null } | null
   // The save in flight, so a change notification for our own write waits for it.
   saving: Promise<void> | null
+  // Crash recovery: pending journal write, and whether an entry exists for this tab.
+  journalTimer: number | null
+  journaled: boolean
 }
 
 export const VIEW_PREFIX = 'zenode:'
@@ -128,7 +134,7 @@ export class Workspace extends Component {
     }
     this.viewsEl.appendChild(view.el)
     view.hide()
-    const tab: Tab = { path: view.id, kind: 'view', state: null, view, lastSaved: '', dirty: false, timer: null, conflict: null, saving: null }
+    const tab: Tab = { path: view.id, kind: 'view', state: null, view, lastSaved: '', dirty: false, timer: null, conflict: null, saving: null, journalTimer: null, journaled: false }
     const at = this.active ? this.tabs.indexOf(this.active) + 1 : this.tabs.length
     this.tabs.splice(at, 0, tab)
     this.activate(tab)
@@ -159,7 +165,13 @@ export class Workspace extends Component {
       this.host.onError(`Could not open ${path}: ${(e as Error).message}`)
       return
     }
-    const tab: Tab = { path, kind: 'note', state: null, view: null, lastSaved: content, dirty: false, timer: null, conflict: null, saving: null }
+    this.addNoteTab(path, content)
+    if (pos) this.reveal(pos)
+  }
+
+  // A new, active note tab showing `content` (the file as it is on disk).
+  private addNoteTab(path: string, content: string): Tab {
+    const tab: Tab = { path, kind: 'note', state: null, view: null, lastSaved: content, dirty: false, timer: null, conflict: null, saving: null, journalTimer: null, journaled: false }
     tab.state = createEditorState(content, {
       onChange: () => this.onEdited(tab),
       onOpenLink: (href) => this.host.onOpenLink(href, tab.path),
@@ -171,7 +183,50 @@ export class Workspace extends Component {
     const at = this.active ? this.tabs.indexOf(this.active) + 1 : this.tabs.length
     this.tabs.splice(at, 0, tab)
     this.activate(tab)
-    if (pos) this.reveal(pos)
+    return tab
+  }
+
+  // Brings back unsaved text from the crash-recovery journal. If the file changed
+  // since (or is gone), the tab opens in conflict so nothing is overwritten.
+  async restoreUnsaved(path: string, content: string, baseHash: string): Promise<void> {
+    let disk: string | null
+    try {
+      disk = await window.zenode.read(path)
+    } catch {
+      disk = null
+    }
+    if (disk === content) return
+    const existing = this.tabs.find((t) => t.path === path && t.kind === 'note')
+    const tab = existing ?? this.addNoteTab(path, disk ?? '')
+    this.activate(tab)
+    tab.lastSaved = disk ?? ''
+    this.setDoc(tab, content, false)
+    if (disk === null || contentHash(disk) !== baseHash) this.setConflict(tab, disk)
+  }
+
+  // ---------- Crash-recovery journal ----------
+
+  private scheduleJournal(tab: Tab): void {
+    if (tab.journalTimer !== null) window.clearTimeout(tab.journalTimer)
+    tab.journalTimer = window.setTimeout(() => this.journal(tab), JOURNAL_DELAY)
+  }
+
+  private journal(tab: Tab): void {
+    if (tab.journalTimer !== null) window.clearTimeout(tab.journalTimer)
+    tab.journalTimer = null
+    if (!this.tabs.includes(tab) || tab.kind !== 'note') return
+    const text = this.docOf(tab)
+    if (text === tab.lastSaved) return
+    tab.journaled = true
+    window.zenode.journalPut(tab.path, text, contentHash(tab.lastSaved)).catch((e: Error) => this.host.onError(`Could not keep a recovery copy: ${e.message}`))
+  }
+
+  private unjournal(tab: Tab): void {
+    if (tab.journalTimer !== null) window.clearTimeout(tab.journalTimer)
+    tab.journalTimer = null
+    if (!tab.journaled) return
+    tab.journaled = false
+    void window.zenode.journalRemove(tab.path).catch(() => undefined)
   }
 
   // Select a range in the active note and scroll it to the middle of the view.
@@ -230,6 +285,8 @@ export class Workspace extends Component {
 
   private dispose(tab: Tab): void {
     if (tab.timer !== null) window.clearTimeout(tab.timer)
+    // A journal entry that still exists stays on disk for recovery.
+    if (tab.journalTimer !== null) window.clearTimeout(tab.journalTimer)
     tab.view?.destroy()
     const i = this.tabs.indexOf(tab)
     if (i === -1) return
@@ -265,6 +322,7 @@ export class Workspace extends Component {
     }
     if (tab.timer !== null) window.clearTimeout(tab.timer)
     tab.timer = window.setTimeout(() => void this.save(tab), SAVE_DELAY)
+    this.scheduleJournal(tab)
     if (tab === this.active) this.updateStats()
   }
 
@@ -315,7 +373,10 @@ export class Workspace extends Component {
   private saved(tab: Tab, content: string): void {
     tab.lastSaved = content
     this.host.onSaved(tab.path, content)
-    if (this.docOf(tab) === content) tab.dirty = false
+    if (this.docOf(tab) === content) {
+      tab.dirty = false
+      this.unjournal(tab)
+    }
     this.render()
   }
 
@@ -341,6 +402,8 @@ export class Workspace extends Component {
   private setConflict(tab: Tab, disk: string | null): void {
     tab.conflict = { disk }
     tab.dirty = true
+    // The user's text can't be saved until they choose, so make sure a crash can't lose it.
+    this.journal(tab)
     this.render()
   }
 
@@ -391,6 +454,7 @@ export class Workspace extends Component {
     tab.lastSaved = disk
     this.setDoc(tab, disk, true)
     tab.dirty = false
+    this.unjournal(tab)
     this.clearConflict(tab)
   }
 
@@ -406,6 +470,7 @@ export class Workspace extends Component {
   private discardTab(tab: Tab): void {
     this.host.preserve(tab.path, this.docOf(tab))
     tab.conflict = null
+    this.unjournal(tab)
     this.dispose(tab)
   }
 
@@ -422,6 +487,12 @@ export class Workspace extends Component {
       if (tab.path === from) next = to
       else if (tab.path.startsWith(`${from}/`)) next = to + tab.path.slice(from.length)
       if (next === null) continue
+      // Move a recovery entry to the new path.
+      if (tab.journaled) {
+        this.unjournal(tab)
+        tab.path = next
+        this.journal(tab)
+      }
       tab.path = next
       tab.view?.setPath?.(next)
     }
