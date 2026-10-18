@@ -1,0 +1,132 @@
+/* ---------- Live Preview: rendered blocks, math, comments, callouts ---------- */
+
+/* Rendered blocks sit in the same centred column as the text. */
+.cm-editor .zn-lp-embed:not(.is-inline),
+.cm-editor .zn-lp-math,
+.cm-editor .zn-lp-table,
+.cm-editor .zn-lp-mermaid {
+  margin: 4px max(32px, calc((100% - 760px) / 2));
+  cursor: default;
+}
+
+.cm-editor .zn-lp-embed.is-inline {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.cm-editor .zn-lp-embed.is-inline .zn-embed-image {
+  display: inline-block;
+  margin: 0;
+}
+
+.cm-editor .zn-lp-math {
+  padding: 4px 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.cm-editor .zn-lp-table {
+  overflow-x: auto;
+}
+
+.cm-editor .zn-lp-table table {
+  margin: 0.4em 0;
+}
+
+.cm-editor .zn-lp-inline-math {
+  padding: 0 1px;
+}
+
+.cm-editor .zn-math-src {
+  color: #c4b5fd;
+  font-family: var(--zn-font-mono);
+  font-size: 0.92em;
+}
+
+.cm-editor .zn-comment,
+.cm-editor .cm-line.zn-comment {
+  color: var(--zn-text-faint);
+}
+
+/* Callout lines (Live Preview): a tinted box built from the quote's lines. */
+.cm-editor .cm-line.zn-callout {
+  --callout: 96, 165, 250;
+  position: relative;
+  isolation: isolate;
+  padding-left: calc(max(32px, (100% - 760px) / 2) + 16px) !important;
+}
+
+.cm-editor .cm-line.zn-callout::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: max(32px, calc((100% - 760px) / 2));
+  right: max(32px, calc((100% - 760px) / 2));
+  border-left: 3px solid rgb(var(--callout));
+  background: rgba(var(--callout), 0.09);
+}
+
+.cm-editor .cm-line.zn-callout-title {
+  padding-top: 6px;
+  color: rgb(var(--callout));
+  font-weight: 650;
+}
+
+.cm-editor .cm-line.zn-callout-title::before {
+  border-top-right-radius: 8px;
+  top: 2px;
+}
+
+.cm-editor .cm-line.zn-callout-last {
+  padding-bottom: 6px;
+}
+
+.cm-editor .cm-line.zn-callout-last::before {
+  border-bottom-right-radius: 8px;
+  bottom: 2px;
+}
+
+.cm-editor .cm-line.zn-callout[data-callout="abstract"],
+.cm-editor .cm-line.zn-callout[data-callout="summary"],
+.cm-editor .cm-line.zn-callout[data-callout="tldr"],
+.cm-editor .cm-line.zn-callout[data-callout="tip"],
+.cm-editor .cm-line.zn-callout[data-callout="hint"],
+.cm-editor .cm-line.zn-callout[data-callout="important"] {
+  --callout: 34, 211, 238;
+}
+.cm-editor .cm-line.zn-callout[data-callout="success"],
+.cm-editor .cm-line.zn-callout[data-callout="check"],
+.cm-editor .cm-line.zn-callout[data-callout="done"] {
+  --callout: 74, 222, 128;
+}
+.cm-editor .cm-line.zn-callout[data-callout="question"],
+.cm-editor .cm-line.zn-callout[data-callout="help"],
+.cm-editor .cm-line.zn-callout[data-callout="faq"],
+.cm-editor .cm-line.zn-callout[data-callout="warning"],
+.cm-editor .cm-line.zn-callout[data-callout="caution"],
+.cm-editor .cm-line.zn-callout[data-callout="attention"] {
+  --callout: 251, 146, 60;
+}
+.cm-editor .cm-line.zn-callout[data-callout="failure"],
+.cm-editor .cm-line.zn-callout[data-callout="fail"],
+.cm-editor .cm-line.zn-callout[data-callout="missing"],
+.cm-editor .cm-line.zn-callout[data-callout="danger"],
+.cm-editor .cm-line.zn-callout[data-callout="error"],
+.cm-editor .cm-line.zn-callout[data-callout="bug"] {
+  --callout: 248, 113, 113;
+}
+.cm-editor .cm-line.zn-callout[data-callout="example"] {
+  --callout: 167, 139, 250;
+}
+.cm-editor .cm-line.zn-callout[data-callout="quote"],
+.cm-editor .cm-line.zn-callout[data-callout="cite"] {
+  --callout: 160, 160, 176;
+}
+
+.cm-editor .zn-footnote-ref {
+  color: var(--zn-accent-dim);
+  font-size: 0.75em;
+  vertical-align: super;
+}

@@ -89,6 +89,12 @@ function wireClicks(container: HTMLElement, ctx: ReadingContext): void {
 
 // ---------- Embeds ----------
 
+// Fills one embed placeholder inside `container` (used by Live Preview widgets).
+export async function renderEmbedSlot(container: HTMLElement, slot: HTMLElement, ctx: ReadingContext): Promise<void> {
+  wireClicks(container, { ...ctx, onToggleTask: undefined })
+  await fillEmbed(slot, ctx, [ctx.sourcePath])
+}
+
 function sizeAttrs(media: HTMLImageElement | HTMLVideoElement, size: string): void {
   // "300" (width) or "300x200".
   const m = /^(\d+)(?:x(\d+))?$/.exec(size.trim())

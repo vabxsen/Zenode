@@ -64,6 +64,8 @@ export interface ZenodeAPI {
   // Writes only if the file on disk still hashes to `expectHash` (see shared/hash.ts).
   writeChecked(path: string, content: string, expectHash: string): Promise<WriteResult>
   createFile(dir: string, baseName: string, ext: string): Promise<string>
+  // A pasted/dropped file, saved under a unique name in dir. Returns its path.
+  saveAttachment(dir: string, fileName: string, bytes: Uint8Array): Promise<string>
   createFolder(dir: string, name: string): Promise<string>
   rename(path: string, newName: string): Promise<string>
   trash(path: string): Promise<void>

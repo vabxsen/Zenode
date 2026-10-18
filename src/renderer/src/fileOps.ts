@@ -1,6 +1,26 @@
 // File operations that touch many files at once.
 import { contentHash } from '../../shared/hash'
+import { attachmentName } from './editor/attachments'
 import { applyEdits, type MetadataCache, type PendingRename } from './index/metadataCache'
+import { mediaKind } from './vaultUrl'
+
+// Saves pasted/dropped files next to (or for) the note at notePath and returns
+// the Markdown to insert: ![[embeds]] for things that can be shown, [[links]] otherwise.
+export async function importAttachments(
+  files: File[],
+  notePath: string,
+  dir: string,
+  linktext: (path: string, from: string) => string
+): Promise<string> {
+  const parts: string[] = []
+  for (const file of files) {
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const saved = await window.zenode.saveAttachment(dir, attachmentName(file), bytes)
+    const link = linktext(saved, notePath)
+    parts.push(mediaKind(saved) === 'other' ? `[[${link}]]` : `![[${link}]]`)
+  }
+  return parts.join('\n')
+}
 
 export interface LinkRewriteResult {
   links: number

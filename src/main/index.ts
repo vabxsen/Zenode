@@ -161,6 +161,10 @@ function registerIpc(): void {
   handle('fs:write', (path: string, content: string) => requireVault().write(path, content))
   handle('fs:writeChecked', (path: string, content: string, expectHash: string) => requireVault().writeChecked(path, content, expectHash))
   handle('fs:createFile', (dir: string, base: string, ext: string) => requireVault().createFile(dir, base, ext))
+  handle('fs:saveAttachment', (dir: string, fileName: string, bytes: Uint8Array) => {
+    if (!(bytes instanceof Uint8Array)) throw new Error('Invalid file data')
+    return requireVault().saveAttachment(dir, fileName, bytes)
+  })
   handle('fs:createFolder', (dir: string, name: string) => requireVault().createFolder(dir, name))
   handle('fs:rename', (path: string, newName: string) => requireVault().rename(path, newName))
   handle('fs:trash', async (path: string) => {

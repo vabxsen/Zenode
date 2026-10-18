@@ -2,7 +2,7 @@ import type { TreeEntry, VaultInfo } from '../../shared/api'
 import { BacklinksPanel } from './backlinks'
 import { CanvasView, type CanvasHost } from './canvas/canvasView'
 import { CommandRegistry } from './commands'
-import { DEFAULT_EDITOR_SETTINGS, sanitizeEditorSettings, sanitizeHotkeys, sanitizeWorkspace, type EditorSettings } from './config'
+import { attachmentDir, DEFAULT_EDITOR_SETTINGS, sanitizeEditorSettings, sanitizeHotkeys, sanitizeWorkspace, type EditorSettings } from './config'
 import { Component, el } from './component'
 import { registerCoreCommands } from './coreCommands'
 import type { LinkTarget } from './editor/linkCompletion'
@@ -13,7 +13,7 @@ import { isCanvasPath } from './index/canvasMeta'
 import { MetadataCache } from './index/metadataCache'
 import { splitLinktext } from './index/parser'
 import { openFileRecovery, restoreVersion } from './fileRecovery'
-import { rewriteLinksAfterRename } from './fileOps'
+import { importAttachments, rewriteLinksAfterRename } from './fileOps'
 import { offerRecovery } from './recovery'
 import { SyncIndicator } from './sync/syncPanel'
 import { baseName, isMarkdown, joinPath, parentDir, stripExt, stripMd } from './paths'
@@ -251,6 +251,12 @@ export class App extends Component {
         onLayoutChange: () => this.saveLayoutSoon(),
         onError: (msg) => this.notice(msg),
         preserve: (path, text) => this.preserve(path, text),
+        importFiles: async (notePath, files) => {
+          const dir = attachmentDir(this.editorSettings.attachmentFolder, notePath)
+          const markdown = await importAttachments(files, notePath, dir, (p, from) => cache.linktext(p, from))
+          await this.refreshTree()
+          return markdown
+        },
         readingContext: (path) => ({
           resolve: (link, from) => cache.resolve(link, from),
           readNote: async (p) => cache.getNote(p)?.content ?? (await api.read(p).catch(() => null)),

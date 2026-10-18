@@ -78,6 +78,8 @@ export interface WorkspaceHost {
   onError(message: string): void
   // Text about to be thrown away (the user chose another version): keep a copy.
   preserve(path: string, text: string): void
+  // Saves pasted/dropped files for the note at notePath; returns the links to insert.
+  importFiles(notePath: string, files: File[]): Promise<string>
   // Links, embeds and clicks for a note shown in Reading view.
   readingContext(path: string): Omit<ReadingContext, 'sourcePath' | 'onToggleTask'>
 }
@@ -274,7 +276,9 @@ export class Workspace extends Component {
       onOpenWikiLink: (target) => this.host.onOpenWikiLink(target, tab.path),
       onOpenTag: (tag) => this.host.onOpenTag(tag),
       isResolved: (link) => this.host.isResolved(link, tab.path),
-      linkTargets: () => this.host.linkTargets(tab.path)
+      linkTargets: () => this.host.linkTargets(tab.path),
+      renderContext: () => ({ ...this.host.readingContext(tab.path), sourcePath: tab.path }),
+      onFiles: (files, pos) => void this.insertFiles(tab, files, pos)
     })
     tab.reading = this.defaultView === 'reading'
     tab.source = this.defaultView === 'source'
@@ -283,6 +287,21 @@ export class Workspace extends Component {
     this.tabs.splice(at, 0, tab)
     this.activate(tab)
     return tab
+  }
+
+  // Saves pasted/dropped files and puts links to them at pos.
+  private async insertFiles(tab: Tab, files: File[], pos: number): Promise<void> {
+    let markdown: string
+    try {
+      markdown = await this.host.importFiles(tab.path, files)
+    } catch (e) {
+      this.host.onError(`Could not add the file: ${(e as Error).message}`)
+      return
+    }
+    if (!markdown || tab !== this.active || tab.kind !== 'note') return
+    const at = Math.min(pos, this.view.state.doc.length)
+    this.view.dispatch({ changes: { from: at, insert: markdown }, selection: { anchor: at + markdown.length } })
+    this.view.focus()
   }
 
   // Puts `text` into an open note as an ordinary edit (undoable; autosave writes

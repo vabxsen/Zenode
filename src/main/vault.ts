@@ -118,6 +118,28 @@ export class Vault {
     return this.rel(target)
   }
 
+  // Saves pasted or dropped bytes as a new file in dirRel (created if needed),
+  // never overwriting: "photo.png" becomes "photo 1.png" if taken. Returns its path.
+  async saveAttachment(dirRel: string, fileName: string, bytes: Uint8Array): Promise<string> {
+    const name = fileName.trim()
+    checkName(name)
+    const dot = name.lastIndexOf('.')
+    const base = dot > 0 ? name.slice(0, dot) : name
+    const ext = dot > 0 ? name.slice(dot) : ''
+    const dir = this.abs(dirRel)
+    await fs.mkdir(dir, { recursive: true })
+    for (let attempt = 0; ; attempt++) {
+      const target = await this.uniquePath(dir, base, ext)
+      try {
+        await fs.writeFile(target, bytes, { flag: 'wx' })
+        return this.rel(target)
+      } catch (e) {
+        // Another write took the name between the check and the write: try the next one.
+        if ((e as NodeJS.ErrnoException).code !== 'EEXIST' || attempt > 5) throw e
+      }
+    }
+  }
+
   async createFolder(dirRel: string, name: string): Promise<string> {
     checkName(name)
     const dir = this.abs(dirRel)

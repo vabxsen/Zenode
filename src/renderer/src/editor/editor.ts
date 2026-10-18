@@ -6,8 +6,11 @@ import { Annotation, EditorState, type Extension } from '@codemirror/state'
 import { drawSelection, dropCursor, EditorView, highlightActiveLine, keymap } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
 import { wikiLinkCompletion, type LinkTarget } from './linkCompletion'
+import type { ReadingContext } from '../render/reading'
 import { livePreview, sourceMode } from './livePreview'
-import { frontmatterSyntax, hashtagSyntax, wikiLinkSyntax } from './wikilink'
+import { richBlocks } from './richBlocks'
+import { fileDropAndPaste } from './attachments'
+import { commentSyntax, frontmatterSyntax, hashtagSyntax, highlightSyntax, mathSyntax, wikiLinkSyntax } from './wikilink'
 
 // Marks transactions that load content from disk, so they don't count as edits.
 export const fromDisk = Annotation.define<boolean>()
@@ -65,6 +68,10 @@ export interface EditorCallbacks {
   onOpenTag(tag: string): void
   isResolved(link: string): boolean
   linkTargets(): LinkTarget[]
+  // For rendering embeds, tables and diagrams in Live Preview (optional).
+  renderContext?(): ReadingContext | null
+  // Files pasted or dropped into the note (optional; otherwise ignored).
+  onFiles?(files: File[], pos: number): void
 }
 
 // A file whose every line break is CRLF (typical of Windows editors).
@@ -86,7 +93,7 @@ export function createEditorState(doc: string, cb: EditorCallbacks, extra: Exten
       closeBrackets(),
       EditorView.lineWrapping,
       keymap.of([...closeBracketsKeymap, ...completionKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
-      markdown({ base: markdownLanguage, extensions: [frontmatterSyntax, wikiLinkSyntax, hashtagSyntax] }),
+      markdown({ base: markdownLanguage, extensions: [frontmatterSyntax, wikiLinkSyntax, hashtagSyntax, highlightSyntax, commentSyntax, mathSyntax] }),
       EditorState.languageData.of(() => [{ closeBrackets: { brackets: ['(', '[', '{', '"'] } }]),
       syntaxHighlighting(highlight),
       theme,
@@ -97,6 +104,8 @@ export function createEditorState(doc: string, cb: EditorCallbacks, extra: Exten
         onOpenTag: cb.onOpenTag,
         isResolved: cb.isResolved
       }),
+      richBlocks(() => cb.renderContext?.() ?? null),
+      cb.onFiles ? fileDropAndPaste(cb.onFiles) : [],
       wikiLinkCompletion(cb.linkTargets),
       EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }),
       EditorView.updateListener.of((u) => {

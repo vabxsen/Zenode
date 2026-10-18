@@ -103,3 +103,131 @@ export const frontmatterSyntax: MarkdownConfig = {
     }
   ]
 }
+
+const EQUALS = 61
+const PERCENT = 37
+const DOLLAR = 36
+const BACKSLASH = 92
+
+// ==highlight==
+export const highlightSyntax: MarkdownConfig = {
+  defineNodes: [{ name: 'Highlight' }, { name: 'HighlightMark', style: tags.processingInstruction }],
+  parseInline: [
+    {
+      name: 'Highlight',
+      before: 'Emphasis',
+      parse(cx, next, pos) {
+        if (next !== EQUALS || cx.char(pos + 1) !== EQUALS) return -1
+        for (let i = pos + 2; i < cx.end - 1; i++) {
+          if (cx.char(i) === NEWLINE) return -1
+          if (cx.char(i) === EQUALS && cx.char(i + 1) === EQUALS) {
+            const inner = cx.slice(pos + 2, i)
+            if (!inner.trim() || /^\s|\s$/.test(inner)) return -1
+            return cx.addElement(
+              cx.elt('Highlight', pos, i + 2, [cx.elt('HighlightMark', pos, pos + 2), cx.elt('HighlightMark', i, i + 2)])
+            )
+          }
+        }
+        return -1
+      }
+    }
+  ]
+}
+
+// %%comment%% (inline; a %% on its own line opens a block comment)
+export const commentSyntax: MarkdownConfig = {
+  defineNodes: [{ name: 'Comment', style: tags.comment }, { name: 'CommentBlock', block: true, style: tags.comment }],
+  parseInline: [
+    {
+      name: 'Comment',
+      before: 'Emphasis',
+      parse(cx, next, pos) {
+        if (next !== PERCENT || cx.char(pos + 1) !== PERCENT) return -1
+        for (let i = pos + 2; i < cx.end - 1; i++) {
+          if (cx.char(i) === PERCENT && cx.char(i + 1) === PERCENT) return cx.addElement(cx.elt('Comment', pos, i + 2))
+        }
+        return -1
+      }
+    }
+  ],
+  parseBlock: [
+    {
+      name: 'CommentBlock',
+      before: 'HTMLBlock',
+      parse(cx, line) {
+        if (line.text.trim() !== '%%') return false
+        const start = cx.lineStart
+        while (cx.nextLine()) {
+          if (line.text.includes('%%')) {
+            const end = cx.lineStart + line.text.length
+            cx.nextLine()
+            cx.addElement(cx.elt('CommentBlock', start, end))
+            return true
+          }
+        }
+        cx.addElement(cx.elt('CommentBlock', start, cx.prevLineEnd()))
+        return true
+      }
+    }
+  ]
+}
+
+// $inline math$ and $$block math$$
+export const mathSyntax: MarkdownConfig = {
+  defineNodes: [
+    { name: 'InlineMath', style: tags.special(tags.content) },
+    { name: 'BlockMath', block: true, style: tags.special(tags.content) },
+    { name: 'MathMark', style: tags.processingInstruction }
+  ],
+  parseInline: [
+    {
+      name: 'InlineMath',
+      before: 'Escape',
+      parse(cx, next, pos) {
+        if (next !== DOLLAR || cx.char(pos + 1) === DOLLAR) return -1
+        for (let i = pos + 1; i < cx.end; i++) {
+          const c = cx.char(i)
+          if (c === NEWLINE) return -1
+          if (c === DOLLAR && cx.char(i - 1) !== BACKSLASH) {
+            const inner = cx.slice(pos + 1, i)
+            // "$5 and $6" is money, not math.
+            if (!inner || /^\s|\s$/.test(inner) || /\d/.test(String.fromCharCode(cx.char(i + 1)))) return -1
+            return cx.addElement(cx.elt('InlineMath', pos, i + 1, [cx.elt('MathMark', pos, pos + 1), cx.elt('MathMark', i, i + 1)]))
+          }
+        }
+        return -1
+      }
+    }
+  ],
+  parseBlock: [
+    {
+      name: 'BlockMath',
+      before: 'FencedCode',
+      parse(cx, line) {
+        const text = line.text.trim()
+        if (!text.startsWith('$$')) return false
+        const start = cx.lineStart
+        // "$$ x $$" on one line.
+        if (text.length > 4 && text.endsWith('$$')) {
+          cx.addElement(cx.elt('BlockMath', start, start + line.text.length))
+          cx.nextLine()
+          return true
+        }
+        // Only open a block if a closing $$ exists (consumed lines can't be given back).
+        const input = (cx as unknown as { input?: { length: number; read(from: number, to: number): string } }).input
+        const after = input?.read(start + line.text.length, Math.min(input.length, start + 65536)) ?? ''
+        if (!/\$\$[ \t]*(\r?\n|$)/.test(after)) return false
+        while (cx.nextLine()) {
+          if (line.text.trimEnd().endsWith('$$')) {
+            const end = cx.lineStart + line.text.length
+            cx.nextLine()
+            cx.addElement(cx.elt('BlockMath', start, end))
+            return true
+          }
+        }
+        cx.addElement(cx.elt('BlockMath', start, cx.prevLineEnd()))
+        return true
+      }
+    }
+  ]
+}

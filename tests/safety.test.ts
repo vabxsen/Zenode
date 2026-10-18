@@ -8,6 +8,7 @@ import { RecoveryJournal } from '../src/main/recovery'
 import { SnapshotStore } from '../src/main/snapshots'
 import { fileNameProblem } from '../src/shared/fileNames'
 import { findConflictCopies, hasMergeMarkers } from '../src/renderer/src/sync/conflictCopies'
+import { attachmentName } from '../src/renderer/src/editor/attachments'
 import { contentHash } from '../src/shared/hash'
 import { eq } from './harness'
 
@@ -58,6 +59,19 @@ const deep = Array.from({ length: 6 }, (_, i) => `folder-with-a-fairly-long-name
 mkdirSync(join(dir, deep), { recursive: true })
 await vault.write(`${deep}/long.md`, 'deep')
 eq('long paths: write and read past 260 characters', [join(dir, deep, 'long.md').length > 260, await vault.read(`${deep}/long.md`)], [true, 'deep'])
+
+// Attachments (pasted / dropped files).
+const png = new Uint8Array([137, 80, 78, 71])
+eq('attachment: saved in a new folder', await vault.saveAttachment('Assets/img', 'photo.png', png), 'Assets/img/photo.png')
+eq('attachment: never overwrites', await vault.saveAttachment('Assets/img', 'photo.png', png), 'Assets/img/photo 1.png')
+eq('attachment: bytes intact', [...readFileSync(join(dir, 'Assets/img/photo 1.png'))], [137, 80, 78, 71])
+let badAttachment = ''
+try { await vault.saveAttachment('', 'what?.png', png) } catch (e) { badAttachment = (e as Error).message }
+eq('attachment: invalid names refused', badAttachment.startsWith("Names can't contain"), true)
+const when = new Date(2026, 9, 18, 9, 5, 7)
+eq('attachment names: clipboard images get a timestamp', attachmentName(new File([png], 'image.png', { type: 'image/png' }), when), 'Pasted image 20261018090507.png')
+eq('attachment names: jpeg becomes jpg', attachmentName(new File([png], 'image.jpg', { type: 'image/jpeg' }), when), 'Pasted image 20261018090507.jpg')
+eq('attachment names: real names kept', attachmentName(new File([png], 'Holiday.png', { type: 'image/png' }), when), 'Holiday.png')
 
 // Retries and messages.
 let attempts = 0

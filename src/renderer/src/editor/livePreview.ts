@@ -9,6 +9,7 @@ import {
   type ViewUpdate
 } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
+import katex from 'katex'
 
 // Live Preview: Markdown syntax is hidden unless the cursor or selection
 // touches the element it belongs to. Inline styles reveal per element;
@@ -129,7 +130,69 @@ function addLineClass(out: Range<Decoration>[], state: EditorState, from: number
   }
 }
 
+class InlineMathWidget extends WidgetType {
+  constructor(readonly tex: string) {
+    super()
+  }
+  eq(other: InlineMathWidget): boolean {
+    return other.tex === this.tex
+  }
+  toDOM(): HTMLElement {
+    const span = document.createElement('span')
+    span.className = 'zn-lp-inline-math'
+    katex.render(this.tex, span, { throwOnError: false, strict: 'ignore' })
+    return span
+  }
+  ignoreEvent(): boolean {
+    return false
+  }
+}
+
+const CALLOUT_LINE = /^\s*>\s*\[!([\w-]+)\]([+-]?)/
+
+// > [!type] Title: the quote's lines become a callout box; the "[!type]" marker
+// hides until the cursor is on the title line.
+function calloutDecorations(out: Range<Decoration>[], state: EditorState, focused: boolean, from: number, to: number): boolean {
+  const doc = state.doc
+  const first = doc.lineAt(from)
+  const m = CALLOUT_LINE.exec(first.text)
+  if (!m) return false
+  const type = m[1].toLowerCase()
+  for (let pos = from; pos <= to; ) {
+    const line = doc.lineAt(pos)
+    const cls = `zn-callout${line.number === first.number ? ' zn-callout-title' : ''}${line.to >= to ? ' zn-callout-last' : ''}`
+    out.push(Decoration.line({ class: cls, attributes: { 'data-callout': type } }).range(line.from))
+    pos = line.to + 1
+  }
+  if (!lineTouched(state, focused, first.from)) {
+    const markerFrom = first.from + first.text.indexOf('[!')
+    let markerTo = first.from + m[0].length
+    if (doc.sliceString(markerTo, markerTo + 1) === ' ') markerTo++
+    out.push(hidden.range(markerFrom, markerTo))
+    // A title-less callout shows its type as the title.
+    if (markerTo >= first.to) {
+      out.push(Decoration.widget({ widget: new CalloutTitleWidget(type), side: 1 }).range(first.to))
+    }
+  }
+  return true
+}
+
+class CalloutTitleWidget extends WidgetType {
+  constructor(readonly type: string) {
+    super()
+  }
+  eq(other: CalloutTitleWidget): boolean {
+    return other.type === this.type
+  }
+  toDOM(): HTMLElement {
+    const span = document.createElement('span')
+    span.textContent = this.type.charAt(0).toUpperCase() + this.type.slice(1)
+    return span
+  }
+}
+
 const INLINE_STYLE: Record<string, { cls: string; mark: string }> = {
+  Highlight: { cls: 'zn-highlight', mark: 'HighlightMark' },
   Emphasis: { cls: 'zn-em', mark: 'EmphasisMark' },
   StrongEmphasis: { cls: 'zn-strong', mark: 'EmphasisMark' },
   Strikethrough: { cls: 'zn-strike', mark: 'StrikethroughMark' },
@@ -228,7 +291,39 @@ function buildDecorations(view: EditorView, options: LivePreviewOptions): Decora
         }
 
         if (name === 'WikiLink' || name === 'WikiEmbed') {
+          // Embeds render as widgets (richBlocks.ts) unless the cursor is on them.
+          if (name === 'WikiEmbed' && !touches(state, true, ref.from, ref.to)) return false
           wikiDecorations(out, state, focused, node, options)
+          return false
+        }
+
+        if (name === 'InlineMath') {
+          if (touches(state, focused, ref.from, ref.to)) {
+            out.push(Decoration.mark({ class: 'zn-math-src' }).range(ref.from, ref.to))
+          } else {
+            const tex = doc.sliceString(ref.from + 1, ref.to - 1)
+            out.push(Decoration.replace({ widget: new InlineMathWidget(tex) }).range(ref.from, ref.to))
+          }
+          return false
+        }
+
+        if (name === 'BlockMath') {
+          addLineClass(out, state, ref.from, ref.to, 'zn-math-src')
+          return false
+        }
+
+        if (name === 'Comment') {
+          out.push(Decoration.mark({ class: 'zn-comment' }).range(ref.from, ref.to))
+          return false
+        }
+        if (name === 'CommentBlock') {
+          addLineClass(out, state, ref.from, ref.to, 'zn-comment')
+          return false
+        }
+
+        // [^1] footnote references show as small superscripts.
+        if (name === 'Link' && doc.sliceString(ref.from, ref.from + 2) === '[^') {
+          out.push(Decoration.mark({ class: 'zn-footnote-ref' }).range(ref.from, ref.to))
           return false
         }
 
@@ -266,7 +361,7 @@ function buildDecorations(view: EditorView, options: LivePreviewOptions): Decora
         }
 
         if (name === 'Blockquote') {
-          addLineClass(out, state, ref.from, ref.to, 'zn-quote')
+          if (!calloutDecorations(out, state, focused, ref.from, ref.to)) addLineClass(out, state, ref.from, ref.to, 'zn-quote')
           return
         }
         if (name === 'QuoteMark') {
