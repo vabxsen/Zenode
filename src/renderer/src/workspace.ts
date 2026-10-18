@@ -1,762 +1,502 @@
-import { EditorSelection, type EditorState } from '@codemirror/state'
-import { EditorView } from '@codemirror/view'
-import type { WorkspaceState } from '../../shared/api'
-import { contentHash } from '../../shared/hash'
+// The main area: panes (tab groups, see pane.ts) arranged in horizontal and
+// vertical splits. Actions go to the active pane; file events (renames,
+// deletions, outside changes, saving) go to every pane.
+import type { LayoutNode, PaneLayout, WorkspaceState } from '../../shared/api'
 import { Component, el } from './component'
-import { hideConflictBar, openCompareDialog, renderConflictBar } from './conflictUi'
-import { openDialog } from './dialog'
-import { createEditorState, fromDisk, spellcheckAttrs, spellcheckSetting } from './editor/editor'
-import type { LinkTarget } from './editor/linkCompletion'
-import { linksChanged, setSourceMode } from './editor/livePreview'
-import { icon } from './icons'
-import { renderInto, type ReadingContext } from './render/reading'
+import { Pane } from './pane'
+import type { MovedTab, OpenPosition, PaneHost, WorkspaceHost, WorkspaceView } from './paneTypes'
 
-const SAVE_DELAY = 600
-// Unsaved text still unsaved after this long goes to the crash-recovery journal
-// (continuous typing keeps postponing autosave, so this bounds what a crash can lose).
-const JOURNAL_DELAY = 1500
+export { noteTitle, VIEW_PREFIX, type OpenPosition, type WorkspaceHost, type WorkspaceView } from './paneTypes'
 
-// A non-note tab (e.g. the graph). The workspace mounts `el` and shows/hides it.
-export interface WorkspaceView {
-  readonly id: string
-  readonly title: string
-  readonly el: HTMLElement
-  show(): void
-  hide(): void
-  destroy(): void
-  // File-backed views (e.g. a canvas) follow renames, save and reload like notes.
-  readonly filePath?: string
-  setPath?(path: string): void
-  save?(): Promise<void>
-  reloadFromDisk?(): Promise<void>
-  // The file was deleted: close without writing it back.
-  discard?(): void
-  // While the view's unsaved content conflicts with the file on disk: that content.
-  conflictText?(): string | null
+type Dir = 'row' | 'column'
+export type Direction = 'left' | 'right' | 'up' | 'down'
+
+interface SplitNode {
+  kind: 'split'
+  dir: Dir
+  children: TreeNode[]
+  // Relative sizes (flex-grow) of the children.
+  sizes: number[]
+  parent: SplitNode | null
 }
 
-interface Tab {
-  path: string
-  kind: 'note' | 'view'
-  state: EditorState | null
-  view: WorkspaceView | null
-  // The file's content as last read from or written to disk.
-  lastSaved: string
-  dirty: boolean
-  timer: number | null
-  // The file changed on disk (disk: new content) or vanished (disk: null) while
-  // this tab had unsaved edits. Autosave pauses until the user picks a version.
-  conflict: { disk: string | null } | null
-  // The save in flight, so a change notification for our own write waits for it.
-  saving: Promise<void> | null
-  // Crash recovery: pending journal write, and whether an entry exists for this tab.
-  journalTimer: number | null
-  journaled: boolean
-  // Reading view (rendered, read-only) and Source mode (plain Markdown) for note tabs.
-  reading: boolean
-  source: boolean
+interface LeafNode {
+  kind: 'leaf'
+  id: number
+  pane: Pane
+  el: HTMLElement
+  parent: SplitNode | null
 }
 
-export const VIEW_PREFIX = 'zenode:'
+type TreeNode = SplitNode | LeafNode
 
-export interface OpenPosition {
-  from: number
-  to?: number
+export interface WorkspaceHostWithPanes extends WorkspaceHost {
+  // Open a path in the active pane (notes, canvases, the graph).
+  reopen(path: string): Promise<void>
+  revealInTree(path: string): void
 }
 
-export interface WorkspaceHost {
-  // `path` is the active note (null for view tabs); `title` is what the tab shows.
-  onActiveChange(path: string | null, title: string): void
-  onOpenLink(href: string, fromPath: string): void
-  onOpenWikiLink(target: string, fromPath: string): void
-  onOpenTag(tag: string): void
-  isResolved(link: string, fromPath: string): boolean
-  linkTargets(fromPath: string): LinkTarget[]
-  onSaved(path: string, content: string): void
-  onStats(words: number, chars: number): void
-  onLayoutChange(): void
-  onError(message: string): void
-  // Text about to be thrown away (the user chose another version): keep a copy.
-  preserve(path: string, text: string): void
-  // Saves pasted/dropped files for the note at notePath; returns the links to insert.
-  importFiles(notePath: string, files: File[]): Promise<string>
-  // Links, embeds and clicks for a note shown in Reading view.
-  readingContext(path: string): Omit<ReadingContext, 'sourcePath' | 'onToggleTask'>
-}
-
-// Notes bigger than this (in characters) ask before opening: the live editor
-// gets slow on multi-megabyte files, and they're often logs or exports.
-const LARGE_NOTE = 5_000_000
-
-async function confirmLargeNote(path: string, length: number): Promise<boolean> {
-  const mb = (length / 1_000_000).toFixed(1)
-  return openDialog({
-    title: 'Open a very large note?',
-    body: `"${noteTitle(path)}" is about ${mb} million characters. Editing it in Zenode may be slow. It won't be changed unless you edit it.`,
-    buttons: [
-      { label: 'Cancel', value: false },
-      { label: 'Open anyway', value: true, primary: true }
-    ],
-    cancelValue: false
-  })
-}
-
-export function noteTitle(path: string): string {
-  const name = path.slice(path.lastIndexOf('/') + 1)
-  return name.toLowerCase().endsWith('.md') ? name.slice(0, -3) : name
-}
+const TAB_DRAG_TYPE = 'application/x-zenode-tab'
+const MIN_SIZE = 0.15
+const MAX_PANES = 16
 
 export class Workspace extends Component {
-  private tabs: Tab[] = []
-  private active: Tab | null = null
-  private readonly view: EditorView
-  private readonly tabbarEl: HTMLElement
-  private readonly conflictEl: HTMLElement
-  private readonly editorEl: HTMLElement
-  private readonly readingEl: HTMLElement
-  private defaultView: 'live' | 'source' | 'reading' = 'live'
-  private readonly viewsEl: HTMLElement
-  private readonly emptyEl: HTMLElement
-  private statsTimer: number | null = null
+  private root: TreeNode
+  private active: LeafNode
+  private nextId = 1
+  private restoring = false
+  private readonly dropOverlay: HTMLElement
 
   constructor(
-    container: HTMLElement,
-    private readonly host: WorkspaceHost
+    private readonly container: HTMLElement,
+    private readonly host: WorkspaceHostWithPanes
   ) {
     super()
-    this.tabbarEl = el('div', 'zn-tabbar', container)
-    this.conflictEl = el('div', 'zn-conflict', container)
-    this.conflictEl.style.display = 'none'
-    this.editorEl = el('div', 'zn-editor', container)
-    this.readingEl = el('div', 'zn-reading', container)
-    this.readingEl.tabIndex = -1
-    this.viewsEl = el('div', 'zn-views', container)
-    this.emptyEl = el('div', 'zn-empty', container)
-    const inner = el('div', 'zn-empty-inner', this.emptyEl)
-    inner.appendChild(icon('note', 40))
-    el('div', 'zn-empty-title', inner, 'No note open')
-    el('div', 'zn-empty-hint', inner, 'Pick a note on the left, or press Ctrl+N to start a new one.')
-    this.view = new EditorView({ parent: this.editorEl })
-    this.render()
+    container.classList.add('zn-workspace')
+    this.dropOverlay = el('div', 'zn-drop-overlay')
+    this.root = this.makeLeaf(null)
+    this.active = this.root
+    this.renderTree()
   }
 
-  onunload(): void {
-    this.view.destroy()
+  // ---------- Panes ----------
+
+  private makeLeaf(parent: SplitNode | null): LeafNode {
+    const leafEl = el('div', 'zn-pane-leaf')
+    // The pane's callbacks refer to its leaf, which is complete before any of them run.
+    let leaf: LeafNode
+    const paneHost: PaneHost = {
+      ...this.host,
+      onActiveChange: (path, title) => {
+        if (leaf === this.active) this.host.onActiveChange(path, title)
+      },
+      onStats: (words, chars) => {
+        if (leaf === this.active) this.host.onStats(words, chars)
+      },
+      // While a saved layout is restored, focus moves around; it mustn't pick the pane.
+      onFocus: () => {
+        if (!this.restoring) this.setActive(leaf)
+      },
+      isActivePane: () => leaf === this.active,
+      onEmptied: () => this.removeLeaf(leaf),
+      reopen: (path) => this.host.reopen(path),
+      splitWith: (path, dir) => void this.split(dir === 'right' ? 'row' : 'column', path),
+      revealInTree: (path) => this.host.revealInTree(path),
+      dragData: (path) => JSON.stringify({ pane: leaf.id, path }),
+      onDropTab: (data, index) => this.moveTab(data, leaf, index)
+    }
+    leaf = { kind: 'leaf', id: this.nextId++, el: leafEl, parent, pane: this.addChild(new Pane(leafEl, paneHost)) }
+    this.wireDropZones(leaf)
+    return leaf
   }
 
-  // The active note's path (null when a view tab or nothing is active).
+  private leaves(node: TreeNode = this.root): LeafNode[] {
+    return node.kind === 'leaf' ? [node] : node.children.flatMap((c) => this.leaves(c))
+  }
+
+  private panes(): Pane[] {
+    return this.leaves().map((l) => l.pane)
+  }
+
+  get paneCount(): number {
+    return this.leaves().length
+  }
+
+  private setActive(leaf: LeafNode): void {
+    if (leaf === this.active) return
+    this.active.el.classList.remove('is-active-pane')
+    this.active = leaf
+    leaf.el.classList.add('is-active-pane')
+    leaf.pane.announce()
+    this.host.onLayoutChange()
+  }
+
+  // Splits the active pane (row = side by side, column = stacked). The new pane
+  // shows `path` if given, else stays empty. Returns the new pane's leaf.
+  async split(dir: Dir, path?: string): Promise<void> {
+    if (this.paneCount >= MAX_PANES) {
+      this.host.onError(`Zenode shows at most ${MAX_PANES} panes.`)
+      return
+    }
+    const leaf = this.insertBeside(this.active, dir, 'after')
+    this.setActive(leaf)
+    if (path) await this.host.reopen(path)
+    else this.host.onActiveChange(null, '')
+  }
+
+  // A new leaf next to `target` in direction dir.
+  private insertBeside(target: LeafNode, dir: Dir, where: 'before' | 'after'): LeafNode {
+    const parent = target.parent
+    if (parent && parent.dir === dir) {
+      const i = parent.children.indexOf(target)
+      const leaf = this.makeLeaf(parent)
+      const at = where === 'after' ? i + 1 : i
+      // The new pane takes half of the target's share.
+      const share = parent.sizes[i] / 2
+      parent.sizes[i] = share
+      parent.children.splice(at, 0, leaf)
+      parent.sizes.splice(at, 0, share)
+      this.renderTree()
+      return leaf
+    }
+    const split: SplitNode = { kind: 'split', dir, children: [], sizes: [1, 1], parent }
+    const leaf = this.makeLeaf(split)
+    split.children = where === 'after' ? [target, leaf] : [leaf, target]
+    this.replaceNode(target, split)
+    target.parent = split
+    this.renderTree()
+    return leaf
+  }
+
+  private replaceNode(old: TreeNode, next: TreeNode): void {
+    const parent = old.parent
+    next.parent = parent
+    if (!parent) this.root = next
+    else parent.children[parent.children.indexOf(old)] = next
+  }
+
+  // Removes an empty pane (never the last one) and tidies single-child splits.
+  private removeLeaf(leaf: LeafNode): void {
+    if (this.paneCount === 1 || !leaf.parent) return
+    const parent = leaf.parent
+    const i = parent.children.indexOf(leaf)
+    parent.children.splice(i, 1)
+    const [freed] = parent.sizes.splice(i, 1)
+    if (parent.sizes.length) parent.sizes[Math.min(i, parent.sizes.length - 1)] += freed
+    if (parent.children.length === 1) this.replaceNode(parent, parent.children[0])
+    this.removeChild(leaf.pane)
+    if (this.active === leaf) {
+      this.active = this.leaves()[0]
+      this.active.el.classList.add('is-active-pane')
+      this.active.pane.announce()
+    }
+    this.renderTree()
+    this.host.onLayoutChange()
+  }
+
+  // Close the active pane (its tabs close first; conflicts or pinned tabs keep it open).
+  async closePane(): Promise<void> {
+    if (this.paneCount === 1) return
+    const leaf = this.active
+    await leaf.pane.closeAll()
+    if (leaf.pane.isEmpty) this.removeLeaf(leaf)
+  }
+
+  // Ctrl+Alt+arrows: move to the pane in that direction.
+  focusPane(direction: Direction): void {
+    const from = this.active.el.getBoundingClientRect()
+    const cx = from.left + from.width / 2
+    const cy = from.top + from.height / 2
+    let best: LeafNode | null = null
+    let bestDistance = Infinity
+    for (const leaf of this.leaves()) {
+      if (leaf === this.active) continue
+      const r = leaf.el.getBoundingClientRect()
+      const x = r.left + r.width / 2
+      const y = r.top + r.height / 2
+      const ok =
+        (direction === 'left' && r.right <= from.left + 1) ||
+        (direction === 'right' && r.left >= from.right - 1) ||
+        (direction === 'up' && r.bottom <= from.top + 1) ||
+        (direction === 'down' && r.top >= from.bottom - 1)
+      const d = Math.hypot(x - cx, y - cy)
+      if (ok && d < bestDistance) {
+        best = leaf
+        bestDistance = d
+      }
+    }
+    if (best) {
+      this.setActive(best)
+      best.pane.focus()
+    }
+  }
+
+  // ---------- Moving tabs ----------
+
+  private parseDrag(data: string): { leaf: LeafNode; path: string } | null {
+    try {
+      const { pane, path } = JSON.parse(data) as { pane: number; path: string }
+      const leaf = this.leaves().find((l) => l.id === pane)
+      return leaf && typeof path === 'string' ? { leaf, path } : null
+    } catch {
+      return null
+    }
+  }
+
+  private moveTab(data: string, target: LeafNode, index?: number): void {
+    const drag = this.parseDrag(data)
+    if (!drag) return
+    if (drag.leaf === target && index === undefined) return
+    if (drag.leaf !== target && target.pane.hasTab(drag.path)) {
+      // The target already shows this file: switch to it and close the dragged copy.
+      this.setActive(target)
+      target.pane.activateById(drag.path)
+      void drag.leaf.pane.closePath(drag.path)
+      return
+    }
+    const tab: MovedTab | null = drag.leaf.pane.detachTab(drag.path)
+    if (!tab) return
+    this.setActive(target)
+    target.pane.attachTab(tab, index)
+    if (drag.leaf !== target && drag.leaf.pane.isEmpty) this.removeLeaf(drag.leaf)
+    this.host.onLayoutChange()
+  }
+
+  // Dropping a tab on a pane's edge splits it; on its middle, moves the tab there.
+  private wireDropZones(leaf: LeafNode): void {
+    const zoneAt = (e: DragEvent): Direction | 'center' => {
+      const r = leaf.el.getBoundingClientRect()
+      const x = (e.clientX - r.left) / r.width
+      const y = (e.clientY - r.top) / r.height
+      const edges: Array<[Direction, number]> = [
+        ['left', x],
+        ['right', 1 - x],
+        ['up', y],
+        ['down', 1 - y]
+      ]
+      const [dir, distance] = edges.sort((a, b) => a[1] - b[1])[0]
+      return distance < 0.25 ? dir : 'center'
+    }
+    leaf.el.addEventListener('dragover', (e) => {
+      if (!e.dataTransfer?.types.includes(TAB_DRAG_TYPE)) return
+      if ((e.target as HTMLElement).closest('.zn-tabbar')) {
+        this.dropOverlay.remove()
+        return
+      }
+      e.preventDefault()
+      const zone = zoneAt(e)
+      this.dropOverlay.className = `zn-drop-overlay is-${zone}`
+      if (this.dropOverlay.parentElement !== leaf.el) leaf.el.appendChild(this.dropOverlay)
+    })
+    leaf.el.addEventListener('dragleave', (e) => {
+      if (!leaf.el.contains(e.relatedTarget as Node | null)) this.dropOverlay.remove()
+    })
+    leaf.el.addEventListener('drop', (e) => {
+      this.dropOverlay.remove()
+      const data = e.dataTransfer?.getData(TAB_DRAG_TYPE)
+      if (!data || (e.target as HTMLElement).closest('.zn-tabbar')) return
+      e.preventDefault()
+      const zone = zoneAt(e)
+      if (zone === 'center') {
+        this.moveTab(data, leaf)
+        return
+      }
+      const drag = this.parseDrag(data)
+      if (!drag || this.paneCount >= MAX_PANES) return
+      // Splitting a pane with its only tab would leave an empty pane behind: nothing to do.
+      if (drag.leaf === leaf && leaf.pane.state().tabs.length === 1) return
+      const dir: Dir = zone === 'left' || zone === 'right' ? 'row' : 'column'
+      const fresh = this.insertBeside(leaf, dir, zone === 'left' || zone === 'up' ? 'before' : 'after')
+      this.moveTab(data, fresh)
+    })
+  }
+
+  // ---------- Layout rendering and resizing ----------
+
+  private renderTree(): void {
+    this.container.replaceChildren(this.build(this.root))
+    for (const leaf of this.leaves()) leaf.el.classList.toggle('is-active-pane', leaf === this.active && this.paneCount > 1)
+  }
+
+  private build(node: TreeNode): HTMLElement {
+    if (node.kind === 'leaf') return node.el
+    const box = el('div', `zn-split is-${node.dir}`)
+    node.children.forEach((child, i) => {
+      if (i > 0) this.addDivider(box, node, i)
+      const childEl = this.build(child)
+      childEl.style.flex = `${node.sizes[i]} 1 0`
+      box.appendChild(childEl)
+    })
+    return box
+  }
+
+  private addDivider(box: HTMLElement, split: SplitNode, index: number): void {
+    const divider = el('div', 'zn-split-divider', box)
+    divider.addEventListener('mousedown', (e) => {
+      e.preventDefault()
+      const rect = box.getBoundingClientRect()
+      const total = split.sizes.reduce((a, b) => a + b, 0)
+      const pair = split.sizes[index - 1] + split.sizes[index]
+      const before = split.sizes.slice(0, index - 1).reduce((a, b) => a + b, 0)
+      const move = (ev: MouseEvent): void => {
+        const pos = split.dir === 'row' ? (ev.clientX - rect.left) / rect.width : (ev.clientY - rect.top) / rect.height
+        const share = Math.max(MIN_SIZE * pair, Math.min(pair - MIN_SIZE * pair, pos * total - before))
+        split.sizes[index - 1] = share
+        split.sizes[index] = pair - share
+        const kids = [...box.children].filter((c) => !c.classList.contains('zn-split-divider')) as HTMLElement[]
+        kids[index - 1].style.flex = `${split.sizes[index - 1]} 1 0`
+        kids[index].style.flex = `${split.sizes[index]} 1 0`
+      }
+      const up = (): void => {
+        window.removeEventListener('mousemove', move)
+        window.removeEventListener('mouseup', up)
+        document.body.classList.remove('is-resizing')
+        this.host.onLayoutChange()
+      }
+      document.body.classList.add('is-resizing')
+      window.addEventListener('mousemove', move)
+      window.addEventListener('mouseup', up)
+    })
+  }
+
+  // ---------- Saving and restoring the layout ----------
+
+  serialize(): WorkspaceState {
+    const leaves = this.leaves()
+    const toLayout = (node: TreeNode): LayoutNode =>
+      node.kind === 'leaf' ? node.pane.state() : { dir: node.dir, sizes: [...node.sizes], children: node.children.map(toLayout) }
+    const active = this.active.pane.state()
+    // openFiles/activeFile describe the active pane, for older versions of Zenode.
+    return { openFiles: active.tabs, activeFile: active.active, layout: toLayout(this.root), activePane: leaves.indexOf(this.active) }
+  }
+
+  // Rebuilds saved panes and opens their tabs with `open` (which opens in the active pane).
+  async restoreLayout(layout: LayoutNode, activePane: number, open: (path: string) => Promise<void>): Promise<void> {
+    const states: Array<[LeafNode, PaneLayout]> = []
+    const buildNode = (spec: LayoutNode, parent: SplitNode | null, reuse: LeafNode | null): TreeNode => {
+      if ('tabs' in spec) {
+        const leaf = reuse ?? this.makeLeaf(parent)
+        leaf.parent = parent
+        states.push([leaf, spec])
+        return leaf
+      }
+      const split: SplitNode = { kind: 'split', dir: spec.dir, children: [], sizes: [...spec.sizes], parent }
+      split.children = spec.children.map((c, i) => buildNode(c, split, i === 0 ? reuse : null))
+      return split
+    }
+    // The first leaf reuses the existing (empty) pane.
+    this.root = buildNode(layout, null, this.leaves()[0])
+    this.renderTree()
+    this.restoring = true
+    try {
+      for (const [leaf, state] of states) {
+        this.setActive(leaf)
+        for (const path of state.tabs) await open(path)
+        leaf.pane.applyState(state)
+      }
+    } finally {
+      this.restoring = false
+    }
+    const leaves = this.leaves()
+    this.setActive(leaves[Math.max(0, Math.min(activePane, leaves.length - 1))])
+    this.active.pane.announce()
+    this.active.pane.focus()
+  }
+
+  // ---------- The rest of the app talks to the active pane ----------
+
   get activePath(): string | null {
-    // Notes and file-backed views (canvases) count as the active file; the graph does not.
-    if (this.active?.kind === 'note') return this.active.path
-    return this.active?.view?.filePath ?? null
+    return this.active.pane.activePath
   }
 
   focus(): void {
-    if (this.active?.kind !== 'note') return
-    if (this.active.reading) this.readingEl.focus({ preventScroll: true })
-    else this.view.focus()
+    this.active.pane.focus()
   }
 
-  // ---------- Reading view and Source mode ----------
-
-  // How newly opened notes are shown (from settings).
   setDefaultView(view: 'live' | 'source' | 'reading'): void {
-    this.defaultView = view
+    for (const p of this.panes()) p.setDefaultView(view)
   }
 
-  // Turn spellcheck on or off in every open note.
   applySpellcheck(on: boolean): void {
-    const effects = spellcheckSetting.reconfigure(spellcheckAttrs(on))
-    for (const tab of this.tabs) {
-      if (tab.kind !== 'note') continue
-      if (tab === this.active) this.view.dispatch({ effects })
-      else tab.state = tab.state!.update({ effects }).state
-    }
+    for (const p of this.panes()) p.applySpellcheck(on)
   }
 
-  // Ctrl+E: switch the active note between editing and Reading view.
   toggleReading(): void {
-    const tab = this.active
-    if (tab?.kind !== 'note') return
-    if (!tab.reading) tab.state = this.view.state
-    tab.reading = !tab.reading
-    this.render()
-    if (tab.reading) void this.renderReading(tab)
-    this.focus()
+    this.active.pane.toggleReading()
   }
 
-  // Switch the active note between Live Preview and plain Markdown (Source mode).
   toggleSource(): void {
-    const tab = this.active
-    if (tab?.kind !== 'note') return
-    if (tab.reading) {
-      tab.reading = false
-      this.render()
-    }
-    tab.source = !tab.source
-    this.view.dispatch({ effects: setSourceMode.of(tab.source) })
-    this.focus()
+    this.active.pane.toggleSource()
   }
 
   activeMode(): 'live' | 'source' | 'reading' | null {
-    const tab = this.active
-    if (tab?.kind !== 'note') return null
-    return tab.reading ? 'reading' : tab.source ? 'source' : 'live'
-  }
-
-  private async renderReading(tab: Tab): Promise<void> {
-    if (tab !== this.active || !tab.reading) return
-    const top = this.readingEl.scrollTop
-    const body = el('div', 'zn-reading-body')
-    await renderInto(body, this.docOf(tab), {
-      ...this.host.readingContext(tab.path),
-      sourcePath: tab.path,
-      onToggleTask: (line, checked) => this.toggleTask(tab, line, checked)
-    })
-    if (tab !== this.active || !tab.reading) return
-    this.readingEl.replaceChildren(body)
-    this.readingEl.scrollTop = top
-  }
-
-  // A task checkbox clicked in Reading view: flip "[ ]" / "[x]" on that line.
-  private toggleTask(tab: Tab, line: number, checked: boolean): void {
-    const state = tab === this.active ? this.view.state : tab.state!
-    if (line < 0 || line >= state.doc.lines) return
-    const text = state.doc.line(line + 1)
-    const m = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])\]/.exec(text.text)
-    if (!m) return
-    const at = text.from + m[1].length
-    const spec = { changes: { from: at, to: at + 1, insert: checked ? 'x' : ' ' } }
-    if (tab === this.active) this.view.dispatch(spec)
-    else tab.state = state.update(spec).state
-    void this.renderReading(tab)
+    return this.active.pane.activeMode()
   }
 
   openView(view: WorkspaceView): void {
-    const existing = this.tabs.find((t) => t.path === view.id)
-    if (existing) {
-      view.destroy()
-      this.activate(existing)
-      return
-    }
-    this.viewsEl.appendChild(view.el)
-    view.hide()
-    const tab: Tab = { path: view.id, kind: 'view', state: null, view, lastSaved: '', dirty: false, timer: null, conflict: null, saving: null, journalTimer: null, journaled: false, reading: false, source: false }
-    const at = this.active ? this.tabs.indexOf(this.active) + 1 : this.tabs.length
-    this.tabs.splice(at, 0, tab)
-    this.activate(tab)
+    this.active.pane.openView(view)
   }
 
-  // Switch to an open tab by its path or view id. Returns false if none is open.
+  // Shows an open tab by path or view id, in whichever pane has it.
   activateById(id: string): boolean {
-    const tab = this.tabs.find((t) => t.path === id)
-    if (tab) this.activate(tab)
-    return !!tab
+    const leaf = this.leaves().find((l) => l.pane.hasTab(id))
+    if (!leaf) return false
+    this.setActive(leaf)
+    return leaf.pane.activateById(id)
   }
 
   hasView(id: string): boolean {
-    return this.tabs.some((t) => t.path === id)
+    return this.panes().some((p) => p.hasView(id))
   }
 
-  async open(path: string, pos?: OpenPosition): Promise<void> {
-    const existing = this.tabs.find((t) => t.path === path)
-    if (existing) {
-      this.activate(existing)
-      if (pos) this.reveal(pos)
-      return
-    }
-    let content: string
-    try {
-      content = await window.zenode.read(path)
-    } catch (e) {
-      this.host.onError(`Could not open ${path}: ${(e as Error).message}`)
-      return
-    }
-    if (content.length > LARGE_NOTE && !(await confirmLargeNote(path, content.length))) return
-    this.addNoteTab(path, content)
-    if (pos) this.reveal(pos)
+  open(path: string, pos?: OpenPosition): Promise<void> {
+    return this.active.pane.open(path, pos)
   }
 
-  // A new, active note tab showing `content` (the file as it is on disk).
-  private addNoteTab(path: string, content: string): Tab {
-    const tab: Tab = { path, kind: 'note', state: null, view: null, lastSaved: content, dirty: false, timer: null, conflict: null, saving: null, journalTimer: null, journaled: false, reading: false, source: false }
-    tab.state = createEditorState(content, {
-      onChange: () => this.onEdited(tab),
-      onOpenLink: (href) => this.host.onOpenLink(href, tab.path),
-      onOpenWikiLink: (target) => this.host.onOpenWikiLink(target, tab.path),
-      onOpenTag: (tag) => this.host.onOpenTag(tag),
-      isResolved: (link) => this.host.isResolved(link, tab.path),
-      linkTargets: () => this.host.linkTargets(tab.path),
-      renderContext: () => ({ ...this.host.readingContext(tab.path), sourcePath: tab.path }),
-      onFiles: (files, pos) => void this.insertFiles(tab, files, pos)
-    })
-    tab.reading = this.defaultView === 'reading'
-    tab.source = this.defaultView === 'source'
-    if (tab.source) tab.state = tab.state.update({ effects: setSourceMode.of(true) }).state
-    const at = this.active ? this.tabs.indexOf(this.active) + 1 : this.tabs.length
-    this.tabs.splice(at, 0, tab)
-    this.activate(tab)
-    return tab
-  }
-
-  // Saves pasted/dropped files and puts links to them at pos.
-  private async insertFiles(tab: Tab, files: File[], pos: number): Promise<void> {
-    let markdown: string
-    try {
-      markdown = await this.host.importFiles(tab.path, files)
-    } catch (e) {
-      this.host.onError(`Could not add the file: ${(e as Error).message}`)
-      return
-    }
-    if (!markdown || tab !== this.active || tab.kind !== 'note') return
-    const at = Math.min(pos, this.view.state.doc.length)
-    this.view.dispatch({ changes: { from: at, insert: markdown }, selection: { anchor: at + markdown.length } })
-    this.view.focus()
-  }
-
-  // Puts `text` into an open note as an ordinary edit (undoable; autosave writes
-  // it). The text it replaces is kept in the file history. False if not open.
   replaceText(path: string, text: string): boolean {
-    const tab = this.tabs.find((t) => t.path === path && t.kind === 'note')
-    if (!tab) return false
-    this.activate(tab)
-    this.host.preserve(path, this.docOf(tab))
-    this.setDoc(tab, text, false)
-    return true
+    const leaf = this.active.pane.hasTab(path) ? this.active : this.leaves().find((l) => l.pane.hasTab(path))
+    if (!leaf) return false
+    this.setActive(leaf)
+    return leaf.pane.replaceText(path, text)
   }
 
-  // Brings back unsaved text from the crash-recovery journal. If the file changed
-  // since (or is gone), the tab opens in conflict so nothing is overwritten.
-  async restoreUnsaved(path: string, content: string, baseHash: string): Promise<void> {
-    let disk: string | null
-    try {
-      disk = await window.zenode.read(path)
-    } catch {
-      disk = null
-    }
-    if (disk === content) return
-    const existing = this.tabs.find((t) => t.path === path && t.kind === 'note')
-    const tab = existing ?? this.addNoteTab(path, disk ?? '')
-    this.activate(tab)
-    tab.lastSaved = disk ?? ''
-    this.setDoc(tab, content, false)
-    if (disk === null || contentHash(disk) !== baseHash) this.setConflict(tab, disk)
+  restoreUnsaved(path: string, content: string, baseHash: string): Promise<void> {
+    return this.active.pane.restoreUnsaved(path, content, baseHash)
   }
 
-  // ---------- Crash-recovery journal ----------
-
-  private scheduleJournal(tab: Tab): void {
-    if (tab.journalTimer !== null) window.clearTimeout(tab.journalTimer)
-    tab.journalTimer = window.setTimeout(() => this.journal(tab), JOURNAL_DELAY)
-  }
-
-  private journal(tab: Tab): void {
-    if (tab.journalTimer !== null) window.clearTimeout(tab.journalTimer)
-    tab.journalTimer = null
-    if (!this.tabs.includes(tab) || tab.kind !== 'note') return
-    const text = this.docOf(tab)
-    if (text === tab.lastSaved) return
-    tab.journaled = true
-    window.zenode.journalPut(tab.path, text, contentHash(tab.lastSaved)).catch((e: Error) => this.host.onError(`Could not keep a recovery copy: ${e.message}`))
-  }
-
-  private unjournal(tab: Tab): void {
-    if (tab.journalTimer !== null) window.clearTimeout(tab.journalTimer)
-    tab.journalTimer = null
-    if (!tab.journaled) return
-    tab.journaled = false
-    void window.zenode.journalRemove(tab.path).catch(() => undefined)
-  }
-
-  // Select a range in the active note and scroll it to the middle of the view.
-  private reveal(pos: OpenPosition): void {
-    if (this.active?.kind !== 'note') return
-    const len = this.view.state.doc.length
-    const from = Math.min(pos.from, len)
-    const to = Math.min(pos.to ?? pos.from, len)
-    this.view.dispatch({
-      selection: EditorSelection.range(from, to),
-      effects: EditorView.scrollIntoView(from, { y: 'center' })
-    })
-    requestAnimationFrame(() => this.view.focus())
-  }
-
-  // Re-run link styling after the vault's links changed (e.g. a missing note was created).
   refreshLinks(): void {
-    if (this.active?.kind === 'note') this.view.dispatch({ effects: linksChanged.of(null) })
+    for (const p of this.panes()) p.refreshLinks()
   }
 
   isOpen(path: string): boolean {
-    return this.tabs.some((t) => t.path === path)
+    return this.panes().some((p) => p.isOpen(path))
   }
 
-  private activate(tab: Tab): void {
-    const prev = this.active
-    if (prev && prev !== tab) {
-      if (prev.kind === 'note') prev.state = this.view.state
-      else prev.view?.hide()
-    }
-    this.active = tab
-    if (tab.kind === 'note') this.view.setState(tab.state!)
-    this.render()
-    if (tab.kind === 'view') tab.view!.show()
-    if (tab.reading) void this.renderReading(tab)
-    this.updateStats()
-    this.host.onActiveChange(this.activePath, this.titleOf(tab))
-    this.host.onLayoutChange()
-    if (tab.kind === 'note') requestAnimationFrame(() => this.focus())
+  close(): Promise<void> {
+    return this.active.pane.close()
   }
 
-  private titleOf(tab: Tab): string {
-    return tab.view ? tab.view.title : noteTitle(tab.path)
+  closeOthers(): Promise<void> {
+    return this.active.pane.closeOthers()
   }
 
-  async close(tab: Tab | null = this.active): Promise<void> {
-    if (!tab) return
-    if (tab.conflict || (tab.view?.conflictText?.() ?? null) !== null) {
-      // Closing would silently drop the user's version; make them choose first.
-      this.activate(tab)
-      this.host.onError(`"${this.titleOf(tab)}" has unsaved changes that conflict with the file on disk. Choose a version first.`)
-      return
-    }
-    await this.save(tab)
-    this.dispose(tab)
-  }
-
-  private dispose(tab: Tab): void {
-    if (tab.timer !== null) window.clearTimeout(tab.timer)
-    // A journal entry that still exists stays on disk for recovery.
-    if (tab.journalTimer !== null) window.clearTimeout(tab.journalTimer)
-    tab.view?.destroy()
-    const i = this.tabs.indexOf(tab)
-    if (i === -1) return
-    this.tabs.splice(i, 1)
-    if (this.active === tab) {
-      this.active = null
-      const next = this.tabs[Math.min(i, this.tabs.length - 1)]
-      if (next) {
-        this.activate(next)
-        return
-      }
-      this.host.onActiveChange(null, '')
-      this.host.onStats(0, 0)
-    }
-    this.render()
-    this.host.onLayoutChange()
+  togglePin(): void {
+    this.active.pane.togglePin()
   }
 
   cycle(delta: number): void {
-    if (this.tabs.length < 2 || !this.active) return
-    const i = this.tabs.indexOf(this.active)
-    this.activate(this.tabs[(i + delta + this.tabs.length) % this.tabs.length])
+    this.active.pane.cycle(delta)
   }
 
-  private docOf(tab: Tab): string {
-    // sliceDoc() joins lines with the note's own line break (CRLF notes stay CRLF).
-    return (tab === this.active ? this.view.state : tab.state!).sliceDoc()
+  go(step: 1 | -1): Promise<void> {
+    return this.active.pane.go(step)
   }
 
-  private onEdited(tab: Tab): void {
-    if (!tab.dirty) {
-      tab.dirty = true
-      this.render()
-    }
-    if (tab.timer !== null) window.clearTimeout(tab.timer)
-    tab.timer = window.setTimeout(() => void this.save(tab), SAVE_DELAY)
-    this.scheduleJournal(tab)
-    if (tab === this.active) this.updateStats()
+  save(): Promise<void> {
+    return this.active.pane.save()
   }
 
-  async save(tab: Tab | null = this.active): Promise<void> {
-    if (!tab) return
-    if (tab.kind === 'view') {
-      await tab.view?.save?.()
-      return
-    }
-    if (tab.timer !== null) {
-      window.clearTimeout(tab.timer)
-      tab.timer = null
-    }
-    // Waiting for the user to pick a version in the conflict bar.
-    if (tab.conflict) return
-    // Only edits are saved: a note Zenode merely opened is never rewritten.
-    if (!tab.dirty) return
-    if (tab.saving) await tab.saving
-    const run = this.writeTab(tab)
-    tab.saving = run
-    try {
-      await run
-    } finally {
-      if (tab.saving === run) tab.saving = null
-    }
-  }
-
-  private async writeTab(tab: Tab): Promise<void> {
-    const content = this.docOf(tab)
-    if (content === tab.lastSaved) {
-      if (tab.dirty) {
-        tab.dirty = false
-        this.render()
-      }
-      return
-    }
-    try {
-      // Only overwrite the version we last saw; anything else is a conflict.
-      const result = await window.zenode.writeChecked(tab.path, content, contentHash(tab.lastSaved))
-      if (result.status === 'conflict') {
-        this.setConflict(tab, result.disk)
-        return
-      }
-      this.saved(tab, content)
-    } catch (e) {
-      this.host.onError(`Could not save ${tab.path}: ${(e as Error).message}`)
-    }
-  }
-
-  private saved(tab: Tab, content: string): void {
-    tab.lastSaved = content
-    this.host.onSaved(tab.path, content)
-    if (this.docOf(tab) === content) {
-      tab.dirty = false
-      this.unjournal(tab)
-    }
-    this.render()
-  }
-
-  // Saves everything that can be saved. Text in conflicted tabs is kept as a
-  // snapshot, since it can't be written without the user's say.
   async saveAll(): Promise<void> {
-    await Promise.all(this.tabs.map((t) => this.save(t)))
-    for (const tab of this.tabs) {
-      if (tab.conflict) this.host.preserve(tab.path, this.docOf(tab))
-      const viewText = tab.view?.conflictText?.() ?? null
-      if (viewText !== null && tab.view?.filePath) this.host.preserve(tab.view.filePath, viewText)
-    }
+    await Promise.all(this.panes().map((p) => p.saveAll()))
   }
 
-  // Close a view's tab without saving (the view already kept what it needed).
   closeView(id: string): void {
-    const tab = this.tabs.find((t) => t.path === id)
-    if (tab) this.dispose(tab)
-  }
-
-  // ---------- Conflicts with the file on disk ----------
-
-  private setConflict(tab: Tab, disk: string | null): void {
-    tab.conflict = { disk }
-    tab.dirty = true
-    // The user's text can't be saved until they choose, so make sure a crash can't lose it.
-    this.journal(tab)
-    this.render()
-  }
-
-  private clearConflict(tab: Tab): void {
-    tab.conflict = null
-    this.render()
-  }
-
-  // Replace a tab's text as a change from disk (no autosave, no undo step merge).
-  private setDoc(tab: Tab, text: string, fromDiskChange: boolean): void {
-    const state = tab === this.active ? this.view.state : tab.state!
-    const spec = { changes: { from: 0, to: state.doc.length, insert: text }, annotations: fromDisk.of(fromDiskChange) }
-    if (tab === this.active) {
-      this.view.dispatch(spec)
-      this.updateStats()
-      if (tab.reading) void this.renderReading(tab)
-    } else {
-      tab.state = state.update(spec).state
-    }
-  }
-
-  // Write the user's version over whatever is on disk now (or recreate the file).
-  private async keepMine(tab: Tab): Promise<void> {
-    const conflict = tab.conflict
-    if (!conflict) return
-    const content = this.docOf(tab)
-    try {
-      if (conflict.disk === null) {
-        await window.zenode.write(tab.path, content)
-      } else {
-        const result = await window.zenode.writeChecked(tab.path, content, contentHash(conflict.disk))
-        if (result.status === 'conflict') {
-          // It changed again in the meantime: show the newest version.
-          this.setConflict(tab, result.disk)
-          return
-        }
-      }
-      tab.conflict = null
-      this.saved(tab, content)
-    } catch (e) {
-      this.host.onError(`Could not save ${tab.path}: ${(e as Error).message}`)
-    }
-  }
-
-  private useDisk(tab: Tab): void {
-    const disk = tab.conflict?.disk
-    if (disk === undefined || disk === null) return
-    this.host.preserve(tab.path, this.docOf(tab))
-    tab.lastSaved = disk
-    this.setDoc(tab, disk, true)
-    tab.dirty = false
-    this.unjournal(tab)
-    this.clearConflict(tab)
-  }
-
-  private async compare(tab: Tab): Promise<void> {
-    const disk = tab.conflict?.disk
-    if (disk === undefined || disk === null) return
-    const merged = await openCompareDialog(this.titleOf(tab), disk, this.docOf(tab))
-    if (merged === null || !tab.conflict) return
-    if (merged !== this.docOf(tab)) this.setDoc(tab, merged, false)
-    await this.keepMine(tab)
-  }
-
-  private discardTab(tab: Tab): void {
-    this.host.preserve(tab.path, this.docOf(tab))
-    tab.conflict = null
-    this.unjournal(tab)
-    this.dispose(tab)
+    for (const p of this.panes()) p.closeView(id)
   }
 
   async closeAll(): Promise<void> {
-    await this.saveAll()
-    for (const tab of this.tabs.slice()) this.dispose(tab)
+    for (const p of this.panes()) await p.closeAll()
   }
 
-  // A file or folder was renamed: retarget every tab under it.
   renamed(from: string, to: string): void {
-    for (const tab of this.tabs) {
-      if (tab.kind === 'view' && tab.view?.filePath === undefined) continue
-      let next: string | null = null
-      if (tab.path === from) next = to
-      else if (tab.path.startsWith(`${from}/`)) next = to + tab.path.slice(from.length)
-      if (next === null) continue
-      // Move a recovery entry to the new path.
-      if (tab.journaled) {
-        this.unjournal(tab)
-        tab.path = next
-        this.journal(tab)
-      }
-      tab.path = next
-      tab.view?.setPath?.(next)
-    }
-    this.render()
-    if (this.active) this.host.onActiveChange(this.activePath, this.titleOf(this.active))
-    this.host.onLayoutChange()
+    for (const p of this.panes()) p.renamed(from, to)
   }
 
-  // A file or folder was deleted: close its tabs without saving.
   removed(path: string): void {
-    for (const tab of this.tabs.slice()) {
-      if (tab.kind === 'view' && tab.view?.filePath === undefined) continue
-      if (tab.path === path || tab.path.startsWith(`${path}/`)) {
-        tab.view?.discard?.()
-        this.dispose(tab)
-      }
-    }
+    for (const p of this.panes()) p.removed(path)
   }
 
-  // Pick up edits made outside Zenode. With unsaved changes here, that's a
-  // conflict: nothing is overwritten and the user picks a version.
   async reloadChanged(paths: string[]): Promise<void> {
-    const changed = new Set(paths)
-    for (const tab of this.tabs.slice()) {
-      if (tab.kind === 'view') {
-        if (tab.view?.filePath !== undefined && changed.has(tab.path)) await tab.view.reloadFromDisk?.()
-        continue
-      }
-      if (!changed.has(tab.path)) continue
-      if (tab.saving) await tab.saving
-      let disk: string | null
-      try {
-        disk = await window.zenode.read(tab.path)
-      } catch {
-        disk = null
-      }
-      if (!this.tabs.includes(tab)) continue
-      if (disk === tab.lastSaved) {
-        if (tab.conflict) this.clearConflict(tab)
-        continue
-      }
-      if (tab.dirty || tab.conflict) {
-        // The disk caught up with exactly what's in the editor (e.g. synced back): no conflict.
-        if (disk === this.docOf(tab)) {
-          tab.lastSaved = disk
-          tab.dirty = false
-          this.clearConflict(tab)
-          continue
-        }
-        this.setConflict(tab, disk)
-        continue
-      }
-      // No unsaved changes: follow the disk (a deleted or moved file closes its tab).
-      if (disk === null) {
-        this.dispose(tab)
-        continue
-      }
-      tab.lastSaved = disk
-      this.setDoc(tab, disk, true)
-    }
-  }
-
-  serialize(): WorkspaceState {
-    return { openFiles: this.tabs.map((t) => t.path), activeFile: this.active?.path ?? null }
-  }
-
-  private updateStats(): void {
-    if (this.statsTimer !== null) window.clearTimeout(this.statsTimer)
-    this.statsTimer = window.setTimeout(() => {
-      const text = this.active?.kind === 'note' ? this.view.state.doc.toString() : ''
-      const words = text.trim() ? text.trim().split(/\s+/).length : 0
-      this.host.onStats(words, text.length)
-    }, 150)
-  }
-
-  private renderConflict(): void {
-    const tab = this.active
-    if (!tab || tab.kind !== 'note' || !tab.conflict) {
-      hideConflictBar(this.conflictEl)
-      return
-    }
-    renderConflictBar(this.conflictEl, tab.conflict.disk, 'note', {
-      compare: () => void this.compare(tab),
-      keepMine: () => void this.keepMine(tab),
-      useDisk: () => this.useDisk(tab),
-      closeTab: () => this.discardTab(tab)
-    })
-  }
-
-  private render(): void {
-    this.tabbarEl.empty()
-    for (const tab of this.tabs) {
-      const tabEl = el('div', 'zn-tab', this.tabbarEl)
-      if (tab === this.active) tabEl.classList.add('is-active')
-      if (tab.dirty) tabEl.classList.add('is-dirty')
-      if (tab.conflict) tabEl.classList.add('has-conflict')
-      if (tab.kind === 'view') tabEl.classList.add('is-view')
-      el('span', 'zn-tab-title', tabEl, this.titleOf(tab))
-      tabEl.title = tab.kind === 'view' ? this.titleOf(tab) : tab.path
-      const closeBtn = el('span', 'zn-tab-close', tabEl)
-      closeBtn.appendChild(icon('close', 12))
-      closeBtn.addEventListener('click', (e) => {
-        e.stopPropagation()
-        void this.close(tab)
-      })
-      tabEl.addEventListener('mousedown', (e) => {
-        if (e.button === 1) {
-          e.preventDefault()
-          void this.close(tab)
-        }
-      })
-      tabEl.addEventListener('click', () => this.activate(tab))
-    }
-    this.renderConflict()
-    const kind = this.active?.kind
-    const reading = kind === 'note' && this.active!.reading
-    this.editorEl.style.display = kind === 'note' && !reading ? '' : 'none'
-    this.readingEl.style.display = reading ? '' : 'none'
-    this.viewsEl.style.display = kind === 'view' ? '' : 'none'
-    this.emptyEl.style.display = kind ? 'none' : ''
-    this.tabbarEl.classList.toggle('is-empty', this.tabs.length === 0)
+    await Promise.all(this.panes().map((p) => p.reloadChanged(paths)))
   }
 }

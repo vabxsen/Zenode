@@ -32,3 +32,123 @@
   color: var(--zn-text-faint);
   font-size: 11px;
 }
+
+/* ---------- Split panes ---------- */
+
+.zn-workspace > .zn-split,
+.zn-workspace > .zn-pane-leaf {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.zn-split {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.zn-split.is-row {
+  flex-direction: row;
+}
+
+.zn-split.is-column {
+  flex-direction: column;
+}
+
+.zn-pane-leaf {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.zn-split-divider {
+  flex: none;
+  position: relative;
+  z-index: 5;
+  background: var(--zn-border);
+}
+
+.zn-split.is-row > .zn-split-divider {
+  width: 1px;
+  cursor: col-resize;
+}
+
+.zn-split.is-column > .zn-split-divider {
+  height: 1px;
+  cursor: row-resize;
+}
+
+/* A wider invisible grab area around the 1px line. */
+.zn-split-divider::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+}
+
+.zn-split-divider:hover,
+body.is-resizing .zn-split-divider {
+  background: var(--zn-accent-strong);
+}
+
+body.is-resizing {
+  user-select: none;
+}
+
+/* With several panes, inactive panes' current tab is quieter. */
+.zn-pane-leaf:not(.is-active-pane) .zn-tab.is-active::after {
+  background: var(--zn-border);
+}
+
+.zn-split .zn-pane-leaf:not(.is-active-pane) .zn-tab.is-active {
+  color: var(--zn-text-muted);
+}
+
+.zn-tabbar.is-drop-target {
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.zn-tab.is-pinned {
+  min-width: 0;
+  max-width: 160px;
+}
+
+.zn-tab-pin {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--zn-accent);
+  flex: none;
+}
+
+/* Where a dragged tab will land: an edge (new pane) or the whole pane. */
+.zn-drop-overlay {
+  position: absolute;
+  z-index: 30;
+  border: 2px solid var(--zn-accent-strong);
+  border-radius: 6px;
+  background: rgba(139, 92, 246, 0.12);
+  pointer-events: none;
+}
+
+.zn-drop-overlay.is-center {
+  inset: 38px 4px 4px;
+}
+
+.zn-drop-overlay.is-left {
+  inset: 38px 50% 4px 4px;
+}
+
+.zn-drop-overlay.is-right {
+  inset: 38px 4px 4px 50%;
+}
+
+.zn-drop-overlay.is-up {
+  inset: 38px 4px 50% 4px;
+}
+
+.zn-drop-overlay.is-down {
+  inset: 50% 4px 4px;
+}

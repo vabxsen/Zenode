@@ -19,6 +19,10 @@ const PATHS = {
   canvas: 'M3 3h7v7H3zM14 14h7v7h-7zM10 6.5h4.5a2 2 0 0 1 2 2V14',
   settings:
     'M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
+  pin: 'M9 3h6l-1 6 3 3H7l3-3zM12 12v9',
+  splitRight: 'M3 4h18v16H3zM12 4v16',
+  splitDown: 'M3 4h18v16H3zM3 12h18',
+  back: 'M15 6l-6 6 6 6',
   logo: 'M5 5h14L5 19h14'
 } as const
 

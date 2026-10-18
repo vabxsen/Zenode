@@ -1,7 +1,7 @@
 // Validation for the per-vault config files in <vault>/.zenode/. Config is
 // user-editable JSON, so every value is checked and anything unexpected falls
 // back to the default instead of breaking the app.
-import type { WorkspaceState } from '../../shared/api'
+import type { LayoutNode, WorkspaceState } from '../../shared/api'
 import type { Hotkey, Modifier } from './commands'
 
 const MODIFIERS = new Set<Modifier>(['Mod', 'Ctrl', 'Shift', 'Alt'])
@@ -56,11 +56,35 @@ export function attachmentDir(setting: string, notePath: string): string {
   return setting
 }
 
+const MAX_LAYOUT_DEPTH = 6
+
+// A saved pane layout; anything malformed is dropped (the open tabs still restore).
+function sanitizeLayout(raw: unknown, depth = 0): LayoutNode | null {
+  if (!isRecord(raw) || depth > MAX_LAYOUT_DEPTH) return null
+  if (Array.isArray(raw.tabs)) {
+    const tabs = raw.tabs.filter(isString)
+    return {
+      tabs,
+      active: isString(raw.active) && tabs.includes(raw.active) ? raw.active : null,
+      pinned: Array.isArray(raw.pinned) ? raw.pinned.filter((p): p is string => isString(p) && tabs.includes(p)) : []
+    }
+  }
+  if ((raw.dir !== 'row' && raw.dir !== 'column') || !Array.isArray(raw.children)) return null
+  const children = raw.children.map((c) => sanitizeLayout(c, depth + 1))
+  if (children.length < 2 || children.some((c) => c === null)) return null
+  const sizes = Array.isArray(raw.sizes) && raw.sizes.length === children.length && raw.sizes.every((n) => typeof n === 'number' && n > 0)
+    ? (raw.sizes as number[])
+    : children.map(() => 1)
+  return { dir: raw.dir, sizes, children: children as LayoutNode[] }
+}
+
 export function sanitizeWorkspace(raw: unknown): WorkspaceState | null {
   if (!isRecord(raw)) return null
   const openFiles = Array.isArray(raw.openFiles) ? raw.openFiles.filter(isString) : []
   const activeFile = isString(raw.activeFile) ? raw.activeFile : null
-  return { openFiles, activeFile }
+  const layout = sanitizeLayout(raw.layout)
+  const activePane = typeof raw.activePane === 'number' && Number.isInteger(raw.activePane) && raw.activePane >= 0 ? raw.activePane : 0
+  return layout ? { openFiles, activeFile, layout, activePane } : { openFiles, activeFile }
 }
 
 function sanitizeHotkey(raw: unknown): Hotkey | null {

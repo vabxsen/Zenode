@@ -9,6 +9,7 @@ import { Component, el } from './component'
 import { registerCoreCommands } from './coreCommands'
 import type { LinkTarget } from './editor/linkCompletion'
 import { displayName, FileTree } from './fileTree'
+import { GRAPH_ID, makeGraphTab } from './graph/graphTab'
 import { GraphView } from './graph/graphView'
 import { icon, type IconName } from './icons'
 import { isCanvasPath } from './index/canvasMeta'
@@ -18,20 +19,20 @@ import { openFileRecovery, restoreVersion } from './fileRecovery'
 import { attachmentLinks, rewriteLinksAfterRename, saveAttachments } from './fileOps'
 import { relativeLinkTarget, subpathPosition } from './links'
 import { HoverPreview } from './hoverPreview'
+import { registerWorkspaceCommands } from './workspaceCommands'
 import { offerRecovery } from './recovery'
 import type { ReadingContext } from './render/reading'
 import { SyncIndicator } from './sync/syncPanel'
 import { baseName, isMarkdown, parentDir, stripExt, stripMd } from './paths'
 import { SearchPane } from './search/searchPane'
 import { openSwitcher } from './switcher'
-import { VIEW_PREFIX, Workspace, type OpenPosition, type WorkspaceView } from './workspace'
+import { VIEW_PREFIX, Workspace, type OpenPosition } from './workspace'
 
 const api = window.zenode
 const EXTERNAL = /^(https?:|mailto:)/i
 const SIDEBAR_KEY = 'zenode.sidebarWidth'
 const RIGHTBAR_KEY = 'zenode.rightbarHidden'
 const RIGHT_PANE_KEY = 'zenode.rightPane'
-const GRAPH_ID = `${VIEW_PREFIX}graph`
 const MAX_RECENT = 30
 
 type LeftPane = 'files' | 'search'
@@ -74,6 +75,7 @@ export class App extends Component {
     })
     api.onVaultChanged((paths) => this.onVaultChanged(paths))
     this.register(this.registerCommands())
+    this.register(registerWorkspaceCommands(this.commands, () => this.workspace))
     this.registerDomEvent(window, 'keydown', (e) => this.onKeydown(e), { capture: true })
 
     const settings = await api.getSettings()
@@ -148,7 +150,9 @@ export class App extends Component {
     setSpellcheckDefault(this.editorSettings.spellcheck)
     // Open tabs live in .zenode/workspace.json; older versions kept them in the app settings.
     const ws = sanitizeWorkspace(await api.readConfig('workspace')) ?? (await api.getSettings()).workspaces[info.root]
-    if (ws) {
+    if (ws?.layout && this.workspace) {
+      await this.workspace.restoreLayout(ws.layout, ws.activePane ?? 0, (path) => this.openTabPath(path))
+    } else if (ws) {
       for (const path of ws.openFiles) await this.openTabPath(path)
       if (ws.activeFile) await this.openTabPath(ws.activeFile)
     }
@@ -263,7 +267,12 @@ export class App extends Component {
           await this.refreshTree()
           return attachmentLinks(saved, notePath, (p, from) => cache.linktext(p, from))
         },
-        readingContext: (path) => this.readingContext(cache, path)
+        readingContext: (path) => this.readingContext(cache, path),
+        reopen: (path) => this.openTabPath(path),
+        revealInTree: (path) => {
+          this.showPane('files')
+          this.tree?.setActive(path)
+        }
       })
     )
 
@@ -351,41 +360,15 @@ export class App extends Component {
     const cache = this.cache
     if (!shell || !cache || !this.workspace) return
     // openView reuses an existing graph tab (and discards the spare view).
-    this.workspace.openView(this.makeGraphTab(shell, cache))
-  }
-
-  // The graph component is created lazily, the first time its tab is shown.
-  private makeGraphTab(shell: Component, cache: MetadataCache): WorkspaceView {
-    const host = document.createElement('div')
-    host.className = 'zn-view-host'
-    let graph: GraphView | null = null
-    const ensure = (): GraphView => {
-      if (!graph) {
-        graph = shell.addChild(
-          new GraphView(host, {
-            cache,
-            mode: 'global',
-            getActive: () => this.workspace?.activePath ?? this.recent[0] ?? null,
-            onOpen: (path) => void this.openPath(path)
-          })
-        )
-        this.globalGraph = graph
-      }
-      return graph
-    }
-    return {
-      id: GRAPH_ID,
-      title: 'Graph view',
-      el: host,
-      show: () => ensure().setVisible(true),
-      hide: () => graph?.setVisible(false),
-      destroy: () => {
-        if (graph) shell.removeChild(graph)
-        if (this.globalGraph === graph) this.globalGraph = null
-        graph = null
-        host.remove()
-      }
-    }
+    this.workspace.openView(
+      makeGraphTab({
+        shell,
+        cache,
+        getActive: () => this.workspace?.activePath ?? this.recent[0] ?? null,
+        onOpen: (path) => void this.openPath(path),
+        onGraphChange: (graph) => (this.globalGraph = graph)
+      })
+    )
   }
 
   private async openTabPath(path: string): Promise<void> {

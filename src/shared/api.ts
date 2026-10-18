@@ -14,9 +14,23 @@ export interface VaultInfo {
   name: string
 }
 
+// One pane's tabs, in order.
+export interface PaneLayout {
+  tabs: string[]
+  active: string | null
+  pinned: string[]
+}
+
+// Panes side by side ("row") or stacked ("column"), with relative sizes.
+export type LayoutNode = PaneLayout | { dir: 'row' | 'column'; sizes: number[]; children: LayoutNode[] }
+
 export interface WorkspaceState {
+  // The active pane's tabs (all that versions without split panes understand).
   openFiles: string[]
   activeFile: string | null
+  layout?: LayoutNode
+  // Index of the active pane, in depth-first order.
+  activePane?: number
 }
 
 export interface Settings {
