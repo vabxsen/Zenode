@@ -3,7 +3,7 @@
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Page } from '@playwright/test'
-import { expect, test, treeRow } from './fixture'
+import { crash, expect, test, treeRow } from './fixture'
 
 // Types into Ideas while the file is read-only, so autosave fails and the text
 // stays unsaved long enough to reach the recovery journal.
@@ -21,7 +21,7 @@ async function typeUnsaved(page: Page, file: string): Promise<void> {
 test('unsaved text is offered back after a crash and restored', async ({ app, page, vaultDir, relaunch }) => {
   const file = join(vaultDir, 'Ideas.md')
   await typeUnsaved(page, file)
-  app.process().kill()
+  await crash(app)
   chmodSync(file, 0o666)
   expect(readFileSync(file, 'utf8')).not.toContain('UNSAVED THOUGHT')
 
@@ -36,7 +36,7 @@ test('unsaved text is offered back after a crash and restored', async ({ app, pa
 test('restoring never overwrites a version that changed after the crash', async ({ app, page, vaultDir, relaunch }) => {
   const file = join(vaultDir, 'Ideas.md')
   await typeUnsaved(page, file)
-  app.process().kill()
+  await crash(app)
   chmodSync(file, 0o666)
   writeFileSync(file, 'NEWER VERSION FROM ANOTHER DEVICE\n')
 

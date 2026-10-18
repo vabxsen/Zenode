@@ -1,6 +1,13 @@
+// The open vault's vault:// host (each window's vault has its own).
+let host = 'none'
+
+export function setVaultUrlHost(id: string): void {
+  host = id
+}
+
 // URL for showing a vault file in the page (served by the main process's vault:// protocol).
 export function vaultUrl(path: string): string {
-  return `vault://file/${path.split('/').map(encodeURIComponent).join('/')}`
+  return `vault://${host}/${path.split('/').map(encodeURIComponent).join('/')}`
 }
 
 export const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'avif'])

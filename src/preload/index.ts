@@ -14,6 +14,7 @@ const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> =>
 const api: ZenodeAPI = {
   chooseVault: () => invoke('vault:choose'),
   openVault: (root) => invoke('vault:open', root),
+  openVaultInNewWindow: (root) => invoke('vault:openInNewWindow', root),
   currentVault: () => invoke('vault:current'),
   getSettings: () => invoke('settings:get'),
   readConfig: (name) => invoke('config:read', name),

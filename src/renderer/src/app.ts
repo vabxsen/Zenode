@@ -32,6 +32,7 @@ import { mentionLink, type Mention } from './panels/mentions'
 import { LeftSidebar, RightSidebar, type LeftPane, type RightPane, type SidebarDeps } from './sidebars'
 import { contentHash } from '../../shared/hash'
 import { openSwitcher } from './switcher'
+import { setVaultUrlHost } from './vaultUrl'
 import { VIEW_PREFIX, Workspace, type OpenPosition } from './workspace'
 
 const api = window.zenode
@@ -105,11 +106,20 @@ export class App extends Component {
     )
     this.registerDomEvent(window, 'keydown', (e) => this.onKeydown(e), { capture: true })
 
+    // A window opened for a vault (or a reloaded page) already has one.
+    const current = await api.currentVault()
+    if (current) {
+      await this.enterVault(current)
+      return
+    }
     const settings = await api.getSettings()
     if (settings.lastVault) {
       try {
-        await this.enterVault(await api.openVault(settings.lastVault))
-        return
+        const info = await api.openVault(settings.lastVault)
+        if (info) {
+          await this.enterVault(info)
+          return
+        }
       } catch {
         // The last vault was moved or deleted; fall through to the welcome screen.
       }
@@ -145,7 +155,8 @@ export class App extends Component {
         el('span', 'zn-recent-path', row, root)
         row.addEventListener('click', async () => {
           try {
-            await this.enterVault(await api.openVault(root))
+            const info = await api.openVault(root)
+            if (info) await this.enterVault(info)
           } catch (e) {
             this.notice(`Could not open vault: ${(e as Error).message}`)
           }
@@ -154,9 +165,18 @@ export class App extends Component {
     }
   }
 
+  // With a vault open, another vault opens in a new window; otherwise in this one.
   private async chooseVault(): Promise<void> {
-    const info = await api.chooseVault()
-    if (info) await this.enterVault(info)
+    try {
+      if (this.vault) {
+        await api.openVaultInNewWindow()
+        return
+      }
+      const info = await api.chooseVault()
+      if (info) await this.enterVault(info)
+    } catch (e) {
+      this.notice(`Could not open vault: ${(e as Error).message}`)
+    }
   }
 
   // ---------- Vault shell ----------
@@ -165,6 +185,7 @@ export class App extends Component {
     if (this.workspace) await this.workspace.closeAll()
     this.teardownShell()
     this.vault = info
+    setVaultUrlHost(info.id)
     this.cache = new MetadataCache()
     this.indexBuilt = false
     this.recent = []

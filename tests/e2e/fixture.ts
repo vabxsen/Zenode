@@ -1,6 +1,7 @@
 // Launches the built app against a fresh copy of tests/fixtures/vault, with its
 // own settings folder, so tests never touch the user's vaults or settings.
 import { test as base, _electron as electron, type ElectronApplication, type Locator, type Page } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -80,4 +81,14 @@ export function treeRow(page: Page, name: string): Locator {
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Simulates a crash: kills the app's whole process tree (app.process() can be a
+// launcher whose child is the real main process) and waits until it is gone.
+export async function crash(app: ElectronApplication): Promise<void> {
+  const proc = app.process()
+  const exited = new Promise<void>((done) => (proc.exitCode !== null ? done() : proc.once('exit', () => done())))
+  if (process.platform === 'win32') execFileSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' })
+  else proc.kill('SIGKILL')
+  await exited
 }

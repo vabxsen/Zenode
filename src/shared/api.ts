@@ -15,6 +15,8 @@ export interface TreeEntry {
 export interface VaultInfo {
   root: string
   name: string
+  // Host of this vault's vault:// URLs.
+  id: string
 }
 
 // One pane's tabs, in order.
@@ -65,8 +67,12 @@ export interface RecoveryEntry {
 }
 
 export interface ZenodeAPI {
+  // Null when cancelled, or when that vault is open in another window.
   chooseVault(): Promise<VaultInfo | null>
-  openVault(root: string): Promise<VaultInfo>
+  // Null when the vault is already open in another window (that window comes forward).
+  openVault(root: string): Promise<VaultInfo | null>
+  // Opens a vault in a new window (asks for a folder when no root is given).
+  openVaultInNewWindow(root?: string): Promise<void>
   currentVault(): Promise<VaultInfo | null>
   getSettings(): Promise<Settings>
   // Per-vault config files in <vault>/.zenode/<name>.json. Missing or broken files read as null.
