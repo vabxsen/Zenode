@@ -92,6 +92,20 @@ export interface EditorCallbacks {
 }
 
 // A file whose every line break is CRLF (typical of Windows editors).
+// The browser keeps undo steps of its own for edits made in an editor, which
+// CodeMirror never uses (Ctrl+Z is CodeMirror's history). Each step holds the
+// old lines it touched, so in one long-lived editor they pile up across every
+// note it shows. Chromium drops an editable element's steps when the element
+// leaves the document: detach and re-attach it when the editor changes note.
+export function dropNativeUndo(view: EditorView): void {
+  const content = view.contentDOM
+  const parent = content.parentNode
+  if (!parent) return
+  const next = content.nextSibling
+  parent.removeChild(content)
+  parent.insertBefore(content, next)
+}
+
 export function usesCrlf(text: string): boolean {
   return text.includes('\r\n') && !/(^|[^\r])\n/.test(text)
 }

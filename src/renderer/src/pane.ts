@@ -3,7 +3,7 @@ import { EditorView } from '@codemirror/view'
 import { contentHash } from '../../shared/hash'
 import { Component, el, el as mk } from './component'
 import { hideConflictBar, openCompareDialog, renderConflictBar } from './conflictUi'
-import { createEditorState, fromDisk, spellcheckAttrs, spellcheckSetting } from './editor/editor'
+import { createEditorState, dropNativeUndo, fromDisk, spellcheckAttrs, spellcheckSetting } from './editor/editor'
 import { linksChanged, setSourceMode } from './editor/livePreview'
 import { icon } from './icons'
 import { confirmLargeNote, LARGE_NOTE, noteTitle, type MovedTab, type OpenPosition, type PaneHost, type PaneState, type Tab, type TextEdit, type WorkspaceView } from './paneTypes'
@@ -333,7 +333,10 @@ export class Pane extends Component {
     }
     this.active = tab
     if (!this.navigating) this.history.push(tab.path)
-    if (tab.kind === 'note') this.view.setState(tab.state!)
+    if (tab.kind === 'note') {
+      if (prev !== tab) dropNativeUndo(this.view)
+      this.view.setState(tab.state!)
+    }
     this.render()
     if (tab.kind === 'view') tab.view!.show()
     if (tab.reading) void this.renderReading(tab)
@@ -483,6 +486,7 @@ export class Pane extends Component {
         this.activate(next)
         return
       }
+      dropNativeUndo(this.view)
       this.host.onActiveChange(null, '')
       this.host.onStats(0, 0)
     }
