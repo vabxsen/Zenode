@@ -72,5 +72,8 @@
     "esbuild@0.28.2": true,
     "electron@44.9.0": true,
     "electron-winstaller": false
+  },
+  "overrides": {
+    "katex": "$katex"
   }
 }
