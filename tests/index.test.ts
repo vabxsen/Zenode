@@ -4,6 +4,8 @@ import { matchNote, parseQuery } from '../src/renderer/src/search/query'
 import { fuzzyMatch } from '../src/renderer/src/fuzzy'
 import { buildGraph } from '../src/renderer/src/graph/graphData'
 import { CanvasParseError, canvasRefs, contains, facingSide, parseCanvas, serializeCanvas, stackOrder } from '../src/renderer/src/canvas/model'
+import { CommandRegistry, hotkeyFromEvent, hotkeyLabel } from '../src/renderer/src/commands'
+import { registerCoreCommands } from '../src/renderer/src/coreCommands'
 import { parseCanvasMeta } from '../src/renderer/src/index/canvasMeta'
 
 let fails = 0
@@ -172,6 +174,37 @@ const canvasEdits = cache.buildCanvasRenames(canvasPending, 'Folder/Sub/Deep.md'
 const renamedBoard = parseCanvas(canvasEdits.get('Board.canvas') ?? '{}')
 eq('canvas rename: file card updated', (renamedBoard.nodes[1] as any).file, 'Folder/Sub/Deeper.md')
 eq('canvas rename: markdown edits skip canvases', cache.buildRenameEdits(canvasPending, 'Folder/Sub/Deep.md', 'Folder/Sub/Deeper.md').has('Board.canvas'), false)
+
+// Command registry.
+const reg = new CommandRegistry()
+const ran: string[] = []
+let vaultOpen = false
+reg.register({ id: 'a:save', name: 'Save', hotkeys: [{ modifiers: ['Mod'], key: 's' }], callback: () => ran.push('save') })
+reg.register({ id: 'a:search', name: 'Search', hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'f' }], checkCallback: (checking) => { if (!vaultOpen) return false; if (!checking) ran.push('search'); return true } })
+const key = (k: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean } = {}) => ({ key: k, ctrlKey: !!mods.ctrl, shiftKey: !!mods.shift, altKey: !!mods.alt, metaKey: false })
+eq('commands: hotkey matches', reg.match(key('s', { ctrl: true }))?.id, 'a:save')
+eq('commands: shift changes the match', reg.match(key('S', { ctrl: true, shift: true }))?.id, undefined)
+eq('commands: unavailable command does not match', reg.match(key('F', { ctrl: true, shift: true })), null)
+vaultOpen = true
+eq('commands: available once checkCallback allows', reg.match(key('F', { ctrl: true, shift: true }))?.id, 'a:search')
+eq('commands: execute runs', [reg.execute('a:search'), reg.execute('a:save'), ran], [true, true, ['search', 'save']])
+reg.setCustomHotkeys({ 'a:save': [{ modifiers: ['Mod', 'Alt'], key: 's' }] })
+eq('commands: custom hotkey replaces default', [reg.match(key('s', { ctrl: true }))?.id, reg.match(key('s', { ctrl: true, alt: true }))?.id], [undefined, 'a:save'])
+eq('commands: label', hotkeyLabel({ modifiers: ['Shift', 'Mod'], key: 'f' }), 'Ctrl+Shift+F')
+eq('commands: from event', hotkeyFromEvent(key('K', { ctrl: true, shift: true })), { modifiers: ['Mod', 'Shift'], key: 'k' })
+eq('commands: lone modifier is not a hotkey', hotkeyFromEvent(key('Shift', { shift: true })), null)
+eq('commands: conflicts', reg.conflicts({ modifiers: ['Mod', 'Shift'], key: 'F' }).map((c) => c.id), ['a:search'])
+let dup = false
+try { reg.register({ id: 'a:save', name: 'x', callback: () => {} }) } catch { dup = true }
+eq('commands: duplicate id rejected', dup, true)
+const core = new CommandRegistry()
+const calls: string[] = []
+const noop = (n: string) => () => { calls.push(n) }
+const dispose = registerCoreCommands(core, { hasVault: () => false, chooseVault: noop('choose'), openSwitcher: noop('switcher'), showSearch: noop('search'), openGraph: noop('graph'), toggleLeftSidebar: noop('left'), toggleRightSidebar: noop('right'), newNote: noop('note'), newCanvas: noop('canvas'), save: noop('save'), closeTab: noop('close'), cycleTab: noop('cycle') })
+core.execute(core.match(key('o', { ctrl: true }))!.id)
+eq('core commands: Ctrl+O without a vault picks one', [calls, core.match(key('n', { ctrl: true }))], [['choose'], null])
+dispose()
+eq('core commands: dispose removes all', core.list().length, 0)
 
 cache.dispose()
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED')

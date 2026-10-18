@@ -1,7 +1,9 @@
 import type { TreeEntry, VaultInfo } from '../../shared/api'
 import { BacklinksPanel } from './backlinks'
 import { CanvasView, type CanvasHost } from './canvas/canvasView'
+import { CommandRegistry } from './commands'
 import { Component, el } from './component'
+import { registerCoreCommands } from './coreCommands'
 import type { LinkTarget } from './editor/linkCompletion'
 import { displayName, FileTree } from './fileTree'
 import { GraphView } from './graph/graphView'
@@ -26,6 +28,7 @@ type LeftPane = 'files' | 'search'
 type RightPane = 'backlinks' | 'localGraph'
 
 export class App extends Component {
+  readonly commands = new CommandRegistry()
   private vault: VaultInfo | null = null
   private shell: Component | null = null
   private tree: FileTree | null = null
@@ -59,6 +62,7 @@ export class App extends Component {
       await this.saveLayoutNow()
     })
     api.onVaultChanged((paths) => this.onVaultChanged(paths))
+    this.register(this.registerCommands())
     this.registerDomEvent(window, 'keydown', (e) => this.onKeydown(e), { capture: true })
 
     const settings = await api.getSettings()
@@ -164,7 +168,7 @@ export class App extends Component {
 
     const body = el('div', 'zn-body', this.root)
     const ribbon = el('div', 'zn-ribbon', body)
-    this.ribbonButton(ribbon, 'sidebar', 'Toggle left sidebar (Ctrl+\\)', () => this.root.classList.toggle('is-sidebar-hidden'))
+    this.ribbonButton(ribbon, 'sidebar', 'Toggle left sidebar (Ctrl+\\)', () => this.commands.execute('app:toggle-left-sidebar'))
     this.ribbonButton(ribbon, 'switcher', 'Quick switcher (Ctrl+O)', () => this.openQuickSwitcher())
     this.ribbonButton(ribbon, 'search', 'Search (Ctrl+Shift+F)', () => this.showSearch())
     this.ribbonButton(ribbon, 'graph', 'Graph view (Ctrl+G)', () => this.openGraph())
@@ -693,27 +697,29 @@ export class App extends Component {
   // ---------- Keyboard ----------
 
   private onKeydown(e: KeyboardEvent): void {
-    if (!e.ctrlKey || e.altKey) return
-    const key = e.key.toLowerCase()
-    const handled = (fn: () => void): void => {
-      e.preventDefault()
-      e.stopPropagation()
-      fn()
-    }
-    if (key === 'o' && e.shiftKey) return handled(() => void this.chooseVault())
-    if (!this.workspace) {
-      if (key === 'o') return handled(() => void this.chooseVault())
-      return
-    }
-    if (key === 'o') return handled(() => this.openQuickSwitcher())
-    if (key === 'f' && e.shiftKey) return handled(() => this.showSearch())
-    if (key === 'g' && !e.shiftKey) return handled(() => this.openGraph())
-    if (key === 'b' && e.shiftKey) return handled(() => this.toggleRightbar())
-    if (key === 'n' && !e.shiftKey) return handled(() => void this.newNote(this.currentDir()))
-    if (key === 's') return handled(() => void this.workspace!.save())
-    if (key === 'w') return handled(() => void this.workspace!.close())
-    if (key === 'tab') return handled(() => this.workspace!.cycle(e.shiftKey ? -1 : 1))
-    if (key === '\\') return handled(() => this.root.classList.toggle('is-sidebar-hidden'))
+    const cmd = this.commands.match(e)
+    if (!cmd) return
+    e.preventDefault()
+    e.stopPropagation()
+    this.commands.execute(cmd.id)
+  }
+
+  private registerCommands(): () => void {
+    const ws = (): Workspace => this.workspace!
+    return registerCoreCommands(this.commands, {
+      hasVault: () => this.workspace !== null,
+      chooseVault: () => void this.chooseVault(),
+      openSwitcher: () => this.openQuickSwitcher(),
+      showSearch: () => this.showSearch(),
+      openGraph: () => this.openGraph(),
+      toggleLeftSidebar: () => this.root.classList.toggle('is-sidebar-hidden'),
+      toggleRightSidebar: () => this.toggleRightbar(),
+      newNote: () => void this.newNote(this.currentDir()),
+      newCanvas: () => void this.newCanvas(this.currentDir()),
+      save: () => void ws().save(),
+      closeTab: () => void ws().close(),
+      cycleTab: (step) => ws().cycle(step)
+    })
   }
 
   // ---------- Notices ----------
