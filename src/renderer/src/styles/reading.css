@@ -1,0 +1,446 @@
+/* ---------- Reading view and rendered Markdown (also embeds and previews) ---------- */
+
+.zn-reading {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+}
+
+.zn-reading-body {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 32px 40vh;
+}
+
+.zn-rendered {
+  color: var(--zn-text);
+  font-family: var(--zn-font-text);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.zn-rendered > :first-child {
+  margin-top: 0;
+}
+
+.zn-rendered h1,
+.zn-rendered h2,
+.zn-rendered h3,
+.zn-rendered h4,
+.zn-rendered h5,
+.zn-rendered h6 {
+  margin: 1.2em 0 0.4em;
+  color: var(--zn-text-strong);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.zn-rendered h1 {
+  font-size: 1.9em;
+}
+.zn-rendered h2 {
+  font-size: 1.5em;
+}
+.zn-rendered h3 {
+  font-size: 1.25em;
+}
+.zn-rendered h4 {
+  font-size: 1.1em;
+}
+.zn-rendered h5,
+.zn-rendered h6 {
+  font-size: 1em;
+}
+
+.zn-rendered p,
+.zn-rendered ul,
+.zn-rendered ol,
+.zn-rendered pre,
+.zn-rendered table,
+.zn-rendered blockquote {
+  margin: 0.6em 0;
+}
+
+.zn-rendered ul,
+.zn-rendered ol {
+  padding-left: 1.6em;
+}
+
+.zn-rendered li.zn-task {
+  list-style: none;
+  margin-left: -1.4em;
+}
+
+.zn-rendered li.zn-task.is-done {
+  color: var(--zn-text-muted);
+  text-decoration: line-through;
+}
+
+.zn-rendered .zn-task-box {
+  margin: 0 0.5em 0 0;
+  vertical-align: -0.1em;
+  accent-color: var(--zn-accent-strong);
+  cursor: pointer;
+}
+
+.zn-rendered a {
+  color: var(--zn-accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.zn-rendered a:hover {
+  text-decoration: underline;
+}
+
+.zn-rendered a.is-unresolved {
+  color: var(--zn-accent-dim);
+  opacity: 0.75;
+}
+
+.zn-rendered a.zn-tag {
+  padding: 0.05em 0.45em;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.14);
+  font-size: 0.9em;
+}
+
+.zn-rendered mark,
+.cm-editor .zn-highlight {
+  padding: 0 0.1em;
+  border-radius: 3px;
+  background: rgba(250, 204, 21, 0.28);
+  color: inherit;
+}
+
+.zn-rendered code {
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: var(--zn-bg-raised);
+  color: #e2c4ff;
+  font-family: var(--zn-font-mono);
+  font-size: 0.9em;
+}
+
+.zn-rendered pre {
+  position: relative;
+  padding: 14px 16px;
+  overflow: auto;
+  border-radius: 8px;
+  background: #101017;
+}
+
+.zn-rendered pre code {
+  padding: 0;
+  background: none;
+  color: #cfcfe0;
+  font-size: 0.88em;
+  line-height: 1.55;
+}
+
+.zn-copy-code {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--zn-border);
+  border-radius: 6px;
+  background: var(--zn-bg-raised);
+  color: var(--zn-text-muted);
+  font: inherit;
+  font-size: 11px;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+}
+
+.zn-rendered pre:hover .zn-copy-code {
+  opacity: 1;
+}
+
+/* Code token colours (CodeMirror's tok-* classes), shared by Reading view and the editor. */
+.tok-keyword {
+  color: #c792ea;
+}
+.tok-operator {
+  color: #89ddff;
+}
+.tok-string,
+.tok-string2 {
+  color: #c3e88d;
+}
+.tok-number,
+.tok-bool,
+.tok-atom {
+  color: #f78c6c;
+}
+.tok-comment {
+  color: #6b6b7b;
+  font-style: italic;
+}
+.tok-variableName {
+  color: #e6e6f0;
+}
+.tok-definition,
+.tok-propertyName,
+.tok-function,
+.tok-macroName {
+  color: #82aaff;
+}
+.tok-typeName,
+.tok-className,
+.tok-attributeName {
+  color: #ffcb6b;
+}
+.tok-tagName {
+  color: #f07178;
+}
+.tok-meta {
+  color: #89ddff;
+}
+.tok-invalid {
+  color: var(--zn-danger);
+}
+
+.zn-rendered blockquote {
+  padding: 0.1em 1em;
+  border-left: 3px solid var(--zn-accent-dim);
+  color: var(--zn-text-muted);
+}
+
+.zn-rendered hr {
+  height: 1px;
+  margin: 1.6em 0;
+  border: none;
+  background: var(--zn-border);
+}
+
+.zn-rendered table {
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.zn-rendered th,
+.zn-rendered td {
+  padding: 6px 12px;
+  border: 1px solid #262632;
+}
+
+.zn-rendered th {
+  background: var(--zn-bg-raised);
+  color: var(--zn-text-strong);
+  font-weight: 600;
+}
+
+.zn-rendered img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+.zn-math-block {
+  margin: 0.8em 0;
+  overflow-x: auto;
+}
+
+/* Front matter shown as properties */
+.zn-properties {
+  margin-bottom: 1.2em;
+  padding: 8px 12px;
+  border: 1px solid var(--zn-border);
+  border-radius: 8px;
+  font-size: 0.9em;
+}
+
+.zn-prop {
+  display: flex;
+  gap: 12px;
+}
+
+.zn-prop-key {
+  min-width: 110px;
+  color: var(--zn-text-muted);
+}
+
+.zn-prop-cont {
+  padding-left: 122px;
+  color: var(--zn-text-muted);
+}
+
+/* Footnotes */
+.zn-rendered .footnotes {
+  margin-top: 2em;
+  color: var(--zn-text-muted);
+  font-size: 0.9em;
+}
+
+.zn-rendered .footnote-ref a {
+  font-size: 0.8em;
+}
+
+/* Callouts: --callout is the type's colour as "r, g, b". */
+.callout {
+  --callout: 96, 165, 250;
+  margin: 0.8em 0;
+  padding: 10px 14px;
+  border-left: 3px solid rgb(var(--callout));
+  border-radius: 8px;
+  background: rgba(var(--callout), 0.09);
+}
+
+.callout-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgb(var(--callout));
+  font-weight: 650;
+}
+
+.callout-icon {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgb(var(--callout));
+}
+
+details.callout > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+details.callout > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.callout > summary .callout-title::after {
+  content: "\203A";
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+
+details.callout[open] > summary .callout-title::after {
+  transform: rotate(90deg);
+}
+
+.callout-content > :first-child {
+  margin-top: 0.4em;
+}
+
+.callout-content > :last-child {
+  margin-bottom: 0;
+}
+
+.callout[data-callout="abstract"],
+.callout[data-callout="summary"],
+.callout[data-callout="tldr"],
+.callout[data-callout="tip"],
+.callout[data-callout="hint"],
+.callout[data-callout="important"] {
+  --callout: 34, 211, 238;
+}
+.callout[data-callout="success"],
+.callout[data-callout="check"],
+.callout[data-callout="done"] {
+  --callout: 74, 222, 128;
+}
+.callout[data-callout="question"],
+.callout[data-callout="help"],
+.callout[data-callout="faq"],
+.callout[data-callout="warning"],
+.callout[data-callout="caution"],
+.callout[data-callout="attention"] {
+  --callout: 251, 146, 60;
+}
+.callout[data-callout="failure"],
+.callout[data-callout="fail"],
+.callout[data-callout="missing"],
+.callout[data-callout="danger"],
+.callout[data-callout="error"],
+.callout[data-callout="bug"] {
+  --callout: 248, 113, 113;
+}
+.callout[data-callout="example"] {
+  --callout: 167, 139, 250;
+}
+.callout[data-callout="quote"],
+.callout[data-callout="cite"] {
+  --callout: 160, 160, 176;
+}
+
+/* Embeds */
+.zn-embed-note {
+  margin: 0.6em 0;
+  padding: 4px 14px 8px;
+  border-left: 3px solid var(--zn-accent-strong);
+  border-radius: 0 8px 8px 0;
+  background: rgba(139, 92, 246, 0.05);
+}
+
+.zn-embed-header {
+  padding: 4px 0;
+  font-size: 0.85em;
+}
+
+.zn-embed-header .zn-internal {
+  color: var(--zn-text-muted);
+}
+
+.zn-embed-missing {
+  color: var(--zn-text-faint);
+  font-size: 0.9em;
+  font-style: italic;
+}
+
+.zn-embed-image,
+.zn-embed-video {
+  display: block;
+  max-width: 100%;
+  margin: 0.4em 0;
+  border-radius: 6px;
+}
+
+.zn-embed-audio {
+  display: block;
+  width: min(100%, 480px);
+  margin: 0.4em 0;
+}
+
+.zn-embed-pdf {
+  display: block;
+  width: 100%;
+  height: 70vh;
+  margin: 0.4em 0;
+  border: 1px solid var(--zn-border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.zn-embed-file {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid var(--zn-border);
+  border-radius: 6px;
+}
+
+/* Mermaid diagrams */
+.zn-mermaid {
+  margin: 0.8em 0;
+  text-align: center;
+}
+
+.zn-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.zn-diagram-error {
+  padding: 8px 12px;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  border-radius: 6px;
+  color: #fecaca;
+  font-family: var(--zn-font-mono);
+  font-size: 0.85em;
+  text-align: left;
+  white-space: pre-wrap;
+}

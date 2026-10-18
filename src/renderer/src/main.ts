@@ -1,4 +1,6 @@
+import 'katex/dist/katex.min.css'
 import './styles.css'
+import './styles/reading.css'
 import { App } from './app'
 
 // Anything that slips past local error handling goes to the app log.

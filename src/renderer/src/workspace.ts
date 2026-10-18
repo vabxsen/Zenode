@@ -7,8 +7,9 @@ import { hideConflictBar, openCompareDialog, renderConflictBar } from './conflic
 import { openDialog } from './dialog'
 import { createEditorState, fromDisk } from './editor/editor'
 import type { LinkTarget } from './editor/linkCompletion'
-import { linksChanged } from './editor/livePreview'
+import { linksChanged, setSourceMode } from './editor/livePreview'
 import { icon } from './icons'
+import { renderInto, type ReadingContext } from './render/reading'
 
 const SAVE_DELAY = 600
 // Unsaved text still unsaved after this long goes to the crash-recovery journal
@@ -51,6 +52,9 @@ interface Tab {
   // Crash recovery: pending journal write, and whether an entry exists for this tab.
   journalTimer: number | null
   journaled: boolean
+  // Reading view (rendered, read-only) and Source mode (plain Markdown) for note tabs.
+  reading: boolean
+  source: boolean
 }
 
 export const VIEW_PREFIX = 'zenode:'
@@ -74,6 +78,8 @@ export interface WorkspaceHost {
   onError(message: string): void
   // Text about to be thrown away (the user chose another version): keep a copy.
   preserve(path: string, text: string): void
+  // Links, embeds and clicks for a note shown in Reading view.
+  readingContext(path: string): Omit<ReadingContext, 'sourcePath' | 'onToggleTask'>
 }
 
 // Notes bigger than this (in characters) ask before opening: the live editor
@@ -105,6 +111,8 @@ export class Workspace extends Component {
   private readonly tabbarEl: HTMLElement
   private readonly conflictEl: HTMLElement
   private readonly editorEl: HTMLElement
+  private readonly readingEl: HTMLElement
+  private defaultView: 'live' | 'source' | 'reading' = 'live'
   private readonly viewsEl: HTMLElement
   private readonly emptyEl: HTMLElement
   private statsTimer: number | null = null
@@ -118,6 +126,8 @@ export class Workspace extends Component {
     this.conflictEl = el('div', 'zn-conflict', container)
     this.conflictEl.style.display = 'none'
     this.editorEl = el('div', 'zn-editor', container)
+    this.readingEl = el('div', 'zn-reading', container)
+    this.readingEl.tabIndex = -1
     this.viewsEl = el('div', 'zn-views', container)
     this.emptyEl = el('div', 'zn-empty', container)
     const inner = el('div', 'zn-empty-inner', this.emptyEl)
@@ -140,7 +150,74 @@ export class Workspace extends Component {
   }
 
   focus(): void {
-    if (this.active?.kind === 'note') this.view.focus()
+    if (this.active?.kind !== 'note') return
+    if (this.active.reading) this.readingEl.focus({ preventScroll: true })
+    else this.view.focus()
+  }
+
+  // ---------- Reading view and Source mode ----------
+
+  // How newly opened notes are shown (from settings).
+  setDefaultView(view: 'live' | 'source' | 'reading'): void {
+    this.defaultView = view
+  }
+
+  // Ctrl+E: switch the active note between editing and Reading view.
+  toggleReading(): void {
+    const tab = this.active
+    if (tab?.kind !== 'note') return
+    if (!tab.reading) tab.state = this.view.state
+    tab.reading = !tab.reading
+    this.render()
+    if (tab.reading) void this.renderReading(tab)
+    this.focus()
+  }
+
+  // Switch the active note between Live Preview and plain Markdown (Source mode).
+  toggleSource(): void {
+    const tab = this.active
+    if (tab?.kind !== 'note') return
+    if (tab.reading) {
+      tab.reading = false
+      this.render()
+    }
+    tab.source = !tab.source
+    this.view.dispatch({ effects: setSourceMode.of(tab.source) })
+    this.focus()
+  }
+
+  activeMode(): 'live' | 'source' | 'reading' | null {
+    const tab = this.active
+    if (tab?.kind !== 'note') return null
+    return tab.reading ? 'reading' : tab.source ? 'source' : 'live'
+  }
+
+  private async renderReading(tab: Tab): Promise<void> {
+    if (tab !== this.active || !tab.reading) return
+    const top = this.readingEl.scrollTop
+    const body = el('div', 'zn-reading-body')
+    await renderInto(body, this.docOf(tab), {
+      ...this.host.readingContext(tab.path),
+      sourcePath: tab.path,
+      onToggleTask: (line, checked) => this.toggleTask(tab, line, checked)
+    })
+    if (tab !== this.active || !tab.reading) return
+    this.readingEl.replaceChildren(body)
+    this.readingEl.scrollTop = top
+  }
+
+  // A task checkbox clicked in Reading view: flip "[ ]" / "[x]" on that line.
+  private toggleTask(tab: Tab, line: number, checked: boolean): void {
+    const state = tab === this.active ? this.view.state : tab.state!
+    if (line < 0 || line >= state.doc.lines) return
+    const text = state.doc.line(line + 1)
+    const m = /^(s*(?:[-*+]|d+[.)])s+[)([ xX])]/.exec(text.text)
+    if (!m) return
+    const at = text.from + m[1].length
+    const spec = { changes: { from: at, to: at + 1, insert: checked ? 'x' : ' ' } }
+    if (tab === this.active) this.view.dispatch(spec)
+    else tab.state = state.update(spec).state
+    void this.renderReading(tab)
   }
 
   openView(view: WorkspaceView): void {
@@ -152,7 +229,7 @@ export class Workspace extends Component {
     }
     this.viewsEl.appendChild(view.el)
     view.hide()
-    const tab: Tab = { path: view.id, kind: 'view', state: null, view, lastSaved: '', dirty: false, timer: null, conflict: null, saving: null, journalTimer: null, journaled: false }
+    const tab: Tab = { path: view.id, kind: 'view', state: null, view, lastSaved: '', dirty: false, timer: null, conflict: null, saving: null, journalTimer: null, journaled: false, reading: false, source: false }
     const at = this.active ? this.tabs.indexOf(this.active) + 1 : this.tabs.length
     this.tabs.splice(at, 0, tab)
     this.activate(tab)
@@ -190,7 +267,7 @@ export class Workspace extends Component {
 
   // A new, active note tab showing `content` (the file as it is on disk).
   private addNoteTab(path: string, content: string): Tab {
-    const tab: Tab = { path, kind: 'note', state: null, view: null, lastSaved: content, dirty: false, timer: null, conflict: null, saving: null, journalTimer: null, journaled: false }
+    const tab: Tab = { path, kind: 'note', state: null, view: null, lastSaved: content, dirty: false, timer: null, conflict: null, saving: null, journalTimer: null, journaled: false, reading: false, source: false }
     tab.state = createEditorState(content, {
       onChange: () => this.onEdited(tab),
       onOpenLink: (href) => this.host.onOpenLink(href, tab.path),
@@ -199,6 +276,9 @@ export class Workspace extends Component {
       isResolved: (link) => this.host.isResolved(link, tab.path),
       linkTargets: () => this.host.linkTargets(tab.path)
     })
+    tab.reading = this.defaultView === 'reading'
+    tab.source = this.defaultView === 'source'
+    if (tab.source) tab.state = tab.state.update({ effects: setSourceMode.of(true) }).state
     const at = this.active ? this.tabs.indexOf(this.active) + 1 : this.tabs.length
     this.tabs.splice(at, 0, tab)
     this.activate(tab)
@@ -291,10 +371,11 @@ export class Workspace extends Component {
     if (tab.kind === 'note') this.view.setState(tab.state!)
     this.render()
     if (tab.kind === 'view') tab.view!.show()
+    if (tab.reading) void this.renderReading(tab)
     this.updateStats()
     this.host.onActiveChange(this.activePath, this.titleOf(tab))
     this.host.onLayoutChange()
-    if (tab.kind === 'note') requestAnimationFrame(() => this.view.focus())
+    if (tab.kind === 'note') requestAnimationFrame(() => this.focus())
   }
 
   private titleOf(tab: Tab): string {
@@ -452,6 +533,7 @@ export class Workspace extends Component {
     if (tab === this.active) {
       this.view.dispatch(spec)
       this.updateStats()
+      if (tab.reading) void this.renderReading(tab)
     } else {
       tab.state = state.update(spec).state
     }
@@ -641,7 +723,9 @@ export class Workspace extends Component {
     }
     this.renderConflict()
     const kind = this.active?.kind
-    this.editorEl.style.display = kind === 'note' ? '' : 'none'
+    const reading = kind === 'note' && this.active!.reading
+    this.editorEl.style.display = kind === 'note' && !reading ? '' : 'none'
+    this.readingEl.style.display = reading ? '' : 'none'
     this.viewsEl.style.display = kind === 'view' ? '' : 'none'
     this.emptyEl.style.display = kind ? 'none' : ''
     this.tabbarEl.classList.toggle('is-empty', this.tabs.length === 0)

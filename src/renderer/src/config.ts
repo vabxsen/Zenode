@@ -9,6 +9,53 @@ const MODIFIERS = new Set<Modifier>(['Mod', 'Ctrl', 'Shift', 'Alt'])
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const isString = (v: unknown): v is string => typeof v === 'string'
 
+// .zenode/app.json
+export type DefaultView = 'live' | 'source' | 'reading'
+
+export interface EditorSettings {
+  // How notes open: Live Preview, Source (plain Markdown) or Reading view.
+  defaultView: DefaultView
+  spellcheck: boolean
+  // Where pasted or dropped files go: '' = vault root, './' = the note's folder,
+  // './name' = a subfolder of the note's folder, anything else = that vault folder.
+  attachmentFolder: string
+}
+
+export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
+  defaultView: 'live',
+  spellcheck: true,
+  attachmentFolder: ''
+}
+
+const VIEWS = new Set<DefaultView>(['live', 'source', 'reading'])
+
+export function sanitizeEditorSettings(raw: unknown): EditorSettings {
+  const d = DEFAULT_EDITOR_SETTINGS
+  if (!isRecord(raw)) return { ...d }
+  return {
+    defaultView: VIEWS.has(raw.defaultView as DefaultView) ? (raw.defaultView as DefaultView) : d.defaultView,
+    spellcheck: typeof raw.spellcheck === 'boolean' ? raw.spellcheck : d.spellcheck,
+    attachmentFolder: isString(raw.attachmentFolder) ? cleanFolder(raw.attachmentFolder) : d.attachmentFolder
+  }
+}
+
+function cleanFolder(value: string): string {
+  const s = value.trim().replace(/\\/g, '/')
+  if (s === '.' || s === './') return './'
+  return s.replace(/^\/+|\/+$/g, '')
+}
+
+// The folder a pasted/dropped file goes in, for a note at `notePath`.
+export function attachmentDir(setting: string, notePath: string): string {
+  const noteDir = notePath.includes('/') ? notePath.slice(0, notePath.lastIndexOf('/')) : ''
+  if (setting === './') return noteDir
+  if (setting.startsWith('./')) {
+    const sub = setting.slice(2)
+    return noteDir ? `${noteDir}/${sub}` : sub
+  }
+  return setting
+}
+
 export function sanitizeWorkspace(raw: unknown): WorkspaceState | null {
   if (!isRecord(raw)) return null
   const openFiles = Array.isArray(raw.openFiles) ? raw.openFiles.filter(isString) : []

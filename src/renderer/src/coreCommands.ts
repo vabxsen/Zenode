@@ -14,6 +14,10 @@ export interface CoreActions {
   // Only when a file is open.
   hasActiveFile(): boolean
   showHistory(): void
+  // Only when a note (not a canvas or the graph) is active.
+  hasActiveNote(): boolean
+  toggleReading(): void
+  toggleSource(): void
   save(): void
   closeTab(): void
   cycleTab(step: 1 | -1): void
@@ -82,6 +86,25 @@ export function registerCoreCommands(registry: CommandRegistry, a: CoreActions):
       checkCallback: (checking) => {
         if (!a.hasActiveFile()) return false
         if (!checking) a.showHistory()
+        return true
+      }
+    }),
+    registry.register({
+      id: 'editor:toggle-reading',
+      name: 'Toggle Reading view',
+      hotkeys: [{ modifiers: ['Mod'], key: 'e' }],
+      checkCallback: (checking) => {
+        if (!a.hasActiveNote()) return false
+        if (!checking) a.toggleReading()
+        return true
+      }
+    }),
+    registry.register({
+      id: 'editor:toggle-source',
+      name: 'Toggle Source mode (plain Markdown)',
+      checkCallback: (checking) => {
+        if (!a.hasActiveNote()) return false
+        if (!checking) a.toggleSource()
         return true
       }
     }),

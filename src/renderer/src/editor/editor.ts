@@ -6,7 +6,7 @@ import { Annotation, EditorState, type Extension } from '@codemirror/state'
 import { drawSelection, dropCursor, EditorView, highlightActiveLine, keymap } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
 import { wikiLinkCompletion, type LinkTarget } from './linkCompletion'
-import { livePreview } from './livePreview'
+import { livePreview, sourceMode } from './livePreview'
 import { frontmatterSyntax, hashtagSyntax, wikiLinkSyntax } from './wikilink'
 
 // Marks transactions that load content from disk, so they don't count as edits.
@@ -90,6 +90,7 @@ export function createEditorState(doc: string, cb: EditorCallbacks, extra: Exten
       EditorState.languageData.of(() => [{ closeBrackets: { brackets: ['(', '[', '{', '"'] } }]),
       syntaxHighlighting(highlight),
       theme,
+      sourceMode,
       livePreview({
         onOpenLink: cb.onOpenLink,
         onOpenWikiLink: cb.onOpenWikiLink,

@@ -2,5 +2,6 @@
 import { report } from './harness'
 import './index.test'
 import './safety.test'
+import './render.test'
 
 report()

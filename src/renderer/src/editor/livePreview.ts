@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language'
-import { StateEffect, type EditorState, type Range } from '@codemirror/state'
+import { StateEffect, StateField, type EditorState, type Range } from '@codemirror/state'
 import {
   Decoration,
   EditorView,
@@ -91,6 +91,16 @@ export interface LivePreviewOptions {
 // Dispatch this when the vault's links change, so resolved/unresolved styling refreshes.
 export const linksChanged = StateEffect.define<null>()
 
+// Source mode: plain Markdown with syntax colouring, nothing hidden or rendered.
+export const setSourceMode = StateEffect.define<boolean>()
+export const sourceMode = StateField.define<boolean>({
+  create: () => false,
+  update(value, tr) {
+    for (const e of tr.effects) if (e.is(setSourceMode)) value = e.value
+    return value
+  }
+})
+
 function touches(state: EditorState, focused: boolean, from: number, to: number): boolean {
   if (!focused) return false
   for (const r of state.selection.ranges) {
@@ -163,6 +173,7 @@ function wikiDecorations(
 
 function buildDecorations(view: EditorView, options: LivePreviewOptions): DecorationSet {
   const { state } = view
+  if (state.field(sourceMode, false)) return Decoration.none
   const focused = view.hasFocus
   const out: Range<Decoration>[] = []
   const doc = state.doc
@@ -340,6 +351,7 @@ export function livePreview(options: LivePreviewOptions) {
           u.selectionSet ||
           u.focusChanged ||
           syntaxTree(u.state) !== syntaxTree(u.startState) ||
+          u.state.field(sourceMode, false) !== u.startState.field(sourceMode, false) ||
           u.transactions.some((tr) => tr.effects.some((e) => e.is(linksChanged)))
         ) {
           this.decorations = buildDecorations(u.view, options)

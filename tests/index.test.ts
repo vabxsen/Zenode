@@ -8,7 +8,7 @@ import { CanvasParseError, canvasRefs, contains, facingSide, parseCanvas, serial
 import { CommandRegistry, hotkeyFromEvent, hotkeyLabel } from '../src/renderer/src/commands'
 import { registerCoreCommands } from '../src/renderer/src/coreCommands'
 import { parseCanvasMeta } from '../src/renderer/src/index/canvasMeta'
-import { sanitizeHotkeys, sanitizeWorkspace } from '../src/renderer/src/config'
+import { attachmentDir, sanitizeEditorSettings, sanitizeHotkeys, sanitizeWorkspace } from '../src/renderer/src/config'
 import { CanvasDocument } from '../src/renderer/src/canvas/canvasDocument'
 import { configPath, readConfig, writeConfig } from '../src/main/config'
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
@@ -200,7 +200,7 @@ eq('commands: duplicate id rejected', dup, true)
 const core = new CommandRegistry()
 const calls: string[] = []
 const noop = (n: string) => () => { calls.push(n) }
-const dispose = registerCoreCommands(core, { hasVault: () => false, chooseVault: noop('choose'), openSwitcher: noop('switcher'), showSearch: noop('search'), openGraph: noop('graph'), toggleLeftSidebar: noop('left'), toggleRightSidebar: noop('right'), newNote: noop('note'), newCanvas: noop('canvas'), hasActiveFile: () => false, showHistory: noop('history'), save: noop('save'), closeTab: noop('close'), cycleTab: noop('cycle') })
+const dispose = registerCoreCommands(core, { hasVault: () => false, chooseVault: noop('choose'), openSwitcher: noop('switcher'), showSearch: noop('search'), openGraph: noop('graph'), toggleLeftSidebar: noop('left'), toggleRightSidebar: noop('right'), newNote: noop('note'), newCanvas: noop('canvas'), hasActiveFile: () => false, showHistory: noop('history'), hasActiveNote: () => false, toggleReading: noop('reading'), toggleSource: noop('source'), save: noop('save'), closeTab: noop('close'), cycleTab: noop('cycle') })
 core.execute(core.match(key('o', { ctrl: true }))!.id)
 eq('core commands: Ctrl+O without a vault picks one', [calls, core.match(key('n', { ctrl: true }))], [['choose'], null])
 dispose()
@@ -233,6 +233,12 @@ eq('canvas doc: topmost card under a point', cdoc.nodeAt({ x: 410, y: 10 })?.id,
 cdoc.clearSelection()
 const newGroup = cdoc.groupSelection({ x: 0, y: 0 })
 eq('canvas doc: grouping with nothing selected makes an empty group at the centre', [newGroup.type, newGroup.width, newGroup.height], ['group', 480, 380])
+
+// Editor settings (.zenode/app.json).
+eq('editor settings: defaults', sanitizeEditorSettings(null), { defaultView: 'live', spellcheck: true, attachmentFolder: '' })
+eq('editor settings: bad values fall back', sanitizeEditorSettings({ defaultView: 'weird', spellcheck: 'yes', attachmentFolder: 5 }), { defaultView: 'live', spellcheck: true, attachmentFolder: '' })
+eq('editor settings: folders cleaned', ['./', '.', '\\Assets\\', './img/'].map((f) => sanitizeEditorSettings({ attachmentFolder: f }).attachmentFolder), ['./', './', 'Assets', './img'])
+eq('attachment dir', [attachmentDir('', 'A/B/n.md'), attachmentDir('./', 'A/n.md'), attachmentDir('./img', 'A/n.md'), attachmentDir('./img', 'n.md'), attachmentDir('Assets', 'A/n.md')], ['', 'A', 'A/img', 'img', 'Assets'])
 
 // Per-vault config (.zenode/*.json).
 eq('config: workspace sanitized', sanitizeWorkspace({ openFiles: ['a.md', 3, null], activeFile: 7 }), { openFiles: ['a.md'], activeFile: null })

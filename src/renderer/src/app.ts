@@ -2,7 +2,7 @@ import type { TreeEntry, VaultInfo } from '../../shared/api'
 import { BacklinksPanel } from './backlinks'
 import { CanvasView, type CanvasHost } from './canvas/canvasView'
 import { CommandRegistry } from './commands'
-import { sanitizeHotkeys, sanitizeWorkspace } from './config'
+import { DEFAULT_EDITOR_SETTINGS, sanitizeEditorSettings, sanitizeHotkeys, sanitizeWorkspace, type EditorSettings } from './config'
 import { Component, el } from './component'
 import { registerCoreCommands } from './coreCommands'
 import type { LinkTarget } from './editor/linkCompletion'
@@ -34,6 +34,7 @@ type RightPane = 'backlinks' | 'localGraph'
 
 export class App extends Component {
   readonly commands = new CommandRegistry()
+  private editorSettings: EditorSettings = { ...DEFAULT_EDITOR_SETTINGS }
   private vault: VaultInfo | null = null
   private shell: Component | null = null
   private tree: FileTree | null = null
@@ -137,6 +138,8 @@ export class App extends Component {
     await this.refreshTree()
 
     this.commands.setCustomHotkeys(sanitizeHotkeys(await api.readConfig('hotkeys')))
+    this.editorSettings = sanitizeEditorSettings(await api.readConfig('app'))
+    this.workspace?.setDefaultView(this.editorSettings.defaultView)
     // Open tabs live in .zenode/workspace.json; older versions kept them in the app settings.
     const ws = sanitizeWorkspace(await api.readConfig('workspace')) ?? (await api.getSettings()).workspaces[info.root]
     if (ws) {
@@ -247,7 +250,14 @@ export class App extends Component {
         },
         onLayoutChange: () => this.saveLayoutSoon(),
         onError: (msg) => this.notice(msg),
-        preserve: (path, text) => this.preserve(path, text)
+        preserve: (path, text) => this.preserve(path, text),
+        readingContext: (path) => ({
+          resolve: (link, from) => cache.resolve(link, from),
+          readNote: async (p) => cache.getNote(p)?.content ?? (await api.read(p).catch(() => null)),
+          onOpenWikiLink: (target, from) => void this.openWikiLink(target, from),
+          onOpenLink: (href) => void this.openLink(href, path),
+          onOpenTag: (tag) => this.showSearch(`tag:${tag}`)
+        })
       })
     )
 
@@ -724,6 +734,9 @@ export class App extends Component {
       newNote: () => void this.newNote(this.currentDir()),
       newCanvas: () => void this.newCanvas(this.currentDir()),
       hasActiveFile: () => !!this.workspace?.activePath,
+      hasActiveNote: () => this.workspace?.activeMode() != null,
+      toggleReading: () => this.workspace?.toggleReading(),
+      toggleSource: () => this.workspace?.toggleSource(),
       showHistory: () => void this.showHistory(this.workspace?.activePath ?? ''),
       save: () => void ws().save(),
       closeTab: () => void ws().close(),
