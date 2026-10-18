@@ -2,6 +2,7 @@ import type { TreeEntry } from '../../../shared/api'
 import { baseName, isMarkdown, joinPath, parentDir, relativePath, stripMd } from '../paths'
 import { parseCanvas, serializeCanvas } from '../canvas/model'
 import { isCanvasPath, parseCanvasMeta } from './canvasMeta'
+import type { CachedNote, IndexSnapshot } from './indexStore'
 import { parseNote, type LinkRef, type NoteMeta } from './parser'
 
 export interface IndexedNote {
@@ -37,12 +38,27 @@ export interface PendingRename {
 
 const READ_BATCH = 200
 
+interface FileStat {
+  mtime: number
+  size: number
+}
+
+export interface BuildStats {
+  // Notes taken from the saved index, and notes read and parsed from disk.
+  reused: number
+  read: number
+}
+
 // In-memory index of every note: content, parsed metadata, resolved links and backlinks.
 export class MetadataCache {
   private notes = new Map<string, IndexedNote>()
   private files = new Map<string, string>() // lower-case path -> path, every file in the vault
   private byName = new Map<string, string[]>() // lower-case file name -> paths
   private backlinkIndex = new Map<string, Set<string>>() // target -> sources
+  private stats = new Map<string, FileStat>() // path -> stats from the latest listing
+  // Notes whose content was read when the file had these stats: only those are
+  // saved for the next launch (anything re-read later is simply read again then).
+  private readStats = new Map<string, FileStat>()
   resolvedLinks: Record<string, Record<string, number>> = {}
   unresolvedLinks: Record<string, Record<string, number>> = {}
   private worker: Worker | null = null
@@ -96,34 +112,63 @@ export class MetadataCache {
 
   // ---------- Building ----------
 
-  async build(tree: TreeEntry[]): Promise<void> {
+  // Indexes the vault, reusing notes from `saved` whose file hasn't changed.
+  async build(tree: TreeEntry[], saved: IndexSnapshot | null = null): Promise<BuildStats> {
     this.notes.clear()
+    this.readStats.clear()
     this.setFiles(tree)
-    const mdPaths = [...this.files.values()].filter(isIndexable)
-    for (let i = 0; i < mdPaths.length; i += READ_BATCH) {
-      const contents = await window.zenode.readMany(mdPaths.slice(i, i + READ_BATCH))
-      const batch = Object.entries(contents).filter((e): e is [string, string] => e[1] !== null)
-      for (const [path, meta, searchText] of await this.parse(batch)) {
-        this.notes.set(path, { path, content: contents[path]!, searchText, meta })
+    const cached = new Map((saved?.notes ?? []).map((n) => [n.path, n]))
+    const toRead: string[] = []
+    for (const path of this.files.values()) {
+      if (!isIndexable(path)) continue
+      const stat = this.stats.get(path)
+      const c = cached.get(path)
+      if (stat && c && c.mtime === stat.mtime && c.size === stat.size) {
+        this.notes.set(path, { path, content: c.content, searchText: c.searchText ?? c.content, meta: c.meta })
+        this.readStats.set(path, stat)
+      } else {
+        toRead.push(path)
       }
     }
+    for (let i = 0; i < toRead.length; i += READ_BATCH) await this.readAndParse(toRead.slice(i, i + READ_BATCH))
     this.resolveAll()
     this.emit(null)
+    return { reused: this.notes.size - toRead.length, read: toRead.length }
+  }
+
+  // Notes to save for the next launch.
+  snapshot(): CachedNote[] {
+    const out: CachedNote[] = []
+    for (const [path, stat] of this.readStats) {
+      const note = this.notes.get(path)
+      if (!note) continue
+      out.push({ path, mtime: stat.mtime, size: stat.size, content: note.content, meta: note.meta, searchText: isCanvasPath(path) ? note.searchText : undefined })
+    }
+    return out
+  }
+
+  // Reads and parses files whose stats come from the current listing.
+  private async readAndParse(paths: string[]): Promise<void> {
+    const contents = await window.zenode.readMany(paths)
+    const batch = Object.entries(contents).filter((e): e is [string, string] => e[1] !== null)
+    for (const [path, meta, searchText] of await this.parse(batch)) {
+      this.notes.set(path, { path, content: contents[path]!, searchText, meta })
+      const stat = this.stats.get(path)
+      if (stat) this.readStats.set(path, stat)
+    }
   }
 
   // Reconcile with a fresh file tree: index new notes, drop deleted ones.
   async sync(tree: TreeEntry[]): Promise<void> {
     this.setFiles(tree)
     const present = new Set(this.files.values())
-    for (const path of [...this.notes.keys()]) if (!present.has(path)) this.notes.delete(path)
-    const added = [...present].filter((p) => isIndexable(p) && !this.notes.has(p))
-    if (added.length) {
-      const contents = await window.zenode.readMany(added)
-      const batch = Object.entries(contents).filter((e): e is [string, string] => e[1] !== null)
-      for (const [path, meta, searchText] of await this.parse(batch)) {
-        this.notes.set(path, { path, content: contents[path]!, searchText, meta })
-      }
+    for (const path of [...this.notes.keys()]) {
+      if (present.has(path)) continue
+      this.notes.delete(path)
+      this.readStats.delete(path)
     }
+    const added = [...present].filter((p) => isIndexable(p) && !this.notes.has(p))
+    if (added.length) await this.readAndParse(added)
     this.resolveAll()
     this.emit(null)
   }
@@ -144,6 +189,8 @@ export class MetadataCache {
   async setContent(path: string, content: string): Promise<void> {
     const [[, meta, searchText]] = await this.parse([[path, content]])
     this.notes.set(path, { path, content, searchText, meta })
+    // Its stats on disk are unknown now, so it's read afresh next launch.
+    this.readStats.delete(path)
     this.resolveSource(path)
     this.emit(path)
   }
@@ -151,6 +198,7 @@ export class MetadataCache {
   private setFiles(tree: TreeEntry[]): void {
     this.files.clear()
     this.byName.clear()
+    this.stats.clear()
     const walk = (entries: TreeEntry[]): void => {
       for (const e of entries) {
         if (e.kind === 'folder') {
@@ -158,6 +206,7 @@ export class MetadataCache {
           continue
         }
         this.files.set(e.path.toLowerCase(), e.path)
+        if (e.mtime !== undefined && e.size !== undefined) this.stats.set(e.path, { mtime: e.mtime, size: e.size })
         const key = e.name.toLowerCase()
         const list = this.byName.get(key)
         if (list) list.push(e.path)

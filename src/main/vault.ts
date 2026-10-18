@@ -66,7 +66,8 @@ export class Vault {
             kind: 'file',
             ext: extname(d.name).slice(1).toLowerCase(),
             mtime: stat?.mtimeMs,
-            ctime: stat?.birthtimeMs
+            ctime: stat?.birthtimeMs,
+            size: stat?.size
           })
         }
       })

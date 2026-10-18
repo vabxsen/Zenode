@@ -10,6 +10,8 @@ export interface TreeEntry {
   // Files only: last modified and created (ms since 1970), for sorting.
   mtime?: number
   ctime?: number
+  // Bytes; with mtime it tells the index cache whether a file changed.
+  size?: number
 }
 
 export interface VaultInfo {

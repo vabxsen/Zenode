@@ -12,6 +12,8 @@ import { GRAPH_ID, makeGraphTab } from './graph/graphTab'
 import type { GraphView } from './graph/graphView'
 import { icon, type IconName } from './icons'
 import { isCanvasPath } from './index/canvasMeta'
+import { IndexSaver } from './index/indexSaver'
+import { loadIndexSnapshot } from './index/indexStore'
 import { MetadataCache } from './index/metadataCache'
 import { splitLinktext } from './index/parser'
 import { openFileRecovery, restoreVersion } from './fileRecovery'
@@ -82,6 +84,7 @@ export class App extends Component {
   private treeTimer: number | null = null
   private layoutTimer: number | null = null
   private indexBuilt = false
+  private indexSaver: IndexSaver | null = null
   private indexChain: Promise<void> = Promise.resolve()
   private recent: string[] = []
 
@@ -94,6 +97,7 @@ export class App extends Component {
     api.onBeforeClose(async () => {
       await this.workspace?.saveAll()
       await this.saveLayoutNow()
+      await this.indexSaver?.saveNow()
     })
     api.onVaultChanged((paths) => this.onVaultChanged(paths))
     this.register(this.registerCommands())
@@ -196,6 +200,8 @@ export class App extends Component {
 
   private teardownShell(): void {
     if (this.shell) this.removeChild(this.shell)
+    this.indexSaver?.dispose()
+    this.indexSaver = null
     this.cache?.dispose()
     this.shell = null
     this.tree = null
@@ -477,13 +483,27 @@ export class App extends Component {
     }
     this.tree.setTree(entries)
     const cache = this.cache
-    if (!this.indexBuilt) {
-      await this.queueIndex(async () => {
-        await cache.build(entries)
-        this.indexBuilt = true
-      })
-    } else {
-      await this.queueIndex(() => cache.sync(entries))
+    // Decided inside the queue, so a refresh that arrives during the first
+    // build syncs afterwards instead of building the whole index again.
+    await this.queueIndex(() => (this.indexBuilt ? cache.sync(entries) : this.buildIndex(cache, entries)))
+  }
+
+  private async buildIndex(cache: MetadataCache, entries: TreeEntry[]): Promise<void> {
+    const started = performance.now()
+    this.root.dataset.index = 'building'
+    const vaultId = this.vault!.id
+    const { reused, read } = await cache.build(entries, await loadIndexSnapshot(vaultId))
+    this.indexBuilt = true
+    // Read by the benchmark and the tests; the log line helps with slow-start reports.
+    this.root.dataset.index = 'ready'
+    const ms = Math.round(performance.now() - started)
+    void api.log('info', `Indexed ${reused + read} notes in ${ms} ms (${reused} from the saved index)`).catch(() => undefined)
+    this.indexSaver?.dispose()
+    this.indexSaver = new IndexSaver(cache, vaultId, (m) => void api.log('warn', m).catch(() => undefined))
+    // Files had to be read: save the index now for the next launch.
+    if (read) {
+      this.indexSaver.changed()
+      void this.indexSaver.saveNow()
     }
   }
 
