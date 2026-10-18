@@ -22,9 +22,15 @@ test('a folder with many files draws only the rows in view', async ({ page, vaul
 
   // Opening a far-away note from the switcher, then revealing it, scrolls the tree there.
   await page.locator('.zn-sidebar-tree').evaluate((el) => (el.scrollTop = 0))
-  await page.keyboard.press('Control+o')
-  await page.locator('.zn-switcher-input').fill('Item 0600')
+  // The switcher lists indexed notes, so reopen it until the new files are in.
+  await expect(async () => {
+    if (await page.locator('.zn-switcher-input').count()) await page.keyboard.press('Escape')
+    await page.keyboard.press('Control+o')
+    await page.locator('.zn-switcher-input').fill('Item 0600')
+    await expect(page.locator('.zn-switcher-row.is-selected')).toContainText('Item 0600', { timeout: 1000 })
+  }).toPass()
   await page.keyboard.press('Enter')
+  await expect(page.locator('.zn-tabbar .is-active')).toHaveText(/Item 0600/)
   await page.keyboard.press('Control+p')
   await page.locator('.zn-switcher-input').fill('Reveal current file')
   await page.keyboard.press('Enter')
@@ -46,4 +52,28 @@ test('backlinks of a much-linked note come a page at a time', async ({ page, vau
   await page.locator('.zn-backlinks-more').click()
   await expect(groups).toHaveCount(150)
   await expect(page.locator('.zn-backlinks-more')).toHaveCount(0)
+})
+
+test('a big canvas builds card editors only for cards in view', async ({ page, vaultDir }) => {
+  const nodes = Array.from({ length: 300 }, (_, i) => ({
+    id: `c${i}`, type: 'text', text: `Card ${i}`, x: (i % 20) * 400, y: Math.floor(i / 20) * 300, width: 250, height: 120
+  }))
+  writeFileSync(join(vaultDir, 'Big.canvas'), JSON.stringify({ nodes, edges: [] }))
+  await expect(treeRow(page, 'Big')).toBeVisible()
+  const canvas = page.locator('.zn-canvas:visible')
+
+  // Opened zoomed out to fit: cards are plain shapes, no editors yet.
+  await treeRow(page, 'Big').click()
+  await expect(canvas.locator('.zn-cnode')).toHaveCount(300)
+  await expect(canvas).toHaveClass(/is-far/)
+  await expect(canvas.locator('.cm-editor')).toHaveCount(0)
+
+  // At normal zoom near the first card, only the cards around it get editors.
+  await page.evaluate(() => localStorage.setItem('zenode.canvas.view:Big.canvas', JSON.stringify({ x: 400, y: 200, scale: 1 })))
+  await page.keyboard.press('Control+w')
+  await treeRow(page, 'Big').click()
+  await expect(canvas.locator('.cm-content', { hasText: /^Card 0$/ })).toBeVisible()
+  const mounted = await canvas.locator('.cm-editor').count()
+  expect(mounted).toBeGreaterThan(0)
+  expect(mounted).toBeLessThan(60)
 })

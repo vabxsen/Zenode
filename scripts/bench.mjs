@@ -50,6 +50,29 @@ async function search(page, query) {
   return Number(/(\d+) ms$/.exec(await summary.innerText())[1])
 }
 
+// Opens the graph and measures frames while its layout runs.
+async function graph(page) {
+  await page.keyboard.press('Control+g')
+  await page.locator('.zn-graph canvas').first().waitFor({ timeout: 60000 })
+  return page.evaluate(
+    () =>
+      new Promise((done) => {
+        let frames = 0
+        let longest = 0
+        let last = performance.now()
+        const start = last
+        const tick = (now) => {
+          frames++
+          longest = Math.max(longest, now - last)
+          last = now
+          if (now - start < 3000) requestAnimationFrame(tick)
+          else done({ graphFps: Math.round(frames / ((now - start) / 1000)), graphLongestFrameMs: Math.round(longest) })
+        }
+        requestAnimationFrame(tick)
+      })
+  )
+}
+
 const results = { count }
 const step = (name) => console.error(`- ${name}`)
 try {
@@ -60,6 +83,8 @@ try {
   results.searchWords = await search(cold.page, 'lattice quiet')
   results.searchTag = await search(cold.page, 'tag:#work/launch')
   results.searchRegex = await search(cold.page, '/ledger \\w+ prism/')
+  step('graph')
+  Object.assign(results, await graph(cold.page))
   results.memoryMB = await memoryMB(cold.app)
   step('close')
   await cold.app.close()

@@ -7,22 +7,34 @@ export interface Camera {
   scale: number
 }
 
-export interface RenderNode {
+// One frame's data, in reusable typed arrays (no objects per node or edge, which
+// matters with tens of thousands of them).
+export interface GraphFrame {
+  nodeCount: number
+  // Per node: x, y, radius (world units), r, g, b, a.
+  nodes: Float32Array
+  edgeCount: number
+  // Per edge: ax, ay, bx, by, r, g, b, a, width (CSS pixels).
+  edges: Float32Array
+  // Labels that may show; the renderer draws the most important ones on screen.
+  labels: RenderLabel[]
+}
+
+export interface RenderLabel {
   x: number
   y: number
   r: number
-  color: [number, number, number, number]
-  label: string
-  labelAlpha: number
-  labelBold: boolean
+  text: string
+  alpha: number
+  bold: boolean
+  // Higher wins when there are too many to draw.
+  priority: number
 }
 
-export interface RenderEdge {
-  a: number
-  b: number
-  color: [number, number, number, number]
-  width: number
-}
+export const NODE_STRIDE = 7
+export const EDGE_STRIDE = 9
+// More labels than this on screen at once is unreadable and slow to draw.
+const MAX_LABELS = 300
 
 const NODE_VS = `#version 300 es
 layout(location = 0) in vec2 aCorner;
@@ -61,9 +73,10 @@ const EDGE_VS = `#version 300 es
 layout(location = 0) in vec2 aCorner;  // x: 0..1 along the edge, y: -1..1 across
 layout(location = 1) in vec4 aEnds;    // ax, ay, bx, by (world)
 layout(location = 2) in vec4 aColor;
-layout(location = 3) in float aWidth;  // pixels
+layout(location = 3) in float aWidth;  // CSS pixels
 uniform vec2 uRes;
 uniform vec3 uCam;
+uniform float uDpr;
 out float vAcross;
 out float vHalf;
 out vec4 vColor;
@@ -74,10 +87,11 @@ void main() {
   float len = length(dir);
   dir = len > 0.0001 ? dir / len : vec2(1.0, 0.0);
   vec2 normal = vec2(-dir.y, dir.x);
-  float halfW = aWidth * 0.5 + 1.0;
+  float width = aWidth * uDpr;
+  float halfW = width * 0.5 + 1.0;
   vec2 screen = mix(a, b, aCorner.x) + normal * aCorner.y * halfW;
   vAcross = aCorner.y * halfW;
-  vHalf = aWidth * 0.5;
+  vHalf = width * 0.5;
   vColor = aColor;
   vec2 clip = screen / uRes * 2.0 - 1.0;
   gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
@@ -121,8 +135,6 @@ export class GraphRenderer {
   private edgeVao: WebGLVertexArrayObject
   private nodeBuf: WebGLBuffer
   private edgeBuf: WebGLBuffer
-  private nodeData = new Float32Array(0)
-  private edgeData = new Float32Array(0)
   width = 0
   height = 0
   private dpr = 1
@@ -194,7 +206,7 @@ export class GraphRenderer {
     }
   }
 
-  draw(cam: Camera, nodes: RenderNode[], edges: RenderEdge[]): void {
+  draw(cam: Camera, frame: GraphFrame): void {
     const gl = this.gl
     const { dpr } = this
     gl.viewport(0, 0, this.glCanvas.width, this.glCanvas.height)
@@ -206,63 +218,51 @@ export class GraphRenderer {
     const camU = [cam.x, cam.y, cam.scale * dpr] as const
 
     // Edges first so nodes sit on top.
-    if (edges.length) {
-      if (this.edgeData.length < edges.length * 9) this.edgeData = new Float32Array(edges.length * 9 * 2)
-      const d = this.edgeData
-      edges.forEach((e, i) => {
-        const a = nodes[e.a]
-        const b = nodes[e.b]
-        const o = i * 9
-        d[o] = a.x
-        d[o + 1] = a.y
-        d[o + 2] = b.x
-        d[o + 3] = b.y
-        d.set(e.color, o + 4)
-        d[o + 8] = e.width * dpr
-      })
+    if (frame.edgeCount) {
       gl.useProgram(this.edgeProgram)
       gl.uniform2f(gl.getUniformLocation(this.edgeProgram, 'uRes'), res[0], res[1])
       gl.uniform3f(gl.getUniformLocation(this.edgeProgram, 'uCam'), camU[0], camU[1], camU[2])
+      gl.uniform1f(gl.getUniformLocation(this.edgeProgram, 'uDpr'), dpr)
       gl.bindVertexArray(this.edgeVao)
       gl.bindBuffer(gl.ARRAY_BUFFER, this.edgeBuf)
-      gl.bufferData(gl.ARRAY_BUFFER, d.subarray(0, edges.length * 9), gl.DYNAMIC_DRAW)
-      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, edges.length)
+      gl.bufferData(gl.ARRAY_BUFFER, frame.edges.subarray(0, frame.edgeCount * EDGE_STRIDE), gl.DYNAMIC_DRAW)
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, frame.edgeCount)
     }
 
-    if (nodes.length) {
-      if (this.nodeData.length < nodes.length * 7) this.nodeData = new Float32Array(nodes.length * 7 * 2)
-      const d = this.nodeData
-      nodes.forEach((n, i) => {
-        const o = i * 7
-        d[o] = n.x
-        d[o + 1] = n.y
-        d[o + 2] = n.r
-        d.set(n.color, o + 3)
-      })
+    if (frame.nodeCount) {
       gl.useProgram(this.nodeProgram)
       gl.uniform2f(gl.getUniformLocation(this.nodeProgram, 'uRes'), res[0], res[1])
       gl.uniform3f(gl.getUniformLocation(this.nodeProgram, 'uCam'), camU[0], camU[1], camU[2])
       gl.bindVertexArray(this.nodeVao)
       gl.bindBuffer(gl.ARRAY_BUFFER, this.nodeBuf)
-      gl.bufferData(gl.ARRAY_BUFFER, d.subarray(0, nodes.length * 7), gl.DYNAMIC_DRAW)
-      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, nodes.length)
+      gl.bufferData(gl.ARRAY_BUFFER, frame.nodes.subarray(0, frame.nodeCount * NODE_STRIDE), gl.DYNAMIC_DRAW)
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, frame.nodeCount)
     }
     gl.bindVertexArray(null)
+    this.drawLabels(cam, frame.labels)
+  }
 
-    // Labels.
+  private drawLabels(cam: Camera, labels: RenderLabel[]): void {
     const ctx = this.ctx
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
     ctx.clearRect(0, 0, this.width, this.height)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
-    for (const n of nodes) {
-      if (n.labelAlpha <= 0.02) continue
+    const onScreen: Array<RenderLabel & { sx: number; sy: number }> = []
+    for (const n of labels) {
+      if (n.alpha <= 0.02) continue
       const sx = (n.x - cam.x) * cam.scale + this.width / 2
       const sy = (n.y - cam.y) * cam.scale + this.height / 2 + n.r * cam.scale + 4
       if (sx < -200 || sx > this.width + 200 || sy < -40 || sy > this.height + 40) continue
-      ctx.font = `${n.labelBold ? 600 : 400} 12px 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif`
-      ctx.fillStyle = `rgba(220, 220, 232, ${n.labelAlpha})`
-      ctx.fillText(n.label.length > 40 ? `${n.label.slice(0, 39)}…` : n.label, sx, sy)
+      onScreen.push({ ...n, sx, sy })
+    }
+    if (onScreen.length > MAX_LABELS) onScreen.sort((a, b) => b.priority - a.priority).length = MAX_LABELS
+    let font = ''
+    for (const n of onScreen) {
+      const f = `${n.bold ? 600 : 400} 12px 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif`
+      if (f !== font) ctx.font = font = f
+      ctx.fillStyle = `rgba(220, 220, 232, ${n.alpha})`
+      ctx.fillText(n.text.length > 40 ? `${n.text.slice(0, 39)}…` : n.text, n.sx, n.sy)
     }
   }
 

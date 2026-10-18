@@ -2,7 +2,7 @@ import { Component, el } from '../component'
 import { icon } from '../icons'
 import type { MetadataCache } from '../index/metadataCache'
 import { buildGraph, type GraphData, type GraphFilters, type NodeKind } from './graphData'
-import { GraphRenderer, type Camera, type RenderEdge, type RenderNode } from './renderer'
+import { EDGE_STRIDE, GraphRenderer, NODE_STRIDE, type Camera, type RenderLabel } from './renderer'
 import type { Forces } from './sim.worker'
 
 type RGBA = [number, number, number, number]
@@ -287,6 +287,10 @@ export class GraphView extends Component {
     return moving
   }
 
+  // Frame data, reused between frames.
+  private nodeBuf = new Float32Array(0)
+  private edgeBuf = new Float32Array(0)
+
   private draw(): void {
     const { nodes, links } = this.data
     const active = this.opts.getActive()
@@ -294,33 +298,50 @@ export class GraphView extends Component {
     // Labels fade in as you zoom in (always readable in the small local graph).
     const zoomLabel = this.opts.mode === 'local' ? 1 : Math.max(0, Math.min(1, (scale - 0.55) / 0.5))
     const hotSet = this.hover >= 0 ? new Set([this.hover, ...this.neighbors[this.hover]]) : null
-
-    const renderNodes: RenderNode[] = nodes.map((n, i) => {
+    if (this.nodeBuf.length < nodes.length * NODE_STRIDE) this.nodeBuf = new Float32Array(nodes.length * NODE_STRIDE * 2)
+    if (this.edgeBuf.length < links.length * EDGE_STRIDE) this.edgeBuf = new Float32Array(links.length * EDGE_STRIDE * 2)
+    const nd = this.nodeBuf
+    const labels: RenderLabel[] = []
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i]
       const isActive = n.id === active
       const base = i === this.hover ? COLORS.hover : isActive ? COLORS.active : COLORS[n.kind]
       const a = this.fade[i] ?? 1
+      const x = this.positions[i * 2]
+      const y = this.positions[i * 2 + 1]
+      const r = this.radius(n.degree)
+      const o = i * NODE_STRIDE
+      nd[o] = x
+      nd[o + 1] = y
+      nd[o + 2] = r
+      nd[o + 3] = base[0]
+      nd[o + 4] = base[1]
+      nd[o + 5] = base[2]
+      nd[o + 6] = base[3] * a
       const highlighted = hotSet?.has(i) ?? false
-      return {
-        x: this.positions[i * 2],
-        y: this.positions[i * 2 + 1],
-        r: this.radius(n.degree),
-        color: [base[0], base[1], base[2], base[3] * a],
-        label: n.label,
-        labelAlpha: (highlighted || isActive ? 1 : zoomLabel) * a,
-        labelBold: i === this.hover || isActive
+      const labelAlpha = (highlighted || isActive ? 1 : zoomLabel) * a
+      if (labelAlpha > 0.02) {
+        labels.push({ x, y, r, text: n.label, alpha: labelAlpha, bold: i === this.hover || isActive, priority: (isActive || i === this.hover ? 1e9 : highlighted ? 1e6 : 0) + n.degree })
       }
-    })
-    const renderEdges: RenderEdge[] = links.map(([a, b]) => {
-      const hot = this.hover >= 0 && (a === this.hover || b === this.hover)
-      const dim = Math.min(this.fade[a] ?? 1, this.fade[b] ?? 1)
-      return {
-        a,
-        b,
-        color: hot ? EDGE_HOT : [EDGE[0], EDGE[1], EDGE[2], EDGE[3] * (this.hover >= 0 ? dim : 1)],
-        width: hot ? 1.8 : 1.25
-      }
-    })
-    this.renderer!.draw(this.cam, renderNodes, renderEdges)
+    }
+    const ed = this.edgeBuf
+    const dimmed = this.hover >= 0
+    for (let k = 0; k < links.length; k++) {
+      const [a, b] = links[k]
+      const hot = dimmed && (a === this.hover || b === this.hover)
+      const color = hot ? EDGE_HOT : EDGE
+      const o = k * EDGE_STRIDE
+      ed[o] = this.positions[a * 2]
+      ed[o + 1] = this.positions[a * 2 + 1]
+      ed[o + 2] = this.positions[b * 2]
+      ed[o + 3] = this.positions[b * 2 + 1]
+      ed[o + 4] = color[0]
+      ed[o + 5] = color[1]
+      ed[o + 6] = color[2]
+      ed[o + 7] = hot ? color[3] : color[3] * (dimmed ? Math.min(this.fade[a] ?? 1, this.fade[b] ?? 1) : 1)
+      ed[o + 8] = hot ? 1.8 : 1.25
+    }
+    this.renderer!.draw(this.cam, { nodeCount: nodes.length, nodes: nd, edgeCount: links.length, edges: ed, labels })
   }
 
   private onResize(): void {

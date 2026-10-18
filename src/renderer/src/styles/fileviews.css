@@ -222,3 +222,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* A canvas zoomed far out shows cards as plain shapes (their text would be unreadable). */
+.zn-canvas.is-far .zn-cnode-content {
+  visibility: hidden;
+}

@@ -20,6 +20,7 @@ import {
   parseCanvas,
   serializeCanvas,
   stackOrder,
+  type CanvasNode,
   type Point,
   type Rect,
   type Side
@@ -47,6 +48,9 @@ const MIN_W = 60
 const MIN_H = 40
 // Cards further than this (in screen pixels) outside the view are hidden.
 const CULL_MARGIN = 300
+// Below this zoom card text is too small to read: cards show as plain shapes
+// and no new card content (editors) is built until you zoom in.
+const FAR_ZOOM = 0.25
 // A drag shorter than this (screen pixels) from a port is a click, not a connection.
 const CONNECT_MIN_DRAG = 20
 const ZOOM_STEP = 1.25
@@ -257,8 +261,9 @@ export class CanvasView extends Component implements WorkspaceView {
     // Remember the file as read, so opening alone never rewrites it.
     this.lastSaved = text
     this.ready = true
-    this.renderAll()
+    // Place the camera first: the first render then builds content only for cards in view.
     if (first && !this.camera.restore(this.path)) this.camera.fit(this.doc.data.nodes)
+    this.renderAll()
     this.applyCamera()
   }
 
@@ -363,14 +368,31 @@ export class CanvasView extends Component implements WorkspaceView {
     this.camera.saveSoon(this.path)
   }
 
-  // Hide cards outside the visible area (with a margin) to keep large canvases fast.
+  // Hide cards outside the visible area (with a margin) to keep large canvases
+  // fast. A card's content (and its editor) is built the first time it comes near.
   private cull(): void {
     const view = this.camera.visibleRect(CULL_MARGIN)
     if (!view) return
+    const far = this.camera.cam.scale < FAR_ZOOM
+    this.el.classList.toggle('is-far', far)
+    const ctx = this.cardContext()
     for (const n of this.doc.data.nodes) {
       const v = this.views.get(n.id)
-      if (v) v.el.style.display = intersects(view, n) || n.id === this.editing?.id ? '' : 'none'
+      if (!v) continue
+      const editing = n.id === this.editing?.id
+      const shown = intersects(view, n) || editing
+      v.el.style.display = shown ? '' : 'none'
+      if (!shown || (far && !editing)) continue
+      const key = contentKey(n)
+      if (key !== v.key) updateCardContent(n, v, key, ctx)
     }
+  }
+
+  // Whether a card is in or near view (true when the view isn't known yet).
+  private isNear(n: CanvasNode): boolean {
+    if (n.id === this.editing?.id) return true
+    const view = this.camera.visibleRect(CULL_MARGIN)
+    return !view || (intersects(view, n) && this.camera.cam.scale >= FAR_ZOOM)
   }
 
   // ---------- Rendering ----------
@@ -411,7 +433,7 @@ export class CanvasView extends Component implements WorkspaceView {
       // Stacking comes from z-index; never move an attached card (that would blur an editor).
       if (v.el.parentNode !== this.nodesLayer) this.nodesLayer.appendChild(v.el)
       const key = contentKey(n)
-      if (key !== v.key) updateCardContent(n, v, key, ctx)
+      if (key !== v.key && this.isNear(n)) updateCardContent(n, v, key, ctx)
     })
     for (const [id, v] of this.views) {
       if (!seen.has(id)) {

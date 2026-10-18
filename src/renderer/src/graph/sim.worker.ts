@@ -54,6 +54,9 @@ function applyForces(): void {
   }
 }
 
+// Above this many nodes the layout settles faster and a little coarser.
+const LARGE_GRAPH = 10000
+
 function post(): void {
   const buf = new Float32Array(nodes.length * 2)
   for (let i = 0; i < nodes.length; i++) {
@@ -76,7 +79,8 @@ self.onmessage = (e: MessageEvent<Msg>) => {
       const links = msg.links.map(([s, t]) => ({ source: s, target: t }))
       sim = forceSimulation<Node>(nodes)
         .alpha(msg.alpha)
-        .alphaDecay(0.0228)
+        // Very large graphs settle in fewer (costly) steps.
+        .alphaDecay(msg.count > LARGE_GRAPH ? 0.05 : 0.0228)
         .velocityDecay(0.4)
         .force('link', forceLink<Node, SimulationLinkDatum<Node>>(links))
         .force('collide', forceCollide<Node>((n) => n.r + 4).strength(0.5))
