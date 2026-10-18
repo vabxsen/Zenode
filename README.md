@@ -2,6 +2,10 @@
 
 A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.md` files in a folder you choose (a "vault"), so they stay readable by any editor, including Obsidian.
 
+## Performance (M5)
+
+Built and measured for big vaults. With 10,000 notes the index is ready in about 2.5 s on a first launch and about 1 s after that (a saved index means only changed files are read again). Search stays under 50 ms, and under 200 ms at 50,000 notes. Long file trees, much-linked notes, big graphs and big canvases draw only what's on screen. A 500-cycle soak test shows no memory growth from opening, editing and closing notes. Numbers, method and limits are in [docs/perf.md](docs/perf.md).
+
 ## Files, media & export (M4)
 
 - **Viewers**: images open in a viewer with zoom (wheel, buttons, double-click) and pan; PDFs in the built-in PDF viewer; audio and video in players; text and code files (`.txt`, `.csv`, `.json`, `.js`, ...) in a read-only view. Tabs follow renames and reload when the file changes. Other files open in their default app.
@@ -141,6 +145,8 @@ npm run dev        # run with hot reload
 npm run typecheck  # TypeScript checks for main, preload and renderer
 npm test           # unit tests (tests/run.ts): parser, links, rename, search, graph, canvas, commands, config, data safety, rendering
 npm run test:e2e   # builds, then drives the real app with Playwright against tests/fixtures/vault
+npm run bench -- 10000  # benchmark on a generated 10,000-note vault (docs/perf.md)
+npm run soak -- 500     # leak check: 500 open/edit/close cycles
 npm run build      # production bundles in out/
 npm run dist       # Windows installer in dist/
 ```
@@ -176,7 +182,7 @@ Towards 1.0 (production-ready core):
 - ~~M2 Editor: embeds, paste/drop attachments, tables, callouts, find & replace, math, Mermaid, Reading view~~ (done)
 - ~~M3 Workspace: command palette, split panes, drag & drop, outline/tags/bookmarks, daily notes, templates, properties, multiple windows~~ (done)
 - ~~M4 Files: image/PDF/audio/video/text viewers, export to PDF, delete to Recycle Bin or .trash, unused attachments~~ (done)
-- M5 Performance: persistent index cache, 10k+ note vaults
+- ~~M5 Performance: saved index, 10k-50k note vaults, long lists, graph and canvas at scale, leak check~~ (done)
 - M6 Appearance: light theme, themes and snippets, hotkey editor, onboarding, accessibility
 - M7 Security hardening, M8 installer/updates/file associations, M9 docs and website
 

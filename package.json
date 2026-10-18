@@ -16,7 +16,8 @@
     "test": "esbuild tests/run.ts --bundle --platform=node --format=esm --external:yaml --outfile=out/tests/run.mjs --log-level=warning && node out/tests/run.mjs",
     "test:e2e": "npm run test:e2e:build && playwright test",
     "test:e2e:build": "electron-vite build --outDir out-e2e",
-    "bench": "npm run test:e2e:build && node scripts/bench.mjs"
+    "bench": "npm run test:e2e:build && node scripts/bench.mjs",
+    "soak": "npm run test:e2e:build && node scripts/soak.mjs"
   },
   "build": {
     "appId": "app.zenode.desktop",
