@@ -16,7 +16,9 @@ import { splitLinktext } from './index/parser'
 import { openFileRecovery, restoreVersion } from './fileRecovery'
 import { importAttachments, rewriteLinksAfterRename } from './fileOps'
 import { relativeLinkTarget, subpathPosition } from './links'
+import { HoverPreview } from './hoverPreview'
 import { offerRecovery } from './recovery'
+import type { ReadingContext } from './render/reading'
 import { SyncIndicator } from './sync/syncPanel'
 import { baseName, isMarkdown, parentDir, stripExt, stripMd } from './paths'
 import { SearchPane } from './search/searchPane'
@@ -260,13 +262,7 @@ export class App extends Component {
           await this.refreshTree()
           return markdown
         },
-        readingContext: (path) => ({
-          resolve: (link, from) => cache.resolve(link, from),
-          readNote: async (p) => cache.getNote(p)?.content ?? (await api.read(p).catch(() => null)),
-          onOpenWikiLink: (target, from) => void this.openWikiLink(target, from),
-          onOpenLink: (href) => void this.openLink(href, path),
-          onOpenTag: (tag) => this.showSearch(`tag:${tag}`)
-        })
+        readingContext: (path) => this.readingContext(cache, path)
       })
     )
 
@@ -308,6 +304,7 @@ export class App extends Component {
       notice: (m) => this.notice(m)
     }))
     this.statusEl = el('div', 'zn-status-stats', status)
+    shell.addChild(new HoverPreview(this.root, { activePath: () => this.workspace?.activePath ?? null, readingContext: (p) => this.readingContext(cache, p) }))
   }
 
   private showPane(pane: LeftPane): void {
@@ -750,6 +747,17 @@ export class App extends Component {
     this.workspace?.setDefaultView(this.editorSettings.defaultView)
     if (change.spellcheck !== undefined) this.notice(`Spellcheck ${change.spellcheck ? 'on' : 'off'}`)
     await api.writeConfig('app', this.editorSettings).catch((e: Error) => this.notice(`Could not save settings: ${e.message}`))
+  }
+
+  // Links, embeds and clicks for rendered Markdown (Reading view, embeds, previews).
+  private readingContext(cache: MetadataCache, path: string): Omit<ReadingContext, 'sourcePath' | 'onToggleTask'> {
+    return {
+      resolve: (link, from) => cache.resolve(link, from),
+      readNote: async (p) => cache.getNote(p)?.content ?? (await api.read(p).catch(() => null)),
+      onOpenWikiLink: (target, from) => void this.openWikiLink(target, from),
+      onOpenLink: (href) => void this.openLink(href, path),
+      onOpenTag: (tag) => this.showSearch(`tag:${tag}`)
+    }
   }
 
   // Keep a copy of text the user is throwing away, in the local file history.

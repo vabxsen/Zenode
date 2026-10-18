@@ -46,6 +46,8 @@ export async function renderInto(container: HTMLElement, src: string, ctx: Readi
   }
   container.innerHTML = sanitize(renderMarkdown(src, env))
   container.classList.add('zn-rendered')
+  // Links inside resolve from this note (used by hover previews).
+  container.dataset.znSource = ctx.sourcePath
   wireClicks(container, ctx)
   const chain = [...ancestors, ctx.sourcePath]
   await Promise.all([
