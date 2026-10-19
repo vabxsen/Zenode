@@ -9,7 +9,7 @@ A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.
   - `Zenode-<version>-portable.exe`: runs without installing.
   - `Zenode-<version>-win-x64.zip`: the same files, unzipped anywhere.
 
-  Builds aren't code-signed yet, so SmartScreen may warn the first time.
+  Builds aren't code-signed yet. SmartScreen may warn the first time, and on PCs with Windows 11 Smart App Control turned on, Windows blocks unsigned apps outright until releases are signed.
 - **Opening from Windows** (installed copy):
   - `.md` and `.canvas` files open in Zenode, in the vault that holds them or else in their own folder.
   - Right-click a folder in Explorer for **Open folder as Zenode vault**.

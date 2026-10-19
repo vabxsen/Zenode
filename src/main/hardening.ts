@@ -3,24 +3,30 @@
 // permissions it has no use for, and nothing may navigate, open windows or
 // embed webviews.
 import { app, session, type WebContents, type WebFrameMain } from 'electron'
-import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
+import { isFileUrlOf } from './fileUrl'
 
 // Permissions the app actually uses (copying paths and diagnostics to the clipboard).
 const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write'])
 
-// Where the app page is loaded from: the dev server, or the built index.html.
-function appUrlPrefix(): string {
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) return new URL(process.env.ELECTRON_RENDERER_URL).origin + '/'
-  return pathToFileURL(join(__dirname, '../renderer/index.html')).href
+// Whether `url` is the app's own page: on the dev server in development,
+// otherwise the built index.html (with any #hash or ?query).
+function isAppUrl(url: string): boolean {
+  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+    try {
+      return new URL(url).origin === new URL(process.env.ELECTRON_RENDERER_URL).origin
+    } catch {
+      return false
+    }
+  }
+  return isFileUrlOf(url, join(__dirname, '../renderer/index.html'))
 }
 
 // True when an IPC message comes from the app page itself: the main frame of the
 // sending window, showing the app's own URL (not a vault file, a PDF or an iframe).
 export function isAppFrame(sender: WebContents, frame: WebFrameMain | null | undefined): boolean {
   if (!frame || frame !== sender.mainFrame) return false
-  const prefix = appUrlPrefix()
-  return frame.url === prefix || frame.url.startsWith(prefix.endsWith('/') ? prefix : `${prefix}#`) || frame.url.startsWith(`${prefix}?`)
+  return isAppUrl(frame.url)
 }
 
 // The Origin header the app page sends: "null" for a file:// page (the built app),
@@ -42,7 +48,7 @@ export function hardenSessions(): void {
     contents.on('will-navigate', (e) => e.preventDefault())
     contents.on('will-redirect', (e) => {
       // In-page redirects of the app's own page are fine; anything else is not.
-      if (!e.url.startsWith(appUrlPrefix())) e.preventDefault()
+      if (!isAppUrl(e.url)) e.preventDefault()
     })
     contents.on('will-attach-webview', (e) => e.preventDefault())
     contents.setWindowOpenHandler(() => ({ action: 'deny' }))

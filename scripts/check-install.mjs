@@ -121,7 +121,8 @@ try {
   if (!existsSync(uninstaller)) fail('no uninstaller')
   for (const [name, key] of Object.entries(KEYS)) {
     const value = regDefault(key)
-    if (!value || !value.toLowerCase().includes(exe.toLowerCase())) fail(`registry ${name}: ${value}`)
+    // The program path must be quoted (install folders can have spaces).
+    if (!value || !value.toLowerCase().startsWith(`"${exe.toLowerCase()}"`)) fail(`registry ${name}: ${value}`)
     else ok(`registry ${name}: ${value}`)
   }
   if (!regDefault(KEYS.link).includes(' -- "%1"')) fail('zenode:// links are not passed after "--"')
@@ -138,7 +139,11 @@ try {
     const s = await evaluate(PORT, APP_STATE)
     return s?.ready ? s : null
   }, 60)
-  if (!state) throw new Error('the installed app did not open the vault')
+  if (!state) {
+    const log = join(userData, 'logs', 'zenode.log')
+    const tail = existsSync(log) ? `; log:\n${readFileSync(log, 'utf8').slice(-3000)}` : ''
+    throw new Error(`the installed app did not open the vault${tail}`)
+  }
   ok(`the installed app opened the vault (${state.rows} tree rows)`)
   const kind = await evaluate(PORT, 'window.zenode.updateStatus().then((s) => s.kind)')
   if (kind !== 'installed') fail(`the app thinks it is a "${kind}" copy`)

@@ -15,6 +15,11 @@
   WriteRegStr SHCTX "Software\Classes\Directory\Background\shell\Zenode" "" "Open folder as Zenode vault"
   WriteRegStr SHCTX "Software\Classes\Directory\Background\shell\Zenode" "Icon" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
   WriteRegStr SHCTX "Software\Classes\Directory\Background\shell\Zenode\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--open-folder=%V"'
+
+  ; electron-builder registers .md and .canvas (just before this) with the program
+  ; path unquoted, which breaks or misleads on paths with spaces. Quote it.
+  WriteRegStr SHCTX "Software\Classes\Zenode.Note\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
+  WriteRegStr SHCTX "Software\Classes\Zenode.Canvas\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
 !macroend
 
 !macro customUnInstall

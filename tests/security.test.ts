@@ -2,6 +2,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { isFileUrlOf } from '../src/main/fileUrl'
 import { Vault } from '../src/main/vault'
 import { hasScheme, isRunnable, safeExternalUrl } from '../src/shared/linkSafety'
 import { eq } from './harness'
@@ -53,3 +54,26 @@ eq('vault: alternate data stream refused', await refused(() => vault.read('note.
 eq('vault: device names refused', await refused(() => vault.write('NUL.md', 'x')), 'Not a usable file name')
 eq('vault: new folders inside are fine', await refused(() => vault.createAt('new/sub/a.md', 'x')), 'allowed')
 rmSync(base, { recursive: true, force: true })
+
+// The app page's file:// URL, however Chromium spells it.
+const page = String.raw`C:\Users\RUNNER~1\AppData\Local\Programs\zenode\resources\app.asar\out\renderer\index.html`
+eq(
+  'app page: same file, any spelling',
+  [
+    'file:///C:/Users/RUNNER~1/AppData/Local/Programs/zenode/resources/app.asar/out/renderer/index.html',
+    'file:///C:/Users/RUNNER%7E1/AppData/Local/Programs/zenode/resources/app.asar/out/renderer/index.html#/x',
+    'file:///c:/users/runner~1/appdata/local/programs/zenode/resources/app.asar/out/renderer/index.html?a=1'
+  ].map((u) => isFileUrlOf(u, page)),
+  [true, true, true]
+)
+eq(
+  'app page: other files and schemes are not it',
+  [
+    'file:///C:/Users/RUNNER~1/AppData/Local/Programs/zenode/resources/app.asar/out/renderer/other.html',
+    'file:///C:/Users/RUNNER~1/AppData/Local/Programs/zenode/resources/app.asar/out/renderer/index.html.evil',
+    'vault://v1/C:/Users/RUNNER~1/AppData/Local/Programs/zenode/resources/app.asar/out/renderer/index.html',
+    'https://example.com/index.html',
+    'not a url'
+  ].map((u) => isFileUrlOf(u, page)),
+  [false, false, false, false, false]
+)

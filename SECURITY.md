@@ -62,7 +62,7 @@ Zenode is a desktop app that reads and writes files in folders you choose. It ha
 
 ## Known limits
 
-- **Unsigned builds.** Releases are not code-signed yet, so Windows SmartScreen may warn on first install.
+- **Unsigned builds.** Releases are not code-signed yet. Windows SmartScreen may warn on first install, and Smart App Control (Windows 11) blocks unsigned apps altogether.
 - **Updates trust the release.** Without a code signature, an update is only as trustworthy as the GitHub release it comes from: the hash check catches a damaged download, not a compromised release.
 - **Not encrypted.** Zenode doesn't encrypt your vault. Use BitLocker, or an encrypted folder, if you need that.
 - **Trusted themes and snippets.** CSS themes and snippets in `.zenode/` can change how the app looks, including hiding or restyling content. Only install themes you trust.
