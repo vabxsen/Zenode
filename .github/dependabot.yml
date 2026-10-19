@@ -1,0 +1,21 @@
+# Weekly update pull requests for npm packages and GitHub Actions.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      codemirror:
+        patterns: ['@codemirror/*', '@lezer/*']
+      build-tools:
+        patterns: ['electron-vite', 'vite', 'electron-builder', 'typescript', 'esbuild']
+    # Electron majors change behaviour; take them deliberately.
+    ignore:
+      - dependency-name: electron
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

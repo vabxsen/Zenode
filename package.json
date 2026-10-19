@@ -17,7 +17,8 @@
     "test:e2e": "npm run test:e2e:build && playwright test",
     "test:e2e:build": "electron-vite build --outDir out-e2e",
     "bench": "npm run test:e2e:build && node scripts/bench.mjs",
-    "soak": "npm run test:e2e:build && node scripts/soak.mjs"
+    "soak": "npm run test:e2e:build && node scripts/soak.mjs",
+    "check:package": "node scripts/check-package.mjs"
   },
   "build": {
     "appId": "app.zenode.desktop",
@@ -35,6 +36,14 @@
         "to": "help-vault"
       }
     ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true
+    },
     "win": {
       "target": "nsis",
       "signAndEditExecutable": false
@@ -46,6 +55,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
+    "@electron/fuses": "^1.8.0",
     "@playwright/test": "^1.63.0",
     "@types/d3-force": "^3.0.10",
     "@types/markdown-it-footnote": "^3.0.4",

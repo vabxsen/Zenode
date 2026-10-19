@@ -170,6 +170,7 @@ npm run bench -- 10000  # benchmark on a generated 10,000-note vault (docs/perf.
 npm run soak -- 500     # leak check: 500 open/edit/close cycles
 npm run build      # production bundles in out/
 npm run dist       # Windows installer in dist/
+npm run check:package  # checks the built app: fuses, start-up, tamper refusal
 ```
 
 ## Architecture
@@ -188,7 +189,11 @@ tests/
 
 Every action is a command in a registry (`src/renderer/src/commands.ts`), shaped like Obsidian's `addCommand`, so the command palette, hotkey editor and plugin API can share it. CI runs typecheck, unit and end-to-end tests and builds the installer on every push.
 
-Security: the page runs with `contextIsolation`, `sandbox` and no Node integration. Every file path from the page is resolved inside the open vault and rejected if it escapes it.
+Security: see [SECURITY.md](SECURITY.md).
+- **Sandboxed page.** The page runs sandboxed and context-isolated, without Node, and only the app's own page may call the main process.
+- **Vault-only file access.** Every path is checked against the vault's real location, so links and junctions can't escape it.
+- **Safe links and files.** Only web and email links leave the app, and files that run as programs ask first.
+- **Locked-down build.** The packaged app has Electron fuses set (no run-as-Node, `NODE_OPTIONS` or inspector; ASAR integrity enforced). `npm run check:package` verifies the built exe, including that a tampered `app.asar` is refused.
 
 ## Roadmap
 
@@ -205,6 +210,7 @@ Towards 1.0 (production-ready core):
 - ~~M4 Files: image/PDF/audio/video/text viewers, export to PDF, delete to Recycle Bin or .trash, unused attachments~~ (done)
 - ~~M5 Performance: saved index, 10k-50k note vaults, long lists, graph and canvas at scale, leak check~~ (done)
 - ~~M6 Appearance: light theme, settings screen, themes and snippets, hotkey editor, onboarding and Help vault, accessibility~~ (done)
-- M7 Security hardening, M8 installer/updates/file associations, M9 docs and website
+- ~~M7 Security hardening: fuses, link and file-open safety, vault containment, IPC origin checks, CSP, Dependabot, audit gate~~ (done)
+- M8 installer/updates/file associations, M9 docs and website
 
 After 1.0: Git and sync helpers (1.1), Bases database views (1.2), an Obsidian-compatible plugin API (1.3).

@@ -56,6 +56,9 @@ jobs:
           # Unsigned for now; skip looking for a signing certificate.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
+      - name: Check the packaged app (fuses, start-up, tamper refusal)
+        run: npm run check:package
+
       - name: Upload installer
         uses: actions/upload-artifact@v7
         with:
@@ -63,6 +66,11 @@ jobs:
           path: dist/*.exe
           retention-days: 14
 
+      # Fails the build on high or critical advisories in what ships with the app.
       - name: Audit production dependencies
-        run: npm audit --omit=dev
+        run: npm audit --omit=dev --audit-level=high
+
+      # Development tools: reported, not blocking.
+      - name: Audit all dependencies
+        run: npm audit --audit-level=high
         continue-on-error: true
