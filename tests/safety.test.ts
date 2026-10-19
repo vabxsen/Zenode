@@ -173,4 +173,23 @@ await Promise.all([journal.put('a.md', 'newer', 'h', t0 + 2), journal.remove('a.
 eq('journal: a remove queued after a put wins', (await journal.list()).map((e) => e.path), ['b.md'])
 eq('journal: another vault has its own entries', await new RecoveryJournal(userData, 'D:/Other').list(), [])
 
+// Watching: reading a folder is not a change (on Windows the first listing of a
+// new folder updates its last-access time, which the watcher reports).
+const watched = mkdtempSync(join(tmpdir(), 'zenode-watch-'))
+mkdirSync(join(watched, 'Sub'))
+writeFileSync(join(watched, 'Sub/a.md'), 'a')
+const watchVault = new Vault(watched)
+const batches: string[][] = []
+watchVault.watch((paths) => batches.push(paths.sort()))
+const settle = (): Promise<void> => new Promise((done) => setTimeout(done, 600))
+await settle()
+readdirSync(join(watched, 'Sub'))
+await settle()
+eq('watch: listing a folder reports nothing', batches, [])
+writeFileSync(join(watched, 'Sub/b.md'), 'b')
+await settle()
+eq('watch: a new note in a folder is reported', batches.flat().includes('Sub/b.md'), true)
+watchVault.unwatch()
+rmSync(watched, { recursive: true, force: true })
+
 rmSync(dir, { recursive: true, force: true })

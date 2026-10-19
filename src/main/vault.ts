@@ -267,18 +267,36 @@ export class Vault {
 
   watch(onChange: (paths: string[]) => void): void {
     this.unwatch()
-    this.watcher = watch(this.root, { recursive: true }, (_event, filename) => {
+    const watcher = watch(this.root, { recursive: true }, (event, filename) => {
       if (!filename) return
       const rel = filename.split(sep).join('/')
       if (rel.split('/').some((part) => part.startsWith('.')) || rel.endsWith('.zenode-tmp')) return
-      this.pending.add(rel)
-      if (this.flushTimer) clearTimeout(this.flushTimer)
-      this.flushTimer = setTimeout(() => {
-        const paths = [...this.pending]
-        this.pending.clear()
-        onChange(paths)
-      }, 150)
+      if (event === 'rename') {
+        this.queueChange(rel, onChange)
+        return
+      }
+      // A "change" to a folder is only its own metadata: on Windows, even the
+      // first listing of a folder updates its last-access time. What happens
+      // inside it (adds, removes, renames, edits) is reported for those entries.
+      void fs.stat(join(this.root, filename)).then(
+        (stat) => stat.isDirectory(),
+        () => false
+      ).then((isFolder) => {
+        if (!isFolder && this.watcher === watcher) this.queueChange(rel, onChange)
+      })
     })
+    this.watcher = watcher
+  }
+
+  // Batches changes so a burst (a save, a sync) arrives as one call.
+  private queueChange(rel: string, onChange: (paths: string[]) => void): void {
+    this.pending.add(rel)
+    if (this.flushTimer) clearTimeout(this.flushTimer)
+    this.flushTimer = setTimeout(() => {
+      const paths = [...this.pending]
+      this.pending.clear()
+      onChange(paths)
+    }, 150)
   }
 
   unwatch(): void {
