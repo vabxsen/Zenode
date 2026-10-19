@@ -169,14 +169,14 @@ try {
 
   // 4. Uninstall.
   spawnSync(uninstaller, ['/S'], { stdio: 'ignore' })
-  const gone = await waitFor(async () => !existsSync(exe), 120)
-  if (!gone) fail('Zenode.exe is still there after uninstalling')
+  // The uninstaller restarts itself from a temp copy, so spawnSync returns early.
+  // It removes the files first and the file associations last: wait for both.
+  const pointsAtZenode = (key) => !!regDefault(key)?.toLowerCase().includes(exe.toLowerCase())
+  const done = await waitFor(async () => !existsSync(exe) && !Object.values(KEYS).some(pointsAtZenode), 120)
+  if (existsSync(exe)) fail('Zenode.exe is still there after uninstalling')
   else ok('uninstalled')
-  for (const [name, key] of Object.entries(KEYS)) {
-    const value = regDefault(key)
-    if (value && value.toLowerCase().includes(exe.toLowerCase())) fail(`registry ${name} still points at Zenode: ${value}`)
-  }
-  ok('the registry entries are gone')
+  for (const [name, key] of Object.entries(KEYS)) if (pointsAtZenode(key)) fail(`registry ${name} still points at Zenode: ${regDefault(key)}`)
+  if (done) ok('the registry entries are gone')
   const after = vaultFiles(vault)
   if (JSON.stringify(after) !== JSON.stringify(before)) fail(`the vault changed: ${JSON.stringify({ before, after })}`)
   else ok(`the vault is untouched (${Object.keys(after).length} files)`)
