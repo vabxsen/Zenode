@@ -185,7 +185,16 @@ let diagramId = 0
 
 function loadMermaid(): Promise<typeof import('mermaid').default> {
   mermaidReady ??= import('mermaid').then(({ default: mermaid }) => {
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark', fontFamily: 'inherit' })
+    // Mermaid 12 defaults to the ELK layout and the "neo" look; keep the
+    // dagre layout and classic look the dark theme was styled against.
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: 'dark',
+      look: 'classic',
+      layout: 'dagre',
+      fontFamily: 'inherit'
+    })
     return mermaid
   })
   return mermaidReady

@@ -16,6 +16,9 @@ test('Reading view renders Obsidian Markdown and task boxes edit the note', asyn
   await expect(reading.locator('.katex')).toHaveCount(2)
   await expect(reading.locator('table td').first()).toHaveText('Apple')
   await expect(reading.locator('.zn-mermaid svg')).toHaveCount(1)
+  // Drawn with the classic look, not Mermaid 12's default "neo".
+  await expect(reading.locator('.zn-mermaid svg [data-look="classic"]').first()).toBeAttached()
+  await expect(reading.locator('.zn-mermaid svg [data-look="neo"]')).toHaveCount(0)
   await expect(reading.locator('.zn-embed-note')).toContainText('Back to')
   await reading.locator('.zn-task-box').first().click()
   await expect.poll(() => read(vaultDir, 'Formatting.md')).toContain('- [x] An open task')
