@@ -59,6 +59,9 @@ const KEYS = {
 const fileVersion = (file) =>
   existsSync(file) ? execFileSync('powershell', ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${file}').VersionInfo.ProductVersion`], { encoding: 'utf8' }).trim() : null
 
+// The exe's ProductVersion has four parts (0.5.0.0).
+const sameVersion = (fileVer, version) => fileVer === version || fileVer === `${version}.0`
+
 // Every vault file except Zenode's own .zenode folder, with a hash of its content.
 function vaultFiles(dir) {
   const out = {}
@@ -155,7 +158,7 @@ try {
   if (!ready) throw new Error(`the update was not downloaded: ${JSON.stringify(await evaluate(PORT, 'window.zenode.updateStatus()').catch(() => null))}`)
   ok(`downloaded Zenode ${ready.state.version}`)
   await evaluate(PORT, 'window.zenode.installUpdate()').catch(() => undefined)
-  const updated = await waitFor(async () => (fileVersion(exe) === NEW ? NEW : null), 240)
+  const updated = await waitFor(async () => (sameVersion(fileVersion(exe), NEW) ? NEW : null), 240)
   if (!updated) throw new Error(`still ${fileVersion(exe)} after restarting to update`)
   ok(`updated to Zenode ${NEW}`)
   // It starts again after the update; give it time, then close it.

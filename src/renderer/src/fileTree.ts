@@ -273,12 +273,18 @@ export class FileTree extends Component {
       this.listEl.style.height = ''
       this.listEl.style.paddingTop = ''
     }
+    // Keep focus on the row that has it, however it got there (keys, click, Tab).
+    // Read it before emptying the list, which takes focus away. (The rename box
+    // takes its own focus back.)
+    const active = document.activeElement
+    const focused = active instanceof HTMLElement && active.classList.contains('zn-tree-row') ? active : null
+    const hadFocus = !!focused && this.listEl.contains(focused)
+    if (hadFocus && focused.dataset.path) this.focusPath = focused.dataset.path
     this.listEl.empty()
     if (this.rows.length === 0) {
       el('div', 'zn-tree-empty', this.listEl, 'No notes yet. Press Ctrl+N to create one.')
       return
     }
-    const hadFocus = this.listEl.contains(document.activeElement) && !!document.activeElement?.closest('.zn-tree-row')
     if (!this.focusPath || !this.rows.some((r) => r.entry.path === this.focusPath)) this.focusPath = this.active ?? this.rows[0].entry.path
     for (let i = from; i < to; i++) this.renderRow(this.rows[i].entry, this.rows[i].depth)
     if (hadFocus) this.rowEl(this.focusPath)?.focus({ preventScroll: true })

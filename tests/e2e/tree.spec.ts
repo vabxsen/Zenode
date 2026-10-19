@@ -63,3 +63,12 @@ test('typing a new name survives the tree refreshing underneath', async ({ page,
   await page.keyboard.press('Enter')
   await expect.poll(() => existsSync(join(vaultDir, 'Brainstorm.md'))).toBe(true)
 })
+
+test('a focused row keeps focus when the tree redraws', async ({ page, vaultDir }) => {
+  await treeRow(page, 'Ideas').focus()
+  writeFileSync(join(vaultDir, 'Zzz new.md'), '')
+  await expect(treeRow(page, 'Zzz new')).toBeVisible()
+  await expect(treeRow(page, 'Ideas')).toBeFocused()
+  await page.keyboard.press('ArrowUp')
+  await expect(treeRow(page, 'Home')).toBeFocused()
+})
