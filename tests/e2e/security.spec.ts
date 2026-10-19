@@ -81,11 +81,17 @@ test('a file that runs as a program is not opened without a yes', async ({ page,
 })
 
 test('pages get no camera, microphone or notification permissions', async ({ page }) => {
-  const result = await page.evaluate(async () => ({
-    mic: await navigator.mediaDevices.getUserMedia({ audio: true }).then(() => 'granted', (e: Error) => e.name),
-    notify: await Notification.requestPermission()
-  }))
-  expect(result.mic).toBe('NotAllowedError')
+  const result = await page.evaluate(async () => {
+    const state = (name: string) => navigator.permissions.query({ name: name as PermissionName }).then((s) => s.state)
+    return {
+      // Refused (NotAllowedError), or NotFoundError on a machine with no microphone.
+      mic: await navigator.mediaDevices.getUserMedia({ audio: true }).then(() => 'granted', (e: Error) => e.name),
+      states: [await state('microphone'), await state('camera'), await state('geolocation')],
+      notify: await Notification.requestPermission()
+    }
+  })
+  expect(['NotAllowedError', 'NotFoundError']).toContain(result.mic)
+  expect(result.states).toEqual(['denied', 'denied', 'denied'])
   expect(result.notify).toBe('denied')
 })
 
