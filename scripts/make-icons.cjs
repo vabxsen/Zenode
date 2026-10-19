@@ -1,4 +1,4 @@
-// Draws the Zenode icon (the "Z" from the app's logo on a violet rounded square)
+// Draws the Zenode icon (the Ribbon Z on a near-black rounded square)
 // at every Windows icon size and writes build/icon.ico and build/icon.png.
 // Run with Electron: npx electron scripts/make-icons.cjs
 const { app, BrowserWindow } = require('electron')
@@ -9,33 +9,32 @@ const SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
 const OUT = join(__dirname, '..', 'build')
 
 // Runs in the page: returns base64 PNGs, one per size.
+// The Ribbon Z: two orange strips joined by a darker diagonal, the fold, on a
+// near-black tile (64-unit grid; the in-app mark in src/renderer/src/logo.ts
+// uses the same shapes).
 const draw = `(${function (sizes) {
   return sizes.map((s) => {
     const c = document.createElement('canvas')
     c.width = c.height = s
     const g = c.getContext('2d')
-    const r = s * 0.22
-    const bg = g.createLinearGradient(0, 0, s, s)
-    bg.addColorStop(0, '#9b6dff')
-    bg.addColorStop(1, '#5b21b6')
-    g.fillStyle = bg
+    g.fillStyle = '#0b0b0f'
     g.beginPath()
-    g.roundRect(0, 0, s, s, r)
+    g.roundRect(0, 0, s, s, s * 0.22)
     g.fill()
-    // The logo's Z (M5 5h14L5 19h14 on a 24 grid), a little inset; thicker when tiny.
-    const u = s / 24
-    const inset = s <= 24 ? 0.6 : 1.2
-    const map = (v) => (inset + (v * (24 - 2 * inset)) / 24) * u
-    g.strokeStyle = '#ffffff'
-    g.lineWidth = Math.max(1.6, s * (s <= 32 ? 0.13 : 0.1))
-    g.lineCap = 'round'
-    g.lineJoin = 'round'
+    g.scale(s / 64, s / 64)
+    // Small sizes get a larger mark, so it stays readable in the taskbar.
+    if (s <= 24) {
+      g.translate(32, 32)
+      g.scale(1.18, 1.18)
+      g.translate(-32, -32)
+    }
+    g.fillStyle = '#c2410c'
+    g.fill(new Path2D('M38 24H48L26 40H16Z'))
+    g.fillStyle = '#fb923c'
     g.beginPath()
-    g.moveTo(map(6), map(6.5))
-    g.lineTo(map(18), map(6.5))
-    g.lineTo(map(6), map(17.5))
-    g.lineTo(map(18), map(17.5))
-    g.stroke()
+    g.roundRect(16, 16, 32, 8, 2)
+    g.roundRect(16, 40, 32, 8, 2)
+    g.fill()
     return c.toDataURL('image/png').split(',')[1]
   })
 }})(${JSON.stringify(SIZES)})`

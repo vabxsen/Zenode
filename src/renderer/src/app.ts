@@ -11,7 +11,7 @@ import type { LinkTarget } from './editor/linkCompletion'
 import type { FileTree } from './fileTree'
 import { GRAPH_ID, makeGraphTab } from './graph/graphTab'
 import type { GraphView } from './graph/graphView'
-import { icon } from './icons'
+import { logoMark } from './logo'
 import { isCanvasPath } from './index/canvasMeta'
 import { IndexSaver } from './index/indexSaver'
 import { loadIndexSnapshot } from './index/indexStore'
@@ -251,7 +251,7 @@ export class App extends Component {
 
     const titlebar = el('div', 'zn-titlebar zn-drag', this.root)
     const brand = el('div', 'zn-titlebar-brand', titlebar)
-    brand.appendChild(icon('logo', 15))
+    brand.appendChild(logoMark(15))
     el('span', '', brand, 'Zenode')
     this.titleEl = el('div', 'zn-titlebar-title', titlebar)
 

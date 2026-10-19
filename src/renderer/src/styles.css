@@ -70,9 +70,6 @@ button {
   font-size: 13px;
 }
 
-.zn-titlebar-brand .zn-icon {
-  color: var(--zn-accent);
-}
 
 .zn-titlebar-title {
   flex: 1;
