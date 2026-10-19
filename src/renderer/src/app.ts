@@ -39,6 +39,7 @@ import { baseName, isMarkdown, parentDir, stripExt, stripMd } from './paths'
 import { mentionLink, type Mention } from './panels/mentions'
 import { LeftSidebar, RightSidebar, type LeftPane, type RightPane, type SidebarDeps } from './sidebars'
 import { contentHash } from '../../shared/hash'
+import { hasScheme, safeExternalUrl } from '../../shared/linkSafety'
 import { showNotice } from './notices'
 import { buildRibbon } from './ribbon'
 import { safeGet, safeSet, setupSidebarResizer } from './uiState'
@@ -53,7 +54,6 @@ import { renderWelcome } from './welcome'
 import { VIEW_PREFIX, Workspace, type OpenPosition } from './workspace'
 
 const api = window.zenode
-const EXTERNAL = /^(https?:|mailto:)/i
 const RIGHTBAR_KEY = 'zenode.rightbarHidden'
 const MAX_RECENT = 30
 
@@ -534,7 +534,7 @@ export class App extends Component {
       return
     }
     try {
-      await api.openExternal(path)
+      if (!(await api.openExternal(path))) this.notice('Not opened.')
     } catch (e) {
       this.notice((e as Error).message)
     }
@@ -562,7 +562,7 @@ export class App extends Component {
       }),
       openPath: (path) => void this.openPath(path),
       openUrl: (url) => {
-        if (EXTERNAL.test(url)) void api.openUrl(url)
+        if (safeExternalUrl(url)) void api.openUrl(url).catch((e: Error) => this.notice(e.message))
         else this.notice(`Not a web link: ${url}`)
       },
       resolve: (link, from) => cache.resolve(link, from),
@@ -603,8 +603,13 @@ export class App extends Component {
   }
 
   private async openLink(href: string, fromPath: string): Promise<void> {
-    if (EXTERNAL.test(href)) {
-      await api.openUrl(href)
+    if (safeExternalUrl(href)) {
+      await api.openUrl(href).catch((e: Error) => this.notice(e.message))
+      return
+    }
+    // Other schemes (file:, ms-settings:, app protocols...) are never handed to Windows.
+    if (hasScheme(href)) {
+      this.notice(`Zenode only opens web and email links, not "${href.slice(0, 80)}".`)
       return
     }
     // Relative Markdown link to another file in the vault.

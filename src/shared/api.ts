@@ -143,7 +143,8 @@ export interface ZenodeAPI {
   move(path: string, destDir: string): Promise<string>
   trash(path: string): Promise<TrashResult>
   reveal(path: string): Promise<void>
-  openExternal(path: string): Promise<void>
+  // False when the file would run as a program and the user said no.
+  openExternal(path: string): Promise<boolean>
   openUrl(url: string): Promise<void>
 
   // Local file history for a vault file (kept outside the vault, for 7 days).

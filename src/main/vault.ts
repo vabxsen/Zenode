@@ -8,6 +8,16 @@ import { atomicWrite, readIfExists, withRetry } from './fsutil'
 // Deleted files go here when the vault is set to keep them (like Obsidian's .trash).
 export const TRASH_DIR = '.trash'
 
+// Windows device names, which are never files (with or without an extension).
+const DEVICE = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$|conout\$)(\..*)?$/i
+// How long a folder's real location is trusted before it's checked again.
+const REAL_DIR_CACHE_MS = 5000
+
+function isInside(root: string, path: string): boolean {
+  const back = relative(root, path)
+  return !back.startsWith('..') && !isAbsolute(back)
+}
+
 // Called with a file's old content just before a write replaces it (for snapshots).
 export type BeforeOverwrite = (rel: string, oldContent: string) => Promise<void>
 
@@ -22,6 +32,8 @@ export class Vault {
   private watcher: FSWatcher | null = null
   private pending = new Set<string>()
   private flushTimer: NodeJS.Timeout | null = null
+  private realRoot: Promise<string> | null = null
+  private realDirs = new Map<string, { real: string; at: number }>()
 
   constructor(
     readonly root: string,
@@ -38,7 +50,40 @@ export class Vault {
     if (back.startsWith('..') || isAbsolute(back)) {
       throw new Error(`Path is outside the vault: ${rel}`)
     }
+    // No NTFS alternate data streams ("note.md:hidden") or device names ("CON", "NUL.md").
+    if (back.split(sep).some((part) => part.includes(':') || DEVICE.test(part))) {
+      throw new Error(`Not a usable file name: ${rel}`)
+    }
     return target
+  }
+
+  // Like abs(), and also refuses a path whose real location on disk is outside the
+  // vault, reached through a symbolic link or junction. File operations use this.
+  async realAbs(rel: string): Promise<string> {
+    const target = this.abs(rel)
+    if (target === resolve(this.root)) return target
+    const root = await (this.realRoot ??= fs.realpath(this.root).catch(() => this.root))
+    const st = await fs.lstat(target).catch(() => null)
+    const real = st?.isSymbolicLink() ? await fs.realpath(target) : join(await this.realDir(dirname(target)), basename(target))
+    if (!isInside(root, real)) throw new Error(`Path leads outside the vault through a link: ${rel}`)
+    return target
+  }
+
+  // A folder's real location (cached briefly; bulk reads share folders). A folder
+  // that doesn't exist yet is placed under its nearest existing parent.
+  private async realDir(dir: string): Promise<string> {
+    const hit = this.realDirs.get(dir)
+    if (hit && Date.now() - hit.at < REAL_DIR_CACHE_MS) return hit.real
+    let real: string
+    try {
+      real = await fs.realpath(dir)
+    } catch {
+      const parent = dirname(dir)
+      real = parent === dir ? dir : join(await this.realDir(parent), basename(dir))
+    }
+    if (this.realDirs.size > 5000) this.realDirs.clear()
+    this.realDirs.set(dir, { real, at: Date.now() })
+    return real
   }
 
   rel(absPath: string): string {
@@ -76,8 +121,8 @@ export class Vault {
     return entries.sort((a, b) => (a.kind === b.kind ? collator.compare(a.name, b.name) : a.kind === 'folder' ? -1 : 1))
   }
 
-  read(rel: string): Promise<string> {
-    const file = this.abs(rel)
+  async read(rel: string): Promise<string> {
+    const file = await this.realAbs(rel)
     return withRetry(() => fs.readFile(file, 'utf8'))
   }
 
@@ -88,7 +133,7 @@ export class Vault {
       await Promise.all(
         rels.slice(i, i + BATCH).map(async (rel) => {
           try {
-            const file = this.abs(rel)
+            const file = await this.realAbs(rel)
             out[rel] = await withRetry(() => fs.readFile(file, 'utf8'))
           } catch {
             out[rel] = null
@@ -100,7 +145,7 @@ export class Vault {
   }
 
   async write(rel: string, content: string): Promise<void> {
-    const file = this.abs(rel)
+    const file = await this.realAbs(rel)
     const old = this.beforeOverwrite ? await readIfExists(file) : null
     if (old !== null && old !== content) await this.beforeOverwrite!(rel, old)
     // Recreating a note whose folder was moved or deleted outside Zenode.
@@ -111,7 +156,7 @@ export class Vault {
   // Writes only if the file still matches the version the page last saw, so an
   // edit made outside Zenode (another app, a sync client) is never overwritten silently.
   async writeChecked(rel: string, content: string, expectHash: string): Promise<WriteResult> {
-    const file = this.abs(rel)
+    const file = await this.realAbs(rel)
     const disk = await readIfExists(file)
     if (disk === null || contentHash(disk) !== expectHash) {
       // Already identical to what we'd write (e.g. the same edit synced back): nothing to do.
@@ -127,7 +172,7 @@ export class Vault {
   // Moves a file or folder into the vault's .trash folder (hidden from the tree),
   // under a unique name. Returns its new vault-relative path.
   async moveToVaultTrash(rel: string): Promise<string> {
-    const from = this.abs(rel)
+    const from = await this.realAbs(rel)
     const dir = join(this.root, TRASH_DIR)
     await fs.mkdir(dir, { recursive: true })
     const name = basename(from)
@@ -142,14 +187,14 @@ export class Vault {
   // fails if something with that name already exists.
   async createAt(rel: string, content: string): Promise<void> {
     for (const part of rel.split('/')) checkName(part)
-    const file = this.abs(rel)
+    const file = await this.realAbs(rel)
     await fs.mkdir(dirname(file), { recursive: true })
     await fs.writeFile(file, content, { flag: 'wx' })
   }
 
   async createFile(dirRel: string, baseName: string, ext: string): Promise<string> {
     checkName(ext ? `${baseName}.${ext}` : baseName)
-    const dir = this.abs(dirRel)
+    const dir = await this.realAbs(dirRel)
     const target = await this.uniquePath(dir, baseName, ext ? `.${ext}` : '')
     await fs.writeFile(target, '', { flag: 'wx' })
     return this.rel(target)
@@ -163,7 +208,7 @@ export class Vault {
     const dot = name.lastIndexOf('.')
     const base = dot > 0 ? name.slice(0, dot) : name
     const ext = dot > 0 ? name.slice(dot) : ''
-    const dir = this.abs(dirRel)
+    const dir = await this.realAbs(dirRel)
     await fs.mkdir(dir, { recursive: true })
     for (let attempt = 0; ; attempt++) {
       const target = await this.uniquePath(dir, base, ext)
@@ -179,7 +224,7 @@ export class Vault {
 
   async createFolder(dirRel: string, name: string): Promise<string> {
     checkName(name)
-    const dir = this.abs(dirRel)
+    const dir = await this.realAbs(dirRel)
     const target = await this.uniquePath(dir, name, '')
     await fs.mkdir(target)
     return this.rel(target)
@@ -188,8 +233,8 @@ export class Vault {
   async rename(rel: string, newName: string): Promise<string> {
     const name = newName.trim()
     checkName(name)
-    const from = this.abs(rel)
-    const to = this.abs(join(dirname(rel), name))
+    const from = await this.realAbs(rel)
+    const to = await this.realAbs(join(dirname(rel), name))
     if (from === to) return rel
     // Windows paths are case-insensitive: "note" -> "Note" is a rename of the same file.
     const caseOnly = from.toLowerCase() === to.toLowerCase()
@@ -200,8 +245,8 @@ export class Vault {
 
   // Moves a file or folder into another folder ('' = vault root), keeping its name.
   async move(rel: string, destDirRel: string): Promise<string> {
-    const from = this.abs(rel)
-    const destDir = this.abs(destDirRel)
+    const from = await this.realAbs(rel)
+    const destDir = await this.realAbs(destDirRel)
     const stat = await fs.stat(destDir).catch(() => null)
     if (!stat?.isDirectory()) throw new Error(`"${destDirRel || 'the vault root'}" is not a folder`)
     const to = join(destDir, basename(from))

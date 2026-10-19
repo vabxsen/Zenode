@@ -5,6 +5,7 @@ import { promises as fs } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { VaultInfo } from '../shared/api'
 import { contentHash } from '../shared/hash'
+import { safeExternalUrl } from '../shared/linkSafety'
 import { describeError, log } from './log'
 import { RecoveryJournal } from './recovery'
 import { loadSettings, rememberVault, saveSettings } from './settings'
@@ -12,7 +13,6 @@ import { SnapshotStore } from './snapshots'
 import { Vault } from './vault'
 
 const BG = '#0b0b0f'
-const EXTERNAL_URL = /^(https?:|mailto:)/i
 // How long a closing window waits for the page to save before closing anyway.
 const CLOSE_TIMEOUT = 3000
 const CASCADE = 28
@@ -61,7 +61,8 @@ export class VaultWindow {
 
     // The renderer never navigates or opens windows itself; web links go to the browser.
     this.win.webContents.setWindowOpenHandler(({ url }) => {
-      if (EXTERNAL_URL.test(url)) void shell.openExternal(url)
+      const safe = safeExternalUrl(url)
+      if (safe) void shell.openExternal(safe)
       return { action: 'deny' }
     })
     this.win.webContents.on('will-navigate', (e) => e.preventDefault())

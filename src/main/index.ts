@@ -3,7 +3,9 @@ import { promises as fs } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { PdfExportRequest, TrashResult, VaultInfo } from '../shared/api'
+import { isRunnable, safeExternalUrl } from '../shared/linkSafety'
 import { exportPdf } from './exportPdf'
+import { hardenSessions, isAppFrame, isAppOrigin } from './hardening'
 import { createVaultFolder, forgetVault, helpVault } from './vaults'
 import { cssFolder, listCss, readCss, readConfig, writeConfig, type CssKind } from './config'
 import { errorCode, friendlyError } from './fsutil'
@@ -13,7 +15,6 @@ import type { RecoveryJournal } from './recovery'
 import type { SnapshotStore } from './snapshots'
 import { mainWindow, vaultById, VaultWindow, windowFor, windowWithVault } from './windows'
 
-const EXTERNAL_URL = /^(https?:|mailto:)/i
 
 if (!app.isPackaged) {
   // In development, never reuse cached renderer modules across reloads (stale code after edits).
@@ -22,6 +23,24 @@ if (!app.isPackaged) {
   if (process.env.ZENODE_USER_DATA) app.setPath('userData', process.env.ZENODE_USER_DATA)
 }
 const testTrash = app.isPackaged ? undefined : process.env.ZENODE_TEST_TRASH
+// End-to-end tests answer the "this file can run programs" question with this ("yes"/"no").
+const testConfirm = app.isPackaged ? undefined : process.env.ZENODE_TEST_CONFIRM
+
+async function confirmRunnable(w: VaultWindow, file: string): Promise<boolean> {
+  if (testConfirm) return testConfirm === 'yes'
+  const { response } = await dialog.showMessageBox(w.win, {
+    type: 'warning',
+    buttons: ['Cancel', 'Open anyway'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+    title: 'Open a program?',
+    message: `"${basename(file)}" can run programs on this computer.`,
+    detail: 'Only open it if you trust where it came from.'
+  })
+  return response === 1
+}
+
 // End-to-end tests create vaults here instead of asking for a folder.
 const testVaultParent = app.isPackaged ? undefined : process.env.ZENODE_TEST_VAULT_PARENT
 
@@ -36,18 +55,31 @@ process.on('unhandledRejection', (e) => void log('error', `main (promise): ${des
 
 // vault://<vault id>/<path> serves files from that open vault (images in canvases and notes).
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'vault', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+  { scheme: 'vault', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
 ])
+
+const VAULT_FILE_CSP = "sandbox; default-src 'none'; img-src vault: data:; media-src vault:; style-src 'unsafe-inline'; font-src vault: data:"
 
 function registerVaultProtocol(): void {
   protocol.handle('vault', async (request) => {
     const url = new URL(request.url)
     const vault = vaultById(url.hostname)
     if (!vault) return new Response('No such vault is open', { status: 404 })
+    if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Not allowed', { status: 405 })
     try {
       const rel = decodeURIComponent(url.pathname.replace(/^\/+/, ''))
-      // Vault.abs() rejects anything that resolves outside the vault.
-      return await net.fetch(pathToFileURL(vault.abs(rel)).toString())
+      // realAbs() rejects anything outside the vault, including through links.
+      const file = await vault.realAbs(rel)
+      const res = await net.fetch(pathToFileURL(file).toString())
+      const headers = new Headers(res.headers)
+      headers.set('X-Content-Type-Options', 'nosniff')
+      // The app page may read vault files with fetch() (e.g. to put images into a PDF).
+      const origin = request.headers.get('Origin')
+      if (origin && isAppOrigin(origin)) headers.set('Access-Control-Allow-Origin', origin)
+      // A vault file shown as a page (HTML, SVG) can never run scripts. PDFs are
+      // left alone for the built-in PDF viewer.
+      if (!/\.pdf$/i.test(file)) headers.set('Content-Security-Policy', VAULT_FILE_CSP)
+      return new Response(res.body, { status: res.status, headers })
     } catch {
       return new Response('Not found', { status: 404 })
     }
@@ -78,7 +110,7 @@ async function chooseFolder(w: VaultWindow): Promise<string | null> {
 function handle<A extends unknown[], R>(channel: string, fn: (w: VaultWindow, ...args: A) => R | Promise<R>): void {
   ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: unknown[]) => {
     const w = windowFor(event.sender)
-    if (!w) throw new Error('Unexpected IPC sender')
+    if (!w || !isAppFrame(event.sender, event.senderFrame)) throw new Error('Unexpected IPC sender')
     try {
       return await fn(w, ...(args as A))
     } catch (e) {
@@ -184,7 +216,7 @@ function registerIpc(): void {
   // .zenode/app.json says "trashOption": "local" (or the Recycle Bin can't take it).
   handle('fs:trash', async (w, path: string): Promise<TrashResult> => {
     const vault = w.requireVault()
-    const file = vault.abs(path)
+    const file = await vault.realAbs(path)
     const config = (await readConfig(vault.root, 'app')) as { trashOption?: unknown } | null
     if (config?.trashOption === 'local') return { where: 'vault', path: await vault.moveToVaultTrash(path) }
     // End-to-end tests use their own folder instead of the user's Recycle Bin.
@@ -202,10 +234,15 @@ function registerIpc(): void {
       return { where: 'vault', path: await vault.moveToVaultTrash(path) }
     }
   })
-  handle('fs:reveal', (w, path: string) => shell.showItemInFolder(w.requireVault().abs(path)))
-  handle('fs:openExternal', async (w, path: string) => {
-    const error = await shell.openPath(w.requireVault().abs(path))
+  handle('fs:reveal', async (w, path: string) => shell.showItemInFolder(await w.requireVault().realAbs(path)))
+  // Opens a vault file in its default app. Files that would run as programs
+  // need a yes first. Resolves false when the user said no.
+  handle('fs:openExternal', async (w, path: string): Promise<boolean> => {
+    const file = await w.requireVault().realAbs(path)
+    if (isRunnable(file) && !(await confirmRunnable(w, file))) return false
+    const error = await shell.openPath(file)
     if (error) throw new Error(error)
+    return true
   })
   // Paths go through Vault.abs() first so the page can only name files inside the vault.
   const snapshotsFor = (w: VaultWindow, path: string): SnapshotStore => {
@@ -231,15 +268,19 @@ function registerIpc(): void {
     return log(level, `renderer: ${message}`)
   })
   handle('app:openUrl', async (_w, url: string) => {
-    if (!EXTERNAL_URL.test(url)) throw new Error(`Refusing to open: ${url}`)
-    await shell.openExternal(url)
+    const safe = safeExternalUrl(url)
+    if (!safe) throw new Error(`Zenode only opens web and email links: ${String(url).slice(0, 200)}`)
+    await shell.openExternal(safe)
   })
 
-  ipcMain.on('app:ready-to-close', (event) => windowFor(event.sender)?.closeNow())
+  ipcMain.on('app:ready-to-close', (event) => {
+    if (isAppFrame(event.sender, event.senderFrame)) windowFor(event.sender)?.closeNow()
+  })
 }
 
 app.whenReady().then(async () => {
   if (!isFirstInstance) return
+  hardenSessions()
   registerVaultProtocol()
   registerIpc()
   await VaultWindow.create()

@@ -35,7 +35,9 @@ export class FileView implements WorkspaceView {
       const b = el('button', 'zn-btn zn-file-action', header, text)
       b.addEventListener('click', () => void run().catch((e: Error) => this.d.notice(e.message)))
     }
-    action('Open in default app', () => api.openExternal(this.path))
+    action('Open in default app', async () => {
+      if (!(await api.openExternal(this.path))) this.d.notice('Not opened.')
+    })
     action('Show in Explorer', () => api.reveal(this.path))
     this.body = el('div', 'zn-file-body', this.el)
     this.build()
