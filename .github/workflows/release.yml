@@ -64,7 +64,12 @@ jobs:
         run: |
           shopt -s nullglob
           version="${TAG#v}"
-          files=(dist/Zenode-Setup-*.exe dist/Zenode-Setup-*.exe.blockmap dist/Zenode-*-portable.exe dist/Zenode-*-win-*.zip dist/latest.yml dist/beta.yml dist/alpha.yml)
+          # Only files that exist (a stable build has latest.yml, a beta also beta.yml).
+          files=()
+          for f in dist/Zenode-Setup-*.exe dist/Zenode-Setup-*.exe.blockmap dist/Zenode-*-portable.exe dist/Zenode-*-win-*.zip dist/latest.yml dist/beta.yml dist/alpha.yml; do
+            if [[ -f "$f" ]]; then files+=("$f"); fi
+          done
+          echo "Uploading: ${files[*]}"
           flags=()
           # A version with a suffix (1.2.0-beta.1) is a pre-release: only the beta channel gets it.
           if [[ "$version" == *-* ]]; then flags+=(--prerelease); else flags+=(--latest); fi
