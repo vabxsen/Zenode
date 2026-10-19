@@ -1,5 +1,6 @@
 // Contract between the main process and the renderer.
 // All paths are vault-relative and use forward slashes.
+import type { UpdatePrefs, UpdateStatus } from './updates'
 
 export interface TreeEntry {
   name: string
@@ -72,6 +73,7 @@ export interface Settings {
   recentVaults: string[]
   // Legacy: open tabs per vault, from before they moved to <vault>/.zenode/workspace.json.
   workspaces: Record<string, WorkspaceState>
+  updates?: UpdatePrefs
 }
 
 // Result of a checked write. "conflict" means the file on disk is no longer the
@@ -113,6 +115,13 @@ export interface ZenodeAPI {
   setZoom(factor: number): void
   setTitleBarColors(color: string, symbolColor: string): Promise<void>
   appInfo(): Promise<AppInfo>
+  // Updates from GitHub Releases (Settings > General > Updates).
+  updateStatus(): Promise<UpdateStatus>
+  checkForUpdates(): Promise<UpdateStatus>
+  setUpdatePrefs(change: Partial<UpdatePrefs>): Promise<UpdateStatus>
+  // Restarts into a downloaded update, or opens the release page.
+  installUpdate(): Promise<void>
+  onUpdateStatus(cb: (s: UpdateStatus) => void): () => void
   // Installed CSS themes (.zenode/themes) and snippets (.zenode/snippets).
   listCss(): Promise<{ themes: string[]; snippets: string[] }>
   readCss(kind: 'theme' | 'snippet', name: string): Promise<string>
@@ -120,6 +129,8 @@ export interface ZenodeAPI {
   // Asks where to save, then writes the PDF. Null if cancelled.
   exportPdf(req: PdfExportRequest): Promise<string | null>
   currentVault(): Promise<VaultInfo | null>
+  // A note or canvas Zenode was asked to open (file association or zenode:// link), once.
+  takeOpenRequest(): Promise<string | null>
   getSettings(): Promise<Settings>
   // Per-vault config files in <vault>/.zenode/<name>.json. Missing or broken files read as null.
   readConfig(name: string): Promise<unknown>
@@ -162,5 +173,7 @@ export interface ZenodeAPI {
   log(level: 'info' | 'warn' | 'error', message: string): Promise<void>
 
   onVaultChanged(cb: (paths: string[]) => void): () => void
+  // Zenode was asked to open a file in this window; takeOpenRequest() says which.
+  onOpenRequested(cb: () => void): () => void
   onBeforeClose(cb: () => Promise<void>): void
 }

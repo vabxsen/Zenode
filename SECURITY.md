@@ -12,7 +12,7 @@ Only the latest release gets security fixes.
 
 ## How Zenode protects your notes and your computer
 
-Zenode is a desktop app that reads and writes files in folders you choose. It has no server and no account, and it sends nothing anywhere: no telemetry, no analytics.
+Zenode is a desktop app that reads and writes files in folders you choose. It has no server and no account, and no telemetry or analytics. The only network request it makes is the update check: it asks GitHub Releases whether a new version is out, at start-up and every few hours. That can be turned off in Settings → General → Updates.
 
 **The page is sandboxed.**
 - The app's interface runs with Chromium's sandbox and context isolation, without Node.js.
@@ -33,6 +33,7 @@ Zenode is a desktop app that reads and writes files in folders you choose. It ha
 **Links and files.**
 - Only `http(s)` and `mailto` links are handed to Windows. Other schemes (`file:`, `ms-settings:`, custom app protocols) are refused.
 - Opening a vault file that would run as a program (`.exe`, `.bat`, `.ps1`, `.lnk`, `.msi`, …) asks for confirmation first.
+- **`zenode://` links** open only vaults Zenode already knows, and only notes and canvases inside them. A link can't open another folder, a file outside the vault, or a program. Windows passes a link after `--`, so a link can't add command-line switches.
 
 **No surprises from web content.**
 - Pages get no permissions: no camera, microphone, location or notifications; only writing to the clipboard.
@@ -46,6 +47,11 @@ Zenode is a desktop app that reads and writes files in folders you choose. It ha
 
   CI checks the fuses and the tamper refusal on every build (`npm run check:package`).
 
+**Updates.**
+- Updates come only from this repository's GitHub Releases, over HTTPS.
+- The download is checked against the SHA-512 hash in the release's `latest.yml` before it's installed.
+- Only installed copies update themselves. Portable and zip copies link to the release page.
+
 **Data safety.**
 - Notes are written atomically and never overwritten silently when they changed outside Zenode.
 - Deletes go to the Recycle Bin or the vault's `.trash` folder.
@@ -57,5 +63,6 @@ Zenode is a desktop app that reads and writes files in folders you choose. It ha
 ## Known limits
 
 - **Unsigned builds.** Releases are not code-signed yet, so Windows SmartScreen may warn on first install.
+- **Updates trust the release.** Without a code signature, an update is only as trustworthy as the GitHub release it comes from: the hash check catches a damaged download, not a compromised release.
 - **Not encrypted.** Zenode doesn't encrypt your vault. Use BitLocker, or an encrypted folder, if you need that.
 - **Trusted themes and snippets.** CSS themes and snippets in `.zenode/` can change how the app looks, including hiding or restyling content. Only install themes you trust.

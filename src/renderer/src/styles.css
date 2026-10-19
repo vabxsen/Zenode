@@ -737,6 +737,11 @@ button {
   opacity: 0;
 }
 
+.zn-notice-action {
+  display: block;
+  margin-top: 8px;
+}
+
 /* ---------- Phase 2: sidebar tabs & panes ---------- */
 
 .zn-sidebar-tabs {

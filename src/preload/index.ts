@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webFrame, type IpcRendererEvent } from 'electron'
 import type { ZenodeAPI } from '../shared/api'
+import type { UpdateStatus } from '../shared/updates'
 
 // Electron reports main-process errors as "Error invoking remote method 'x': Error: msg";
 // the page only needs the message, which main already words for people.
@@ -21,11 +22,16 @@ const api: ZenodeAPI = {
   setZoom: (factor) => webFrame.setZoomFactor(Math.min(2, Math.max(0.5, Number(factor) || 1))),
   setTitleBarColors: (color, symbolColor) => invoke('app:titleBar', color, symbolColor),
   appInfo: () => invoke('app:info'),
+  updateStatus: () => invoke('update:status'),
+  checkForUpdates: () => invoke('update:check'),
+  setUpdatePrefs: (change) => invoke('update:setPrefs', change),
+  installUpdate: () => invoke('update:install'),
   listCss: () => invoke('css:list'),
   readCss: (kind, name) => invoke('css:read', kind, name),
   openCssFolder: (kind) => invoke('css:openFolder', kind),
   exportPdf: (req) => invoke('export:pdf', req),
   currentVault: () => invoke('vault:current'),
+  takeOpenRequest: () => invoke('app:takeOpenRequest'),
   getSettings: () => invoke('settings:get'),
   readConfig: (name) => invoke('config:read', name),
   writeConfig: (name, data) => invoke('config:write', name, data),
@@ -57,6 +63,16 @@ const api: ZenodeAPI = {
     const listener = (_e: IpcRendererEvent, paths: string[]): void => cb(paths)
     ipcRenderer.on('vault:changed', listener)
     return () => ipcRenderer.removeListener('vault:changed', listener)
+  },
+  onUpdateStatus: (cb) => {
+    const listener = (_e: IpcRendererEvent, status: UpdateStatus): void => cb(status)
+    ipcRenderer.on('update:state', listener)
+    return () => ipcRenderer.removeListener('update:state', listener)
+  },
+  onOpenRequested: (cb) => {
+    const listener = (): void => cb()
+    ipcRenderer.on('app:open-requested', listener)
+    return () => ipcRenderer.removeListener('app:open-requested', listener)
   },
   onBeforeClose: (cb) => {
     ipcRenderer.on('app:before-close', () => {

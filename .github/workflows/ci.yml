@@ -16,7 +16,7 @@ jobs:
   check:
     name: Typecheck, test, package
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -59,11 +59,19 @@ jobs:
       - name: Check the packaged app (fuses, start-up, tamper refusal)
         run: npm run check:package
 
+      # Installs an older build, updates it to this one from a local feed, then uninstalls.
+      - name: Check install, update and uninstall
+        run: npm run check:install
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
       - name: Upload installer
         uses: actions/upload-artifact@v7
         with:
           name: zenode-windows
-          path: dist/*.exe
+          path: |
+            dist/Zenode-Setup-*.exe
+            dist/Zenode-*-portable.exe
           retention-days: 14
 
       # Fails the build on high or critical advisories in what ships with the app.

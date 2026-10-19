@@ -10,5 +10,6 @@ import './files.test'
 import './indexcache.test'
 import './appearance.test'
 import './security.test'
+import './launch.test'
 
 report()

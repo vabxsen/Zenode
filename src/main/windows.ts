@@ -30,6 +30,7 @@ export class VaultWindow {
   snapshots: SnapshotStore | null = null
   journal: RecoveryJournal | null = null
   private readyToClose = false
+  private pendingOpen: string | null = null
 
   private constructor() {
     const prev = BrowserWindow.getFocusedWindow()
@@ -117,6 +118,19 @@ export class VaultWindow {
     await saveSettings(rememberVault(await loadSettings(), root))
     this.win.setTitle(`${vault.name} - Zenode`)
     return this.info()!
+  }
+
+  // A file (in this window's vault) to open; the page asks for it once its
+  // vault is showing, and is told when one arrives later.
+  requestOpen(file: string): void {
+    this.pendingOpen = file
+    if (!this.win.webContents.isLoading()) this.win.webContents.send('app:open-requested')
+  }
+
+  takeOpenRequest(): string | null {
+    const file = this.pendingOpen
+    this.pendingOpen = null
+    return file
   }
 
   focus(): void {

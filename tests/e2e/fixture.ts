@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 const ROOT = resolve(__dirname, '../..')
+export const MAIN = join(ROOT, 'out-e2e/main/index.js')
 
 export interface ZenodeFixtures {
   // A temp folder holding the vault copy and the app's settings folder.
@@ -16,23 +17,34 @@ export interface ZenodeFixtures {
   page: Page
   // Start another app instance on the same settings and vault (e.g. after a kill).
   // withVault false: don't wait for a vault (e.g. to land on the welcome screen).
-  relaunch: (opts?: { withVault?: boolean }) => Promise<{ app: ElectronApplication; page: Page }>
+  // args: extra command-line arguments; env: extra environment variables.
+  relaunch: (opts?: LaunchOptions & { withVault?: boolean }) => Promise<{ app: ElectronApplication; page: Page }>
+}
+
+export interface LaunchOptions {
+  args?: string[]
+  env?: Record<string, string>
+}
+
+// The environment every test instance gets (also for instances a test spawns itself).
+export function testEnv(workDir: string): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== 'ELECTRON_RENDERER_URL') env[k] = v
+  return { ...env, ZENODE_USER_DATA: join(workDir, 'userdata'), ZENODE_TEST_TRASH: join(workDir, 'trash'), ZENODE_TEST_EXPORT_DIR: join(workDir, 'exports'), ZENODE_TEST_VAULT_PARENT: join(workDir, 'vaults'), ZENODE_TEST_CONFIRM: 'no' }
 }
 
 // Starts Zenode with settings that point straight at `vaultDir`.
-async function launch(workDir: string, vaultDir: string): Promise<ElectronApplication> {
+async function launch(workDir: string, vaultDir: string, opts: LaunchOptions = {}): Promise<ElectronApplication> {
   const userData = join(workDir, 'userdata')
   const settings = join(userData, 'zenode-settings.json')
   if (!existsSync(settings)) {
     mkdirSync(userData, { recursive: true })
     writeFileSync(settings, JSON.stringify({ lastVault: vaultDir, recentVaults: [vaultDir], workspaces: {} }))
   }
-  const env: Record<string, string> = {}
-  for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== 'ELECTRON_RENDERER_URL') env[k] = v
   return electron.launch({
     // Built by `npm run test:e2e` into out-e2e/, apart from the dev server's out/.
-    args: [join(ROOT, 'out-e2e/main/index.js')],
-    env: { ...env, ZENODE_USER_DATA: userData, ZENODE_TEST_TRASH: join(workDir, 'trash'), ZENODE_TEST_EXPORT_DIR: join(workDir, 'exports'), ZENODE_TEST_VAULT_PARENT: join(workDir, 'vaults'), ZENODE_TEST_CONFIRM: 'no' }
+    args: [MAIN, ...(opts.args ?? [])],
+    env: { ...testEnv(workDir), ...opts.env }
   })
 }
 
@@ -68,7 +80,7 @@ export const test = base.extend<ZenodeFixtures>({
   relaunch: async ({ workDir, vaultDir }, use) => {
     const started: ElectronApplication[] = []
     await use(async (opts) => {
-      const app = await launch(workDir, vaultDir)
+      const app = await launch(workDir, vaultDir, opts)
       started.push(app)
       return { app, page: await ready(app, opts?.withVault !== false) }
     })

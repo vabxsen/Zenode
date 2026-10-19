@@ -15,3 +15,9 @@ Text that wasn't saved yet is kept outside the vault and offered back after a cr
 ## Sync folders
 
 Vaults in OneDrive, Dropbox, Syncthing, Nextcloud or Git work. When a sync tool makes a conflict copy (like `Note (conflicted copy).md`), the status bar shows it and lets you compare and merge.
+
+## Updates and privacy
+
+Zenode has no account and sends nothing about you or your notes. The only thing it asks the internet is whether a new version is out on GitHub, when it starts and every few hours. Turn that off in Settings → General → Updates, or press **Check now** there whenever you like.
+
+The installed app downloads a new version in the background and installs it the next time you restart Zenode. The portable and zip copies don't update themselves: they tell you when a new version is out and link to its download page.

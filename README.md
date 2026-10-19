@@ -2,11 +2,30 @@
 
 A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.md` files in a folder you choose (a "vault"), so they stay readable by any editor, including Obsidian.
 
+## Install & updates (M8)
+
+- **Downloads** (from [Releases](https://github.com/vabxsen/Zenode/releases)):
+  - `Zenode-Setup-<version>.exe`: an installer for your user account only, with no admin rights needed.
+  - `Zenode-<version>-portable.exe`: runs without installing.
+  - `Zenode-<version>-win-x64.zip`: the same files, unzipped anywhere.
+
+  Builds aren't code-signed yet, so SmartScreen may warn the first time.
+- **Opening from Windows** (installed copy):
+  - `.md` and `.canvas` files open in Zenode, in the vault that holds them or else in their own folder.
+  - Right-click a folder in Explorer for **Open folder as Zenode vault**.
+  - `zenode://open?vault=<name or folder>&file=<path in the vault>` links open a note in a vault Zenode already knows. Links can't open other folders or programs.
+- **Updates**:
+  - The installed app checks GitHub Releases at start-up and every few hours. It downloads a new version in the background and installs it on the next restart.
+  - Settings → General → Updates has **Check now**, automatic checks on or off, and a **Stable** or **Beta** channel. Beta also gets pre-releases.
+  - Portable and zip copies say when a new version is out and link to it.
+  - The update check is the only network request Zenode makes.
+- **Version and changes**: Settings → General shows the version; [CHANGELOG.md](CHANGELOG.md) lists what changed. Zenode uses semantic versioning from 0.5.0.
+
 ## Appearance, onboarding & accessibility (M6)
 
 - **Light and dark themes**, or **System** to follow Windows (switching live). Every colour is a theme token, so the accent colour, CSS themes and snippets can restyle everything.
 - **Settings** (Ctrl+, or the gear in the ribbon):
-  - **General**: vault, About, copy diagnostics.
+  - **General**: vault, About, copy diagnostics, updates.
   - **Editor**: default view, spellcheck, readable line length.
   - **Files & links**: attachment folder, where deleted files go, unused attachments.
   - **Appearance**: theme, accent, fonts, text size, zoom, CSS themes and snippets.
@@ -171,7 +190,19 @@ npm run soak -- 500     # leak check: 500 open/edit/close cycles
 npm run build      # production bundles in out/
 npm run dist       # Windows installer in dist/
 npm run check:package  # checks the built app: fuses, start-up, tamper refusal
+npm run check:install  # CI only: installs an older build, updates it to dist/, uninstalls
 ```
+
+`npm run dist` builds the installer, portable exe and zip into `dist/`, plus `latest.yml` for the updater. The app icon is drawn by `scripts/make-icons.cjs` (run it with Electron) into `build/icon.ico`. The installer's extra registry entries (`zenode://` links and the Explorer folder menu) are in `build/installer.nsh`.
+
+### Releasing
+
+1. Move the changes under **Unreleased** in `CHANGELOG.md` into a new `## [x.y.z] - date` section, and set `"version"` in `package.json` to match.
+2. Commit, then tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`. Use `vX.Y.Z-beta.N` for a pre-release, which only the Beta channel gets.
+3. The Release workflow (`.github/workflows/release.yml`) does the rest:
+   - checks that the tag, `package.json` and the changelog agree;
+   - runs the tests, builds and checks the package;
+   - publishes the GitHub Release, with the changelog section as its notes and the update files the app reads.
 
 ## Architecture
 
@@ -211,6 +242,7 @@ Towards 1.0 (production-ready core):
 - ~~M5 Performance: saved index, 10k-50k note vaults, long lists, graph and canvas at scale, leak check~~ (done)
 - ~~M6 Appearance: light theme, settings screen, themes and snippets, hotkey editor, onboarding and Help vault, accessibility~~ (done)
 - ~~M7 Security hardening: fuses, link and file-open safety, vault containment, IPC origin checks, CSP, Dependabot, audit gate~~ (done)
-- M8 installer/updates/file associations, M9 docs and website
+- ~~M8 Packaging: app icon, installer/portable/zip, file associations, Explorer folder menu, zenode:// links, auto-update with channels, release workflow, changelog~~ (done)
+- M9 docs and website
 
 After 1.0: Git and sync helpers (1.1), Bases database views (1.2), an Obsidian-compatible plugin API (1.3).

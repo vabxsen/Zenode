@@ -25,4 +25,12 @@
 - **Live Preview** (the default) shows formatting as you type and reveals the Markdown where your cursor is.
 - **Ctrl+E** switches to **Reading view**; the command "Toggle Source mode" shows plain Markdown.
 
+## Opening Zenode from Windows
+
+With Zenode installed:
+
+- Double-click a `.md` or `.canvas` file, or use **Open with**, to open it in Zenode. It opens in the vault that holds it, or in its own folder.
+- Right-click a folder in File Explorer and choose **Open folder as Zenode vault**.
+- Links like `zenode://open?vault=Work&file=Plans/Q4` open a note in a vault Zenode already knows: by name or by folder, with the file's path inside the vault (`.md` can be left off). Links can't open other folders or programs.
+
 Next: [[Linking notes]].

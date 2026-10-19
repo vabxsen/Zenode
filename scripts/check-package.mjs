@@ -4,10 +4,11 @@
 // the zenode bridge and no Node access.
 // Usage: node scripts/check-package.mjs [path to Zenode.exe]
 import { FuseV1Options, FuseVersion, getCurrentFuseWire } from '@electron/fuses'
-import { execFileSync, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
+import { APP_STATE, evaluate, killTree, pageUp, sleep, waitFor } from './cdp.mjs'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const exe = resolve(process.argv[2] ?? join(ROOT, 'dist/win-unpacked/Zenode.exe'))
@@ -41,38 +42,14 @@ const vault = join(work, 'vault')
 const userData = join(work, 'userdata')
 cpSync(join(ROOT, 'tests/fixtures/vault'), vault, { recursive: true })
 mkdirSync(userData, { recursive: true })
-writeFileSync(join(userData, 'zenode-settings.json'), JSON.stringify({ lastVault: vault, recentVaults: [vault], workspaces: {} }))
+writeFileSync(join(userData, 'zenode-settings.json'), JSON.stringify({ lastVault: vault, recentVaults: [vault], workspaces: {}, updates: { autoCheck: false, channel: 'stable' } }))
 const child = spawn(exe, [`--user-data-dir=${userData}`, `--remote-debugging-port=${PORT}`], { stdio: 'ignore' })
 
-async function evaluate(expression) {
-  const list = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json()
-  const page = list.find((t) => t.type === 'page' && t.url.startsWith('file:'))
-  if (!page) throw new Error('no app page yet')
-  const ws = new WebSocket(page.webSocketDebuggerUrl)
-  await new Promise((r, j) => {
-    ws.addEventListener('open', r)
-    ws.addEventListener('error', j)
-  })
-  const reply = new Promise((done) =>
-    ws.addEventListener('message', (m) => {
-      const msg = JSON.parse(m.data)
-      if (msg.id === 1) done(msg.result?.result?.value)
-    })
-  )
-  ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression, returnByValue: true } }))
-  const value = await reply
-  ws.close()
-  return value
-}
-
 try {
-  let state = null
-  for (let i = 0; i < 60 && !(state?.ready); i++) {
-    await new Promise((r) => setTimeout(r, 1000))
-    state = await evaluate(
-      `({ ready: document.querySelector('.zn-app')?.dataset.index === 'ready', rows: document.querySelectorAll('.zn-tree-row').length, bridge: typeof window.zenode, node: typeof require + '/' + typeof process })`
-    ).catch(() => null)
-  }
+  const state = await waitFor(async () => {
+    const s = await evaluate(PORT, APP_STATE)
+    return s?.ready ? s : null
+  }, 60)
   if (!state?.ready) fail(`the app did not finish indexing the vault: ${JSON.stringify(state)}`)
   else {
     console.log(`ok  app started and indexed the vault (${state.rows} tree rows)`)
@@ -81,13 +58,8 @@ try {
     else console.log('ok  the page has the zenode bridge and no Node access')
   }
 } finally {
-  // Electron's helper processes go with it.
-  try {
-    execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
-  } catch {
-    // Already gone.
-  }
-  await new Promise((r) => setTimeout(r, 1000))
+  killTree(child.pid)
+  await sleep(1000)
   rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 })
 }
 // 3. A tampered app.asar must not load (integrity checked against the exe).
@@ -111,19 +83,14 @@ try {
       done(true)
     })
   })
-  let pageUp = false
+  let loaded = false
   if (!exited) {
-    const list = await fetch(`http://127.0.0.1:${PORT + 1}/json/list`).then((r) => r.json(), () => [])
-    pageUp = list.some((t) => t.type === 'page' && t.url.startsWith('file:'))
-    try {
-      execFileSync('taskkill', ['/pid', String(tampered.pid), '/T', '/F'], { stdio: 'ignore' })
-    } catch {
-      // Already gone.
-    }
+    loaded = await pageUp(PORT + 1)
+    killTree(tampered.pid)
   }
-  if (pageUp) fail('a tampered app.asar still loaded')
+  if (loaded) fail('a tampered app.asar still loaded')
   else console.log('ok  a tampered app.asar is refused')
-  await new Promise((r) => setTimeout(r, 1000))
+  await sleep(1000)
   rmSync(copy, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 })
 }
 

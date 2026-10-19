@@ -5,6 +5,9 @@ import { pathToFileURL } from 'node:url'
 import type { PdfExportRequest, TrashResult, VaultInfo } from '../shared/api'
 import { isRunnable, safeExternalUrl } from '../shared/linkSafety'
 import { exportPdf } from './exportPdf'
+import { openLaunchTarget } from './launch'
+import type { UpdatePrefs } from '../shared/updates'
+import { checkForUpdates, installUpdate, setUpdatePrefs, startUpdates, updateStatus } from './updates'
 import { hardenSessions, isAppFrame, isAppOrigin } from './hardening'
 import { createVaultFolder, forgetVault, helpVault } from './vaults'
 import { cssFolder, listCss, readCss, readConfig, writeConfig, type CssKind } from './config'
@@ -48,7 +51,10 @@ const testVaultParent = app.isPackaged ? undefined : process.env.ZENODE_TEST_VAU
 // (The lock is per settings folder, so test instances don't collide.)
 const isFirstInstance = app.requestSingleInstanceLock()
 if (!isFirstInstance) app.quit()
-app.on('second-instance', () => mainWindow()?.focus())
+// A second launch with a file, folder or zenode:// link opens it here.
+app.on('second-instance', (_e, argv, cwd) => {
+  void openLaunchTarget(argv.slice(1), cwd).then((opened) => opened || mainWindow()?.focus())
+})
 
 process.on('uncaughtException', (e) => void log('error', `main: ${describeError(e)}`))
 process.on('unhandledRejection', (e) => void log('error', `main (promise): ${describeError(e)}`))
@@ -135,6 +141,7 @@ function registerIpc(): void {
     else await VaultWindow.create(folder)
   })
   handle('vault:current', (w) => w.info())
+  handle('app:takeOpenRequest', (w) => w.takeOpenRequest())
   // A new vault: asks where (unless given), creates the folder, opens it here or in a new window.
   handle('vault:create', async (w, name: string, newWindow: boolean) => {
     let parent = testVaultParent
@@ -178,6 +185,10 @@ function registerIpc(): void {
     platform: `${process.platform} ${process.getSystemVersion()}`,
     userData: app.getPath('userData')
   }))
+  handle('update:status', () => updateStatus())
+  handle('update:check', () => checkForUpdates())
+  handle('update:setPrefs', (_w, change: Partial<UpdatePrefs>) => setUpdatePrefs(change))
+  handle('update:install', () => installUpdate())
   handle('export:pdf', (w, req: PdfExportRequest) => {
     const vault = w.requireVault()
     // The note's folder, checked to be inside the vault.
@@ -283,7 +294,8 @@ app.whenReady().then(async () => {
   hardenSessions()
   registerVaultProtocol()
   registerIpc()
-  await VaultWindow.create()
+  if (!(await openLaunchTarget(process.argv.slice(1), process.cwd()))) await VaultWindow.create()
+  await startUpdates()
 })
 
 app.on('window-all-closed', () => app.quit())

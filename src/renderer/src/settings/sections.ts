@@ -7,6 +7,7 @@ import { formatDate, invalidNameChars } from '../templates/format'
 import { DEFAULT_DAILY, DEFAULT_TEMPLATES, sanitizeDaily, sanitizeTemplates } from '../templates/settings'
 import { button, colorPicker, dropdown, heading, settingRow, slider, textField, toggle } from './controls'
 import type { SettingsSection } from './settingsModal'
+import { renderUpdates } from './updatesSection'
 
 const api = window.zenode
 
@@ -41,6 +42,7 @@ function general(d: SettingsDeps): SettingsSection {
         await navigator.clipboard.writeText(text)
         d.notice('Diagnostics copied.')
       })
+      await renderUpdates(c)
     }
   }
 }

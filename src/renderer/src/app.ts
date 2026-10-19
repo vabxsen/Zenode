@@ -40,6 +40,7 @@ import { mentionLink, type Mention } from './panels/mentions'
 import { LeftSidebar, RightSidebar, type LeftPane, type RightPane, type SidebarDeps } from './sidebars'
 import { contentHash } from '../../shared/hash'
 import { hasScheme, safeExternalUrl } from '../../shared/linkSafety'
+import { watchUpdates } from './updates'
 import { showNotice } from './notices'
 import { buildRibbon } from './ribbon'
 import { safeGet, safeSet, setupSidebarResizer } from './uiState'
@@ -109,6 +110,8 @@ export class App extends Component {
       await this.indexSaver?.saveNow()
     })
     api.onVaultChanged((paths) => this.onVaultChanged(paths))
+    api.onOpenRequested(() => void this.openRequested())
+    this.register(watchUpdates())
     this.register(this.registerCommands())
     this.register(registerWorkspaceCommands(this.commands, () => this.workspace))
     this.register(
@@ -215,6 +218,13 @@ export class App extends Component {
       if (ws.activeFile) await this.openTabPath(ws.activeFile)
     }
     if (this.workspace) await offerRecovery(this.workspace, (m) => this.notice(m))
+    await this.openRequested()
+  }
+
+  // A file Zenode was asked to open from Explorer or a zenode:// link.
+  private async openRequested(): Promise<void> {
+    const path = this.vault ? await api.takeOpenRequest() : null
+    if (path) await this.openPath(path)
   }
 
   private teardownShell(): void {

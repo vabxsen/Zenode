@@ -1,11 +1,11 @@
 {
   "name": "zenode",
   "productName": "Zenode",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "A fast, local-first Markdown knowledge base.",
   "main": "./out/main/index.js",
-  "author": "Zenode",
-  "license": "UNLICENSED",
+  "author": "Vaibhav Sen",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "electron-vite dev",
@@ -18,7 +18,8 @@
     "test:e2e:build": "electron-vite build --outDir out-e2e",
     "bench": "npm run test:e2e:build && node scripts/bench.mjs",
     "soak": "npm run test:e2e:build && node scripts/soak.mjs",
-    "check:package": "node scripts/check-package.mjs"
+    "check:package": "node scripts/check-package.mjs",
+    "check:install": "node scripts/check-install.mjs"
   },
   "build": {
     "appId": "app.zenode.desktop",
@@ -45,13 +46,70 @@
       "onlyLoadAppFromAsar": true
     },
     "win": {
-      "target": "nsis",
-      "signAndEditExecutable": false
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "signExecutable": false,
+      "legalTrademarks": "Zenode"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    }
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh",
+      "artifactName": "Zenode-Setup-${version}.${ext}",
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "Zenode",
+      "uninstallDisplayName": "Zenode ${version}"
+    },
+    "copyright": "Copyright © 2026 Vaibhav Sen",
+    "fileAssociations": [
+      {
+        "ext": "md",
+        "name": "Zenode.Note",
+        "description": "Markdown note",
+        "role": "Editor",
+        "icon": "build/icon.ico"
+      },
+      {
+        "ext": "canvas",
+        "name": "Zenode.Canvas",
+        "description": "Zenode canvas",
+        "role": "Editor",
+        "icon": "build/icon.ico"
+      }
+    ],
+    "portable": {
+      "artifactName": "Zenode-${version}-portable.${ext}"
+    },
+    "artifactName": "Zenode-${version}-win-${arch}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "vabxsen",
+        "repo": "Zenode",
+        "releaseType": "release"
+      }
+    ]
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -82,6 +140,7 @@
     "@lezer/markdown": "^1.8.0",
     "d3-force": "^3.0.0",
     "dompurify": "^3.4.16",
+    "electron-updater": "^6.8.10",
     "katex": "^0.18.11",
     "markdown-it": "^15.0.2",
     "markdown-it-footnote": "^4.0.0",
@@ -96,5 +155,10 @@
   },
   "overrides": {
     "katex": "$katex"
+  },
+  "homepage": "https://github.com/vabxsen/Zenode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vabxsen/Zenode.git"
   }
 }
