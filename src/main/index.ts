@@ -1,10 +1,13 @@
 import { app, dialog, ipcMain, net, protocol, shell, type IpcMainInvokeEvent } from 'electron'
 import { promises as fs } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { PdfExportRequest, TrashResult, VaultInfo } from '../shared/api'
 import { isRunnable, safeExternalUrl } from '../shared/linkSafety'
 import { exportPdf } from './exportPdf'
+import { trashFile } from './trash'
+import { accountState, cancelSignIn, signIn, signOut } from './sync/account'
+import { remoteVaults, restoreVault, setSyncEnabled, startSync, syncVault, vaultStatus } from './sync/manager'
 import { openLaunchTarget } from './launch'
 import type { UpdatePrefs } from '../shared/updates'
 import { checkForUpdates, installUpdate, setUpdatePrefs, startUpdates, updateStatus } from './updates'
@@ -25,7 +28,6 @@ if (!app.isPackaged) {
   // End-to-end tests run with their own settings folder, so they never touch the user's.
   if (process.env.ZENODE_USER_DATA) app.setPath('userData', process.env.ZENODE_USER_DATA)
 }
-const testTrash = app.isPackaged ? undefined : process.env.ZENODE_TEST_TRASH
 // End-to-end tests answer the "this file can run programs" question with this ("yes"/"no").
 const testConfirm = app.isPackaged ? undefined : process.env.ZENODE_TEST_CONFIRM
 
@@ -185,6 +187,35 @@ function registerIpc(): void {
     platform: `${process.platform} ${process.getSystemVersion()}`,
     userData: app.getPath('userData')
   }))
+  handle('account:state', () => accountState())
+  handle('account:signIn', () => signIn())
+  handle('account:cancelSignIn', () => cancelSignIn())
+  handle('account:signOut', () => signOut())
+  handle('sync:status', (w) => (w.vault ? vaultStatus(w.vault.root) : null))
+  handle('sync:now', async (w) => {
+    const root = w.requireVault().root
+    await syncVault(root)
+    return vaultStatus(root)
+  })
+  handle('sync:setEnabled', (w, on: boolean) => setSyncEnabled(w.requireVault().root, on === true))
+  handle('sync:remoteVaults', () => remoteVaults())
+  // Downloads a vault from the account into a folder the user picks, then
+  // opens it here (on the welcome screen) or in a new window.
+  handle('sync:restore', async (w, remoteId: string) => {
+    let parent = testVaultParent
+    if (!parent) {
+      const result = await dialog.showOpenDialog(w.win, { title: 'Where should the vault go?', properties: ['openDirectory', 'createDirectory'] })
+      if (result.canceled || !result.filePaths.length) return null
+      parent = result.filePaths[0]
+    }
+    if (testVaultParent) await fs.mkdir(parent, { recursive: true })
+    const root = await restoreVault(String(remoteId), parent)
+    if (w.vault) {
+      await VaultWindow.create(root)
+      return null
+    }
+    return w.openVault(root)
+  })
   handle('update:status', () => updateStatus())
   handle('update:check', () => checkForUpdates())
   handle('update:setPrefs', (_w, change: Partial<UpdatePrefs>) => setUpdatePrefs(change))
@@ -225,26 +256,7 @@ function registerIpc(): void {
   handle('fs:move', (w, path: string, destDir: string) => w.requireVault().move(path, destDir))
   // Deletes go to the Recycle Bin, or to the vault's .trash folder when
   // .zenode/app.json says "trashOption": "local" (or the Recycle Bin can't take it).
-  handle('fs:trash', async (w, path: string): Promise<TrashResult> => {
-    const vault = w.requireVault()
-    const file = await vault.realAbs(path)
-    const config = (await readConfig(vault.root, 'app')) as { trashOption?: unknown } | null
-    if (config?.trashOption === 'local') return { where: 'vault', path: await vault.moveToVaultTrash(path) }
-    // End-to-end tests use their own folder instead of the user's Recycle Bin.
-    if (testTrash) {
-      await fs.mkdir(testTrash, { recursive: true })
-      await fs.rename(file, join(testTrash, `${Date.now()}-${basename(file)}`))
-      return { where: 'system' }
-    }
-    try {
-      await shell.trashItem(file)
-      return { where: 'system' }
-    } catch (e) {
-      // Some network and cloud drives have no Recycle Bin: keep the file in the vault instead.
-      void log('warn', `Recycle Bin refused ${path}: ${describeError(e)}`)
-      return { where: 'vault', path: await vault.moveToVaultTrash(path) }
-    }
-  })
+  handle('fs:trash', (w, path: string): Promise<TrashResult> => trashFile(w.requireVault(), path))
   handle('fs:reveal', async (w, path: string) => shell.showItemInFolder(await w.requireVault().realAbs(path)))
   // Opens a vault file in its default app. Files that would run as programs
   // need a yes first. Resolves false when the user said no.
@@ -296,6 +308,7 @@ app.whenReady().then(async () => {
   registerIpc()
   if (!(await openLaunchTarget(process.argv.slice(1), process.cwd()))) await VaultWindow.create()
   await startUpdates()
+  await startSync()
 })
 
 app.on('window-all-closed', () => app.quit())

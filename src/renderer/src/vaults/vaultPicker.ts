@@ -4,6 +4,7 @@
 import { fileNameProblem } from '../../../shared/fileNames'
 import { el } from '../component'
 import { promptText } from '../dialog'
+import { openRestoreDialog } from '../account/restoreDialog'
 import { icon, type IconName } from '../icons'
 
 export interface VaultActions {
@@ -13,6 +14,8 @@ export interface VaultActions {
   create(name: string): Promise<void>
   openFolder(): Promise<void>
   openHelp(): Promise<void>
+  // Downloads a vault from the Zenode account (welcome screen only).
+  restore?(remoteId: string): Promise<void>
   notice(message: string): void
 }
 
@@ -46,6 +49,17 @@ export async function renderVaultChoices(container: HTMLElement, a: VaultActions
   )
   action(actions, 'folderOpen', 'Open folder as vault', 'Use a folder you already have, such as an Obsidian vault.', () => a.openFolder(), a.notice)
   action(actions, 'note', 'Open the Zenode Help vault', 'A short tour with examples of every feature.', () => a.openHelp(), a.notice)
+  const restore = a.restore
+  if (restore && (await window.zenode.accountState()).configured) {
+    action(
+      actions,
+      'cloud',
+      'Restore from your account',
+      'Sign in with Google to bring back vaults you synced.',
+      async () => openRestoreDialog((v) => restore(v.id), a.notice),
+      a.notice
+    )
+  }
 
   const settings = await window.zenode.getSettings()
   if (!settings.recentVaults.length) return

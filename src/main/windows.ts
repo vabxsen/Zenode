@@ -1,6 +1,7 @@
 // One window per open vault. Each window has its own vault, file history and
 // crash journal; IPC calls are routed to the window that sent them.
 import { app, BrowserWindow, shell, type WebContents } from 'electron'
+import { EventEmitter } from 'node:events'
 import { promises as fs } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { VaultInfo } from '../shared/api'
@@ -23,6 +24,9 @@ export function vaultId(root: string): string {
 }
 
 const windows = new Map<number, VaultWindow>()
+
+// Sync listens here: a vault was opened in a window, or files in it changed.
+export const vaultEvents = new EventEmitter<{ opened: [root: string]; changed: [root: string] }>()
 
 export class VaultWindow {
   readonly win: BrowserWindow
@@ -114,9 +118,13 @@ export class VaultWindow {
     })
     this.vault = vault
     void store.prune().catch((e) => log('warn', `snapshot prune: ${describeError(e)}`))
-    vault.watch((paths) => this.win.webContents.send('vault:changed', paths))
+    vault.watch((paths) => {
+      this.win.webContents.send('vault:changed', paths)
+      vaultEvents.emit('changed', vault.root)
+    })
     await saveSettings(rememberVault(await loadSettings(), root))
     this.win.setTitle(`${vault.name} - Zenode`)
+    vaultEvents.emit('opened', vault.root)
     return this.info()!
   }
 
@@ -170,4 +178,8 @@ export function mainWindow(): VaultWindow | null {
     if (w) return w
   }
   return [...windows.values()].pop() ?? null
+}
+
+export function allWindows(): VaultWindow[] {
+  return [...windows.values()]
 }

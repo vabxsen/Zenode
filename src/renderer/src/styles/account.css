@@ -1,0 +1,99 @@
+/* ---------- Account and sync ---------- */
+
+.zn-status-cloud {
+  margin-left: auto;
+  padding: 1px 8px;
+  border: 1px solid var(--zn-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--zn-text-muted);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.zn-status-cloud:hover {
+  border-color: var(--zn-border-strong);
+  color: var(--zn-text);
+}
+
+.zn-status-cloud.is-error {
+  border-color: color-mix(in srgb, var(--zn-danger) 45%, transparent);
+  color: var(--zn-danger);
+}
+
+.zn-signin {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.zn-signin-waiting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--zn-text-muted);
+  font-size: 12.5px;
+}
+
+.zn-signin-waiting[hidden],
+.zn-signin-button[hidden],
+.zn-sync-skipped[hidden],
+.zn-status-cloud[hidden] {
+  display: none;
+}
+
+.zn-sync-skipped {
+  margin: 4px 0 0;
+  color: var(--zn-text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.zn-remote-vaults {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.zn-remote-vault {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--zn-border);
+  border-radius: 8px;
+}
+
+.zn-remote-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.zn-remote-name {
+  color: var(--zn-text-strong);
+  font-weight: 600;
+}
+
+.zn-remote-meta {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--zn-text-muted);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zn-remote-empty,
+.zn-restore-text {
+  margin: 0 0 10px;
+  color: var(--zn-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.zn-restore {
+  width: min(520px, calc(100vw - 48px));
+}

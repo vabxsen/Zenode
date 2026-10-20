@@ -17,7 +17,8 @@ export async function loadSettings(): Promise<Settings> {
       lastVault: parsed.lastVault,
       recentVaults: Array.isArray(parsed.recentVaults) ? parsed.recentVaults : [],
       workspaces: parsed.workspaces && typeof parsed.workspaces === 'object' ? parsed.workspaces : {},
-      updates: parsed.updates
+      updates: parsed.updates,
+      sync: parsed.sync
     }
   } catch {
     return { recentVaults: [], workspaces: {} }

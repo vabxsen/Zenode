@@ -8,6 +8,7 @@ import { DEFAULT_DAILY, DEFAULT_TEMPLATES, sanitizeDaily, sanitizeTemplates } fr
 import { button, colorPicker, dropdown, heading, settingRow, slider, textField, toggle } from './controls'
 import type { SettingsSection } from './settingsModal'
 import { renderUpdates } from './updatesSection'
+import { accountSection } from './accountSection'
 
 const api = window.zenode
 
@@ -165,5 +166,5 @@ function templates(d: SettingsDeps): SettingsSection {
 }
 
 export function buildSections(d: SettingsDeps, extra: SettingsSection[]): SettingsSection[] {
-  return [general(d), editor(d), files(d), appearanceSection(d), ...extra, dailyNotes(d), templates(d)]
+  return [general(d), accountSection(d.notice), editor(d), files(d), appearanceSection(d), ...extra, dailyNotes(d), templates(d)]
 }

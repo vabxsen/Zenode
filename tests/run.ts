@@ -11,5 +11,6 @@ import './indexcache.test'
 import './appearance.test'
 import './security.test'
 import './launch.test'
+import './sync.test'
 
 report()

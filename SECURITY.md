@@ -12,7 +12,14 @@ Only the latest release gets security fixes.
 
 ## How Zenode protects your notes and your computer
 
-Zenode is a desktop app that reads and writes files in folders you choose. It has no server and no account, and no telemetry or analytics. The only network request it makes is the update check: it asks GitHub Releases whether a new version is out, at start-up and every few hours. That can be turned off in Settings → General → Updates.
+Zenode is a desktop app that reads and writes files in folders you choose. It has no telemetry or analytics. Without signing in, the only network request it makes is the update check: it asks GitHub Releases whether a new version is out, at start-up and every few hours. That can be turned off in Settings → General → Updates.
+
+**Account and sync (optional).** Signing in with Google syncs vaults to the Zenode Firebase project (Cloud Firestore):
+- Sign-in uses Google's flow for desktop apps in your browser (PKCE, with a one-time local address). Zenode never sees your Google password.
+- The session is kept encrypted with Windows' data protection (Electron safeStorage).
+- Firestore security rules let each account read and write only its own data.
+- Synced notes are encrypted in transit and at rest by Google, but not end to end yet: the project's owners could read them. End-to-end encryption is planned.
+- Sync runs in the main process; the page still cannot reach the network.
 
 **The page is sandboxed.**
 - The app's interface runs with Chromium's sandbox and context isolation, without Node.js.

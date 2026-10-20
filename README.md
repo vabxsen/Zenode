@@ -2,6 +2,17 @@
 
 A fast, local-first Markdown knowledge base for Windows. Your notes are plain `.md` files in a folder you choose (a "vault"), so they stay readable by any editor, including Obsidian.
 
+## Account & sync
+
+- **Sign in with Google** (Settings → Account & sync) and every vault you open is kept in your account: notes, canvases, and each vault's settings and layout.
+- **New or reset computer:** install Zenode, choose **Restore from your account** on the welcome screen, sign in, and pick a vault and a folder for it.
+- **Several computers:** edits sync a few seconds after you make them, and every few minutes. If two computers change the same note in between, nothing is lost: the other version is saved beside it as `Note (Zenode conflict from PC-NAME …).md`, listed in the status bar's sync conflicts to compare and merge.
+- Each vault can be left out (Settings → Account & sync → Sync this vault). Notes Zenode replaces with a newer version stay in File history.
+- **Not yet synced:** images, PDFs and other attachments, and text files over 900 KB (the free Firebase plan has no file storage). Notes aren't encrypted end to end yet.
+- Signed out, Zenode makes no sync requests at all.
+
+Sync runs on Firebase (Google sign-in, Cloud Firestore). A build gets its Firebase settings from `MAIN_VITE_*` variables: `.env.local` locally (git-ignored; see the template), and repository secrets in the release workflow (`FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`). A build without them shows sync as unavailable.
+
 ## Install & updates (M8)
 
 - **Downloads** (from [Releases](https://github.com/vabxsen/Zenode/releases)):
