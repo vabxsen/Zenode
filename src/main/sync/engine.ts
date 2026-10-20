@@ -6,7 +6,7 @@ import { extname, join, relative, sep } from 'node:path'
 import type { SyncReport } from '../../shared/sync'
 import { contentHash } from '../../shared/hash'
 import { conflictPath, planSync, type RemoteChange } from './plan'
-import { MAX_FILE_BYTES, type RemoteFile, type RemoteStore } from './remote'
+import { MAX_FILE_BYTES, RemoteChangedError, type RemoteFile, type RemoteStore, type RemoteWrite } from './remote'
 
 // Text files sync for now; images, PDFs and other attachments need cloud file
 // storage (Firebase's paid plan) and are counted as skipped.
@@ -20,9 +20,11 @@ export interface SyncMemory {
   base: Record<string, string>
   // Hashes of unchanged files are reused: [mtime, size, hash].
   stat: Record<string, [number, number, string]>
+  // Each file's version in the account as last seen; uploads expect it unchanged.
+  versions: Record<string, string>
 }
 
-export const emptyMemory = (): SyncMemory => ({ cursor: null, base: {}, stat: {} })
+export const emptyMemory = (): SyncMemory => ({ cursor: null, base: {}, stat: {}, versions: {} })
 
 export interface EngineDeps {
   remote: RemoteStore
@@ -71,21 +73,43 @@ export async function scanLocal(root: string, prev: SyncMemory['stat']): Promise
   return out
 }
 
-export async function syncPass(root: string, remoteId: string, memory: SyncMemory, deps: EngineDeps): Promise<{ memory: SyncMemory; report: SyncReport }> {
+export interface PassResult {
+  memory: SyncMemory
+  report: SyncReport
+  // Another computer wrote at the same moment: sync again soon.
+  retry: boolean
+}
+
+// A conflict copy of `path` with this content is already here (from an
+// interrupted pass), so it isn't made twice.
+function hasCopy(local: Record<string, string>, path: string, hash: string): boolean {
+  const prefix = `${path.replace(/\.[^./]+$/, '')} (Zenode conflict from `
+  return Object.keys(local).some((p) => p.startsWith(prefix) && local[p] === hash)
+}
+
+export async function syncPass(root: string, remoteId: string, memory: SyncMemory, deps: EngineDeps): Promise<PassResult> {
   const scan = await scanLocal(root, memory.stat)
   const page = await deps.remote.changesSince(remoteId, memory.cursor)
   const remoteFiles = new Map(page.files.map((f) => [f.path, f]))
   const remote: Record<string, RemoteChange> = {}
-  for (const f of page.files) remote[f.path] = { hash: f.hash, deleted: f.deleted }
+  const versions = { ...memory.versions }
+  for (const f of page.files) {
+    remote[f.path] = { hash: f.hash, deleted: f.deleted }
+    if (f.version) versions[f.path] = f.version
+  }
   const plan = planSync(memory.base, scan.hashes, remote)
   const base = { ...plan.base }
   const report: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, conflicts: 0, skipped: scan.skipped }
-  const outgoing: RemoteFile[] = []
+  const outgoing: RemoteWrite[] = []
+  const send = (f: RemoteFile): void => void outgoing.push({ ...f, expect: versions[f.path] ?? null })
   // A file that couldn't be handled keeps its old base, so the next pass tries again.
-  const failed = (path: string, e: unknown): void => {
-    deps.warn?.(`sync ${path}: ${(e as Error)?.message ?? e}`)
+  const keepOld = (path: string): void => {
     if (memory.base[path] === undefined) delete base[path]
     else base[path] = memory.base[path]
+  }
+  const failed = (path: string, e: unknown): void => {
+    deps.warn?.(`sync ${path}: ${(e as Error)?.message ?? e}`)
+    keepOld(path)
   }
 
   for (const path of plan.download) {
@@ -107,11 +131,14 @@ export async function syncPass(root: string, remoteId: string, memory: SyncMemor
   for (const path of plan.conflict) {
     try {
       // The other computer's version, kept here and sent to the account so every computer has both.
-      const copy = conflictPath(path, deps.device, deps.now?.() ?? new Date())
       const content = remoteFiles.get(path)!.content
-      await deps.write(copy, content)
-      outgoing.push({ path: copy, hash: contentHash(content), deleted: false, content })
-      base[copy] = contentHash(content)
+      const hash = contentHash(content)
+      if (!hasCopy(scan.hashes, path, hash)) {
+        const copy = conflictPath(path, deps.device, deps.now?.() ?? new Date())
+        await deps.write(copy, content)
+        send({ path: copy, hash, deleted: false, content })
+        base[copy] = hash
+      }
       report.conflicts++
     } catch (e) {
       failed(path, e)
@@ -124,17 +151,26 @@ export async function syncPass(root: string, remoteId: string, memory: SyncMemor
       // Read now: the file may have changed since the scan.
       const content = await deps.read(path)
       const hash = contentHash(content)
-      outgoing.push({ path, hash, deleted: false, content })
+      send({ path, hash, deleted: false, content })
       base[path] = hash
     } catch (e) {
       failed(path, e)
     }
   }
-  for (const path of plan.deleteRemote) outgoing.push({ path, hash: '', deleted: true, content: '' })
+  for (const path of plan.deleteRemote) send({ path, hash: '', deleted: true, content: '' })
+  let retry = false
   if (outgoing.length) {
-    await deps.remote.put(remoteId, outgoing, deps.device)
-    report.uploaded = outgoing.filter((f) => !f.deleted).length
-    report.deleted += outgoing.length - report.uploaded
+    try {
+      Object.assign(versions, await deps.remote.put(remoteId, outgoing, deps.device))
+      report.uploaded = outgoing.filter((f) => !f.deleted).length
+      report.deleted += outgoing.length - report.uploaded
+    } catch (e) {
+      if (!(e instanceof RemoteChangedError)) throw e
+      // Nothing (or not all) went up: those files stay unsynced, and the next
+      // pass sees what the other computer wrote and handles it.
+      for (const f of outgoing) keepOld(f.path)
+      retry = true
+    }
   }
-  return { memory: { cursor: page.cursor, base, stat: scan.stat }, report }
+  return { memory: { cursor: page.cursor, base, stat: scan.stat, versions }, report, retry }
 }

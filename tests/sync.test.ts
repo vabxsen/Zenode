@@ -107,4 +107,34 @@ eq('two PCs: both edited, nothing lost', [(await sync(b)).conflicts, get(b, 'Hom
 await sync(a)
 eq('two PCs: both PCs end with both versions', [get(a, 'Home.md'), get(a, conflictName)], ['B version\n', 'A version\n'])
 
+// Both PCs upload the same note at the same moment: PC-A writes in the gap
+// between PC-B reading the account and writing to it.
+put(a, 'Ideas.md', 'A idea\n')
+put(b, 'Ideas.md', 'B idea\n')
+const racing = {
+  ...cloud,
+  listVaults: () => cloud.listVaults(),
+  createVault: (n: string) => cloud.createVault(n),
+  put: (id: string, f: Parameters<typeof cloud.put>[1], dev: string) => cloud.put(id, f, dev),
+  changesSince: async (id: string, cursor: string | null) => {
+    const page = await cloud.changesSince(id, cursor)
+    await sync(a)
+    return page
+  }
+}
+const raced = await syncPass(b.root, remoteId, b.memory, {
+  remote: racing,
+  device: b.name,
+  read: async (p) => readFileSync(join(b.root, p), 'utf8'),
+  write: async (p, c) => put(b, p, c),
+  trash: async () => undefined
+})
+b.memory = raced.memory
+eq('race: the later write is refused, and a retry is asked for', [raced.retry, raced.report.uploaded, get(b, 'Ideas.md')], [true, 0, 'B idea\n'])
+await sync(b)
+await sync(a)
+const ideaCopy = 'Ideas (Zenode conflict from PC-B 2026-10-20 120000).md'
+eq('race: both PCs end with both versions', [get(a, 'Ideas.md'), get(a, ideaCopy), get(b, 'Ideas.md'), get(b, ideaCopy)], ['B idea\n', 'A idea\n', 'B idea\n', 'A idea\n'])
+eq('race: and then nothing is left to do', [await sync(a), await sync(b)].map((r) => r.uploaded + r.downloaded + r.conflicts), [0, 0])
+
 rmSync(base, { recursive: true, force: true })

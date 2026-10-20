@@ -32,6 +32,9 @@ const states = new Map<string, { state: SyncState; skipped: number }>()
 const running = new Map<string, Promise<void>>()
 const again = new Set<string>()
 const timers = new Map<string, NodeJS.Timeout>()
+// Passes re-run at once when another computer wrote at the same moment, a few times at most.
+const MAX_RETRIES = 3
+const retries = new Map<string, number>()
 
 function store(uid: string): RemoteStore {
   if (testSyncDir) return new FolderRemote(join(testSyncDir, uid))
@@ -113,7 +116,7 @@ async function runPass(root: string, rethrow = false): Promise<void> {
     const remote = store(uid)
     const remoteId = await linkFor(root, uid, remote)
     const vault = vaultFor(root)
-    const { memory, report } = await syncPass(vault.root, remoteId, await readMemory(uid, remoteId), {
+    const { memory, report, retry } = await syncPass(vault.root, remoteId, await readMemory(uid, remoteId), {
       remote,
       device,
       read: (p) => vault.read(p),
@@ -124,6 +127,9 @@ async function runPass(root: string, rethrow = false): Promise<void> {
       warn: (m) => void log('warn', m)
     })
     await writeMemory(uid, remoteId, memory)
+    const tries = retry ? (retries.get(k) ?? 0) + 1 : 0
+    retries.set(k, tries)
+    if (retry && tries <= MAX_RETRIES) again.add(k)
     states.set(k, { state: { status: 'idle', lastSync: Date.now() }, skipped: report.skipped })
     if (report.uploaded + report.downloaded + report.deleted + report.conflicts > 0) {
       void log('info', `sync ${vault.name}: ${JSON.stringify(report)}`)
@@ -166,8 +172,7 @@ async function syncAll(recent: boolean): Promise<void> {
   for (const w of allWindows()) if (w.vault) roots.set(key(w.vault.root), w.vault.root)
   if (recent) {
     for (const r of (await loadSettings()).recentVaults) {
-      const isDir = await fs.stat(r).then((s) => s.isDirectory(), () => false)
-      if (isDir && !roots.has(key(r))) roots.set(key(r), r)
+      if (!roots.has(key(r)) && (await isDir(r))) roots.set(key(r), r)
     }
   }
   for (const root of roots.values()) await syncVault(root)
@@ -184,16 +189,24 @@ export async function setSyncEnabled(root: string, on: boolean): Promise<VaultSy
   return vaultStatus(root)
 }
 
+const isDir = (p: string): Promise<boolean> => fs.stat(p).then((s) => s.isDirectory(), () => false)
+
 export async function remoteVaults(): Promise<RemoteVault[]> {
   const uid = currentUid()
   if (!uid) return []
   const settings = await syncSettings(uid)
   const recent = (await loadSettings()).recentVaults
-  const rootOf = (id: string): string | null => {
+  // The folder linked to a vault, if it is still there (a deleted or moved
+  // folder doesn't count, so the vault can be restored).
+  const rootOf = async (id: string): Promise<string | null> => {
     const k = Object.keys(settings.links).find((r) => settings.links[r] === id)
-    return k ? (recent.find((r) => key(r) === k) ?? k) : null
+    if (!k) return null
+    const root = recent.find((r) => key(r) === k) ?? k
+    return (await isDir(root)) ? root : null
   }
-  return (await store(uid).listVaults()).map((v) => ({ ...v, localRoot: rootOf(v.id) })).sort((a, b) => b.updatedAt - a.updatedAt)
+  const vaults = await store(uid).listVaults()
+  const out = await Promise.all(vaults.map(async (v) => ({ ...v, localRoot: await rootOf(v.id) })))
+  return out.sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 // Downloads a vault from the account into a new folder in `parent`, and
@@ -209,7 +222,9 @@ export async function restoreVault(remoteId: string, parent: string): Promise<st
   for (let i = 2; await fs.stat(root).then(() => true, () => false); i++) root = join(parent, `${safe} ${i}`)
   await fs.mkdir(root, { recursive: true })
   const settings = await syncSettings(uid)
-  await saveSyncSettings({ ...settings, links: { ...settings.links, [key(root)]: remoteId }, off: settings.off.filter((r) => r !== key(root)) })
+  // The new folder replaces any old (missing) one linked to this vault.
+  const links = Object.fromEntries(Object.entries(settings.links).filter(([, id]) => id !== remoteId))
+  await saveSyncSettings({ ...settings, links: { ...links, [key(root)]: remoteId }, off: settings.off.filter((r) => r !== key(root)) })
   await runPass(root, true)
   await saveSettings(rememberVault(await loadSettings(), root))
   return root

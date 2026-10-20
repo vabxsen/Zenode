@@ -15,6 +15,14 @@ export interface RemoteFile {
   hash: string
   deleted: boolean
   content: string
+  // Which write of it this is (changes with every write).
+  version?: string
+}
+
+// A write, made only if the file in the account is still `expect`: the
+// version this computer last saw, or null for "not in the account yet".
+export interface RemoteWrite extends RemoteFile {
+  expect: string | null
 }
 
 export interface ChangesPage {
@@ -23,12 +31,22 @@ export interface ChangesPage {
   cursor: string | null
 }
 
+// Another computer wrote one of the files since this one last looked; nothing
+// in the batch was written. The next pass sees the change and handles it.
+export class RemoteChangedError extends Error {
+  constructor() {
+    super('A file changed on another computer at the same moment. Syncing again.')
+  }
+}
+
 export interface RemoteStore {
   listVaults(): Promise<RemoteVaultInfo[]>
   createVault(name: string): Promise<string>
   // Files written since `cursor` (everything when null).
   changesSince(vaultId: string, cursor: string | null): Promise<ChangesPage>
-  put(vaultId: string, files: RemoteFile[], device: string): Promise<void>
+  // Writes all or (on RemoteChangedError) none of a batch; large uploads go
+  // in several batches. Resolves with each written file's new version.
+  put(vaultId: string, files: RemoteWrite[], device: string): Promise<Record<string, string>>
 }
 
 // Firestore documents are limited to 1 MiB, so larger files don't sync (yet).

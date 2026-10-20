@@ -4,12 +4,14 @@
 // updatedAt is the server's clock, so "changed since" works across computers
 // whose clocks disagree. Security rules let a user reach only users/{their uid}.
 import { createHash, randomUUID } from 'node:crypto'
-import type { ChangesPage, RemoteFile, RemoteStore, RemoteVaultInfo } from './remote'
+import { RemoteChangedError, type ChangesPage, type RemoteFile, type RemoteStore, type RemoteVaultInfo, type RemoteWrite } from './remote'
 
 type Value = { stringValue?: string; booleanValue?: boolean; integerValue?: string; timestampValue?: string; referenceValue?: string }
 interface Doc {
   name: string
   fields?: Record<string, Value>
+  // Changes with every write; used as the file's version.
+  updateTime?: string
 }
 
 const PAGE = 300
@@ -22,6 +24,8 @@ const MAX_BATCH_BYTES = 4 * 1024 * 1024
 export const fileId = (path: string): string => createHash('sha256').update(path).digest('hex').slice(0, 40)
 
 function httpError(status: number, message: string): Error {
+  // A write's precondition failed: another computer wrote the file first.
+  if (status === 409 || /FAILED_PRECONDITION|ALREADY_EXISTS|precondition/i.test(message)) return new RemoteChangedError()
   if (status === 401 || status === 403) return new Error('Sync was refused by the cloud. Sign in again, or check the Firestore rules.')
   if (status === 429 || /quota|RESOURCE_EXHAUSTED/i.test(message)) return new Error('The sync service is busy or over its daily limit. Zenode will try again later.')
   if (status === 404 && /database/i.test(message)) return new Error('The Firestore database has not been created in the Firebase project yet.')
@@ -98,7 +102,7 @@ export class FirestoreRemote implements RemoteStore {
       const docs = rows.map((r) => r.document).filter((d): d is Doc => !!d)
       for (const d of docs) {
         const f = d.fields ?? {}
-        files.push({ path: f.path?.stringValue ?? '', hash: f.hash?.stringValue ?? '', deleted: !!f.deleted?.booleanValue, content: f.content?.stringValue ?? '' })
+        files.push({ path: f.path?.stringValue ?? '', hash: f.hash?.stringValue ?? '', deleted: !!f.deleted?.booleanValue, content: f.content?.stringValue ?? '', version: d.updateTime })
         const at = f.updatedAt?.timestampValue
         if (at && (!latest || Date.parse(at) > Date.parse(latest))) latest = at
       }
@@ -109,41 +113,49 @@ export class FirestoreRemote implements RemoteStore {
     return { files: files.filter((f) => f.path), cursor: latest }
   }
 
-  async put(vaultId: string, files: RemoteFile[], device: string): Promise<void> {
+  async put(vaultId: string, files: RemoteWrite[], device: string): Promise<Record<string, string>> {
     const vault = this.vaultPath(vaultId)
-    const writes = files.map((f) => ({
-      update: {
-        name: `${vault}/files/${fileId(f.path)}`,
-        fields: {
-          path: { stringValue: f.path },
-          hash: { stringValue: f.hash },
-          deleted: { booleanValue: f.deleted },
-          content: { stringValue: f.deleted ? '' : f.content },
-          device: { stringValue: device }
-        }
-      },
-      updateTransforms: [{ fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }]
-    }))
+    const versions: Record<string, string> = {}
     // Batches small enough for one request each; the vault's updatedAt moves with every batch.
-    let batch: unknown[] = []
+    let batch: RemoteWrite[] = []
     let bytes = 0
     const flush = async (): Promise<void> => {
       if (!batch.length) return
-      batch.push({ transform: { document: vault, fieldTransforms: [{ fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }] } })
-      await this.commit(batch)
+      const writes: unknown[] = batch.map((f) => ({
+        update: {
+          name: `${vault}/files/${fileId(f.path)}`,
+          fields: {
+            path: { stringValue: f.path },
+            hash: { stringValue: f.hash },
+            deleted: { booleanValue: f.deleted },
+            content: { stringValue: f.deleted ? '' : f.content },
+            device: { stringValue: device }
+          }
+        },
+        updateTransforms: [{ fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }],
+        // Only if nobody else wrote it since this computer last saw it.
+        currentDocument: f.expect ? { updateTime: f.expect } : { exists: false }
+      }))
+      writes.push({ transform: { document: vault, fieldTransforms: [{ fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }] } })
+      const r = await this.commit(writes)
+      batch.forEach((f, i) => {
+        const at = r.writeResults?.[i]?.updateTime ?? r.commitTime
+        if (at) versions[f.path] = at
+      })
       batch = []
       bytes = 0
     }
-    for (const w of writes) {
-      const size = w.update.fields.content.stringValue.length + 512
+    for (const f of files) {
+      const size = f.content.length + 512
       if (batch.length >= MAX_WRITES || bytes + size > MAX_BATCH_BYTES) await flush()
-      batch.push(w)
+      batch.push(f)
       bytes += size
     }
     await flush()
+    return versions
   }
 
-  private async commit(writes: unknown[]): Promise<void> {
-    await this.call('POST', `${this.root}:commit`, { writes })
+  private commit(writes: unknown[]): Promise<{ writeResults?: Array<{ updateTime?: string }>; commitTime?: string }> {
+    return this.call('POST', `${this.root}:commit`, { writes })
   }
 }

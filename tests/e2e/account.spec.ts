@@ -21,7 +21,7 @@ function cloudFiles(cloud: string): { vaults: string[]; files: Record<string, st
 async function signInFromSettings(page: Page): Promise<void> {
   await page.keyboard.press('Control+,')
   await page.locator('.zn-settings-tab', { hasText: 'Account & sync' }).click()
-  await page.getByRole('button', { name: 'Sign in with Google' }).click()
+  await page.getByRole('button', { name: 'Sign in with Google', exact: true }).click()
   await expect(page.locator('.zn-set-name', { hasText: 'Signed in as Test user' })).toBeVisible()
 }
 
@@ -65,8 +65,8 @@ test('on a new computer, signing in brings the vault back', async ({ app, workDi
   try {
     const page = await second.firstWindow()
     await page.getByRole('button', { name: /Restore from your account/ }).click()
-    await page.getByRole('button', { name: 'Sign in with Google' }).click()
-    await page.getByRole('button', { name: 'Restore vault' }).click()
+    await page.getByRole('button', { name: 'Sign in with Google', exact: true }).click()
+    await page.getByRole('button', { name: 'Restore vault', exact: true }).click()
     await expect(treeRow(page, 'Home')).toBeVisible()
     await expect(treeRow(page, 'Roadmap').or(treeRow(page, 'Projects'))).toBeVisible()
     expect(readFileSync(join(pc2, 'vaults', 'vault', 'Home.md'), 'utf8')).toBe(readFileSync(join(workDir, 'vault', 'Home.md'), 'utf8'))

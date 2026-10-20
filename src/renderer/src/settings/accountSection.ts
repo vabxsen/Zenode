@@ -62,5 +62,7 @@ async function render(c: HTMLElement, notice: (m: string) => void): Promise<void
 }
 
 export function accountSection(notice: (m: string) => void): SettingsSection {
-  return { id: 'account', name: 'Account & sync', render: (c) => render(c, notice) }
+  // Drawn into its own box: signing in or out redraws it without touching the
+  // section heading the settings screen puts above.
+  return { id: 'account', name: 'Account & sync', render: (c) => render(el('div', 'zn-account', c), notice) }
 }

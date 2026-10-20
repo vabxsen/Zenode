@@ -65,7 +65,7 @@ test('the app can be driven from the keyboard', async ({ page }) => {
   await page.keyboard.press('Control+,')
   await expect(page.locator('.zn-settings-tab.is-active')).toBeFocused()
   await page.keyboard.press('ArrowDown')
-  await expect(page.locator('.zn-settings-heading')).toHaveText('Editor')
+  await expect(page.locator('.zn-settings-heading')).toHaveText('Account & sync')
   await page.keyboard.press('Escape')
   await expect(page.locator('.zn-settings')).toHaveCount(0)
 
