@@ -1,5 +1,6 @@
 // Contract between the main process and the renderer.
 // All paths are vault-relative and use forward slashes.
+import type { AccountState, RemoteVault, VaultSyncStatus } from './sync'
 import type { UpdatePrefs, UpdateStatus } from './updates'
 
 export interface TreeEntry {
@@ -74,6 +75,16 @@ export interface Settings {
   // Legacy: open tabs per vault, from before they moved to <vault>/.zenode/workspace.json.
   workspaces: Record<string, WorkspaceState>
   updates?: UpdatePrefs
+  // Which vaults sync with the signed-in account.
+  sync?: SyncSettings
+}
+
+export interface SyncSettings {
+  uid: string
+  // Vault folder -> its vault id in the account.
+  links: Record<string, string>
+  // Vault folders the user turned sync off for.
+  off: string[]
 }
 
 // Result of a checked write. "conflict" means the file on disk is no longer the
@@ -122,6 +133,21 @@ export interface ZenodeAPI {
   // Restarts into a downloaded update, or opens the release page.
   installUpdate(): Promise<void>
   onUpdateStatus(cb: (s: UpdateStatus) => void): () => void
+  // The Zenode account (Google sign-in) and syncing vaults with it.
+  accountState(): Promise<AccountState>
+  // Opens the browser to sign in with Google; resolves once signed in.
+  signIn(): Promise<AccountState>
+  cancelSignIn(): Promise<void>
+  signOut(): Promise<AccountState>
+  onAccountChange(cb: (s: AccountState) => void): () => void
+  syncStatus(): Promise<VaultSyncStatus | null>
+  syncNow(): Promise<VaultSyncStatus>
+  setSyncEnabled(on: boolean): Promise<VaultSyncStatus>
+  onSyncStatus(cb: (s: VaultSyncStatus) => void): () => void
+  remoteVaults(): Promise<RemoteVault[]>
+  // Downloads a vault from the account into a folder the user picks. Null if
+  // cancelled, or when it opened in another window.
+  restoreVault(remoteId: string): Promise<VaultInfo | null>
   // Installed CSS themes (.zenode/themes) and snippets (.zenode/snippets).
   listCss(): Promise<{ themes: string[]; snippets: string[] }>
   readCss(kind: 'theme' | 'snippet', name: string): Promise<string>

@@ -6,6 +6,15 @@ Each release's notes on GitHub are taken from its section below, so write entrie
 
 ## [Unreleased]
 
+### Added
+
+- **Zenode account:** sign in with Google, and every vault you open is kept in your account.
+  - Notes, canvases and vault settings sync between computers within seconds.
+  - On a new or reset computer, "Restore from your account" brings a vault back.
+  - When two computers change the same note, the other version is kept beside it as a conflict copy to compare and merge.
+  - Images and other attachments don't sync yet.
+- A new app icon and logo: the Ribbon Z.
+
 ## [0.5.0] - 2026-10-19
 
 The first public build.

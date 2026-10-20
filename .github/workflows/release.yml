@@ -43,6 +43,12 @@ jobs:
         run: npm run dist
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # Sync settings (Firebase and Google sign-in). Without them the build
+          # works, and shows sync as unavailable.
+          MAIN_VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          MAIN_VITE_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          MAIN_VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
 
       - name: Check the packaged app
         run: npm run check:package

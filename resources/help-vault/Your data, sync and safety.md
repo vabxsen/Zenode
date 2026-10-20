@@ -16,8 +16,16 @@ Text that wasn't saved yet is kept outside the vault and offered back after a cr
 
 Vaults in OneDrive, Dropbox, Syncthing, Nextcloud or Git work. When a sync tool makes a conflict copy (like `Note (conflicted copy).md`), the status bar shows it and lets you compare and merge.
 
+## Your Zenode account
+
+Sign in with Google in Settings → Account & sync, and your vaults are kept in your account. On a new or reset computer, choose **Restore from your account** on the welcome screen to get them back.
+
+- Notes, canvases and each vault's settings sync. Images, PDFs and other attachments don't yet.
+- Edits travel a few seconds after you make them. If two computers changed the same note, the other version is kept beside it as a "Zenode conflict" copy, so you can compare and merge.
+- You can turn sync off for any vault there too.
+
 ## Updates and privacy
 
-Zenode has no account and sends nothing about you or your notes. The only thing it asks the internet is whether a new version is out on GitHub, when it starts and every few hours. Turn that off in Settings → General → Updates, or press **Check now** there whenever you like.
+Zenode sends nothing about you, and nothing from your notes unless you sign in to sync. Otherwise the only thing it asks the internet is whether a new version is out on GitHub, when it starts and every few hours. Turn that off in Settings → General → Updates, or press **Check now** there whenever you like.
 
 The installed app downloads a new version in the background and installs it the next time you restart Zenode. The portable and zip copies don't update themselves: they tell you when a new version is out and link to its download page.

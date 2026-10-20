@@ -30,6 +30,7 @@ const PATHS = {
   tag: 'M3 12V3h9l9 9-9 9zM7.5 7.5h.01',
   outline: 'M4 6h16M8 12h12M12 18h8',
   outgoing: 'M7 17L17 7M9 7h8v8',
+  cloud: 'M7 18a4.5 4.5 0 0 1-.4-9A6 6 0 0 1 18 9.5a4.3 4.3 0 0 1-.5 8.5z',
 } as const
 
 export type IconName = keyof typeof PATHS

@@ -35,6 +35,7 @@ import { registerWorkspaceCommands } from './workspaceCommands'
 import { offerRecovery } from './recovery'
 import type { ReadingContext } from './render/reading'
 import { SyncIndicator } from './sync/syncPanel'
+import { CloudStatus } from './account/cloudStatus'
 import { baseName, isMarkdown, parentDir, stripExt, stripMd } from './paths'
 import { mentionLink, type Mention } from './panels/mentions'
 import { LeftSidebar, RightSidebar, type LeftPane, type RightPane, type SidebarDeps } from './sidebars'
@@ -170,6 +171,7 @@ export class App extends Component {
       create: async (name) => enter(await api.createVault(name, !here)),
       openFolder: async () => (here ? enter(await api.chooseVault()) : api.openVaultInNewWindow()),
       openHelp: async () => enter(await api.openHelpVault(!here)),
+      restore: here ? async (id) => enter(await api.restoreVault(id)) : undefined,
       notice: (m) => this.notice(m)
     }
   }
@@ -334,6 +336,7 @@ export class App extends Component {
       openPath: (path) => void this.openPath(path),
       notice: (m) => this.notice(m)
     }))
+    shell.addChild(new CloudStatus(status, () => this.openSettings('account')))
     this.statusEl = el('div', 'zn-status-stats', status)
     shell.addChild(new HoverPreview(this.root, { activePath: () => this.workspace?.activePath ?? null, readingContext: (p) => this.readingContext(cache, p) }))
   }

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webFrame, type IpcRendererEvent } from 'electron'
 import type { ZenodeAPI } from '../shared/api'
+import type { AccountState, VaultSyncStatus } from '../shared/sync'
 import type { UpdateStatus } from '../shared/updates'
 
 // Electron reports main-process errors as "Error invoking remote method 'x': Error: msg";
@@ -26,6 +27,15 @@ const api: ZenodeAPI = {
   checkForUpdates: () => invoke('update:check'),
   setUpdatePrefs: (change) => invoke('update:setPrefs', change),
   installUpdate: () => invoke('update:install'),
+  accountState: () => invoke('account:state'),
+  signIn: () => invoke('account:signIn'),
+  cancelSignIn: () => invoke('account:cancelSignIn'),
+  signOut: () => invoke('account:signOut'),
+  syncStatus: () => invoke('sync:status'),
+  syncNow: () => invoke('sync:now'),
+  setSyncEnabled: (on) => invoke('sync:setEnabled', on),
+  remoteVaults: () => invoke('sync:remoteVaults'),
+  restoreVault: (remoteId) => invoke('sync:restore', remoteId),
   listCss: () => invoke('css:list'),
   readCss: (kind, name) => invoke('css:read', kind, name),
   openCssFolder: (kind) => invoke('css:openFolder', kind),
@@ -63,6 +73,16 @@ const api: ZenodeAPI = {
     const listener = (_e: IpcRendererEvent, paths: string[]): void => cb(paths)
     ipcRenderer.on('vault:changed', listener)
     return () => ipcRenderer.removeListener('vault:changed', listener)
+  },
+  onAccountChange: (cb) => {
+    const listener = (_e: IpcRendererEvent, s: AccountState): void => cb(s)
+    ipcRenderer.on('account:changed', listener)
+    return () => ipcRenderer.removeListener('account:changed', listener)
+  },
+  onSyncStatus: (cb) => {
+    const listener = (_e: IpcRendererEvent, s: VaultSyncStatus): void => cb(s)
+    ipcRenderer.on('sync:status', listener)
+    return () => ipcRenderer.removeListener('sync:status', listener)
   },
   onUpdateStatus: (cb) => {
     const listener = (_e: IpcRendererEvent, status: UpdateStatus): void => cb(status)
