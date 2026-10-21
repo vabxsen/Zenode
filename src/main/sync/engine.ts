@@ -13,6 +13,27 @@ import { MAX_FILE_BYTES, RemoteChangedError, type RemoteFile, type RemoteStore, 
 const TEXT_EXT = new Set(['md', 'markdown', 'canvas', 'txt', 'json', 'css', 'csv', 'tsv', 'yaml', 'yml', 'svg', 'html', 'xml', 'base', 'js', 'ts', 'py'])
 // Folders that never sync: deleted files, version control, and other apps' settings.
 const SKIP_DIRS = new Set(['.trash', '.git', '.obsidian', 'node_modules'])
+// Files in .zenode that describe this computer rather than the vault: open
+// tabs and pane layout, the Help vault's version stamp, and the account link.
+const DEVICE_ONLY = new Set(['.zenode/workspace.json', '.zenode/help-version', '.zenode/sync.json'])
+
+const isTextFile = (name: string): boolean => TEXT_EXT.has(extname(name).slice(1).toLowerCase())
+
+// Whether a vault path takes part in sync, in both directions: what this
+// computer uploads, and what it accepts from the account. Nothing from the
+// account lands in hidden folders (other than .zenode), .git, .obsidian or
+// .trash, or as a file type that isn't synced.
+// Names are compared without case, as Windows does: ".zenode/Workspace.json"
+// is the same file as ".zenode/workspace.json".
+export function isSyncable(path: string): boolean {
+  const lower = path.toLowerCase()
+  if (!path || DEVICE_ONLY.has(lower) || lower.endsWith('.zenode-tmp')) return false
+  const parts = lower.split('/')
+  if (parts.some((p) => p === '' || p === '.' || p === '..')) return false
+  const dirs = parts.slice(0, -1)
+  if (dirs.some((d, i) => SKIP_DIRS.has(d) || (d.startsWith('.') && !(i === 0 && d === '.zenode')))) return false
+  return isTextFile(parts[parts.length - 1])
+}
 
 export interface SyncMemory {
   cursor: string | null
@@ -52,13 +73,13 @@ export async function scanLocal(root: string, prev: SyncMemory['stat']): Promise
       const path = relative(root, full).split(sep).join('/')
       if (e.isDirectory()) {
         // Hidden folders are skipped, except Zenode's own settings.
-        if (SKIP_DIRS.has(e.name) || (e.name.startsWith('.') && path !== '.zenode')) continue
+        if (SKIP_DIRS.has(e.name.toLowerCase()) || (e.name.startsWith('.') && path.toLowerCase() !== '.zenode')) continue
         await walk(full)
       } else if (e.isFile()) {
-        if (e.name.endsWith('.zenode-tmp')) continue
+        if (e.name.endsWith('.zenode-tmp') || DEVICE_ONLY.has(path.toLowerCase())) continue
         const st = await fs.stat(full).catch(() => null)
         if (!st) continue
-        if (!TEXT_EXT.has(extname(e.name).slice(1).toLowerCase()) || st.size > MAX_FILE_BYTES) {
+        if (!isTextFile(e.name) || st.size > MAX_FILE_BYTES) {
           out.skipped++
           continue
         }
@@ -87,13 +108,31 @@ function hasCopy(local: Record<string, string>, path: string, hash: string): boo
   return Object.keys(local).some((p) => p.startsWith(prefix) && local[p] === hash)
 }
 
-export async function syncPass(root: string, remoteId: string, memory: SyncMemory, deps: EngineDeps): Promise<PassResult> {
+export interface PassOptions {
+  // Only send this computer's changes, without asking the account what changed
+  // (a quick pass after an edit). Uploads still carry the versions last seen,
+  // so a file changed elsewhere is refused and the next full pass handles it.
+  localOnly?: boolean
+}
+
+const onlySyncable = (r: Record<string, string>): Record<string, string> => Object.fromEntries(Object.entries(r).filter(([p]) => isSyncable(p)))
+
+export async function syncPass(root: string, remoteId: string, saved: SyncMemory, deps: EngineDeps, options: PassOptions = {}): Promise<PassResult> {
+  // Memory from an older Zenode can hold paths that no longer sync (such as
+  // .zenode/workspace.json). Forgotten here, or they would look deleted on
+  // this computer and a delete would be sent for them.
+  const memory: SyncMemory = { ...saved, base: onlySyncable(saved.base), versions: onlySyncable(saved.versions) }
   const scan = await scanLocal(root, memory.stat)
-  const page = await deps.remote.changesSince(remoteId, memory.cursor)
-  const remoteFiles = new Map(page.files.map((f) => [f.path, f]))
+  const page = options.localOnly ? { files: [], cursor: memory.cursor } : await deps.remote.changesSince(remoteId, memory.cursor)
+  const incoming = page.files.filter((f) => {
+    if (isSyncable(f.path)) return true
+    deps.warn?.(`sync: ignored ${f.path} from the account (not a file Zenode syncs)`)
+    return false
+  })
+  const remoteFiles = new Map(incoming.map((f) => [f.path, f]))
   const remote: Record<string, RemoteChange> = {}
   const versions = { ...memory.versions }
-  for (const f of page.files) {
+  for (const f of incoming) {
     remote[f.path] = { hash: f.hash, deleted: f.deleted }
     if (f.version) versions[f.path] = f.version
   }

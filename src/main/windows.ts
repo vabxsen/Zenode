@@ -9,7 +9,7 @@ import { contentHash } from '../shared/hash'
 import { safeExternalUrl } from '../shared/linkSafety'
 import { describeError, log } from './log'
 import { RecoveryJournal } from './recovery'
-import { loadSettings, rememberVault, saveSettings } from './settings'
+import { rememberVault, updateSettings } from './settings'
 import { SnapshotStore } from './snapshots'
 import { Vault } from './vault'
 
@@ -122,7 +122,7 @@ export class VaultWindow {
       this.win.webContents.send('vault:changed', paths)
       vaultEvents.emit('changed', vault.root)
     })
-    await saveSettings(rememberVault(await loadSettings(), root))
+    await updateSettings((s) => rememberVault(s, root))
     this.win.setTitle(`${vault.name} - Zenode`)
     vaultEvents.emit('opened', vault.root)
     return this.info()!

@@ -47,7 +47,7 @@ eq(
   [{ root: work }, { root: work }, { root: work }]
 )
 eq('resolve: a file in a known vault', await resolveTarget({ kind: 'file', path: join(work, 'Plans', 'Q4.md') }, []), { root: work, file: 'Plans/Q4.md' })
-eq('resolve: a file in no vault opens its folder', await resolveTarget({ kind: 'file', path: join(loose, 'Note.md') }, known), { root: loose, file: 'Note.md' })
+eq('resolve: a file in no vault opens its folder, marked loose', await resolveTarget({ kind: 'file', path: join(loose, 'Note.md') }, known), { root: loose, file: 'Note.md', loose: true })
 eq('resolve: missing file or folder', [await resolveTarget({ kind: 'file', path: join(loose, 'Nope.md') }, known), await resolveTarget({ kind: 'folder', path: join(base, 'Nope') }, known)], [null, null])
 eq('resolve: folder', await resolveTarget({ kind: 'folder', path: loose }, known), { root: loose })
 rmSync(base, { recursive: true, force: true })

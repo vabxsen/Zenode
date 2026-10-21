@@ -25,10 +25,14 @@ export class SignInCancelled extends Error {
   }
 }
 
-// Waits for one redirect carrying ?code=&state=. Resolves with the code.
-function waitForCode(server: Server, state: string, signal: AbortSignal): Promise<string> {
+// Waits for one redirect carrying ?code=&state=. Resolves with the code; every
+// way out (answer, timeout, abort) clears the timer and the abort listener.
+function waitForCode(server: Server, state: string, signal: AbortSignal, timeoutMs = TIMEOUT_MS): Promise<string> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Sign-in timed out. Try again.')), TIMEOUT_MS)
+    const timer = setTimeout(() => {
+      done()
+      reject(new Error('Sign-in timed out. Try again.'))
+    }, timeoutMs)
     const done = (): void => {
       clearTimeout(timer)
       signal.removeEventListener('abort', onAbort)
@@ -64,9 +68,14 @@ function waitForCode(server: Server, state: string, signal: AbortSignal): Promis
 }
 
 // Signs in with Google in the browser and returns Google's ID token for the user.
-export async function googleIdToken(client: GoogleClient, openBrowser: (url: string) => Promise<void>, signal: AbortSignal): Promise<string> {
+export async function googleIdToken(client: GoogleClient, openBrowser: (url: string) => Promise<void>, signal: AbortSignal, timeoutMs = TIMEOUT_MS): Promise<string> {
   const server = createServer()
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  // Ends the wait for Google's answer however this function exits.
+  const stop = new AbortController()
+  const onOuterAbort = (): void => stop.abort()
+  signal.addEventListener('abort', onOuterAbort)
+  if (signal.aborted) stop.abort()
   try {
     const redirectUri = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
     const verifier = randomBytes(32).toString('base64url')
@@ -82,7 +91,9 @@ export async function googleIdToken(client: GoogleClient, openBrowser: (url: str
       state,
       prompt: 'select_account'
     }).toString()
-    const codePromise = waitForCode(server, state, signal)
+    const codePromise = waitForCode(server, state, stop.signal, timeoutMs)
+    // Handled here too, so an early exit (the browser didn't open) leaves no stray rejection.
+    codePromise.catch(() => undefined)
     await openBrowser(auth.toString())
     const code = await codePromise
     const res = await fetch(TOKEN_URL, {
@@ -101,6 +112,8 @@ export async function googleIdToken(client: GoogleClient, openBrowser: (url: str
     if (!res.ok || !body.id_token) throw new Error(`Google sign-in failed: ${body.error_description ?? body.error ?? res.status}`)
     return body.id_token
   } finally {
+    stop.abort()
+    signal.removeEventListener('abort', onOuterAbort)
     server.close()
   }
 }
