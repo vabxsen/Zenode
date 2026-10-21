@@ -23,9 +23,12 @@ const isTextFile = (name: string): boolean => TEXT_EXT.has(extname(name).slice(1
 // computer uploads, and what it accepts from the account. Nothing from the
 // account lands in hidden folders (other than .zenode), .git, .obsidian or
 // .trash, or as a file type that isn't synced.
+// Names are compared without case, as Windows does: ".zenode/Workspace.json"
+// is the same file as ".zenode/workspace.json".
 export function isSyncable(path: string): boolean {
-  if (!path || DEVICE_ONLY.has(path) || path.endsWith('.zenode-tmp')) return false
-  const parts = path.split('/')
+  const lower = path.toLowerCase()
+  if (!path || DEVICE_ONLY.has(lower) || lower.endsWith('.zenode-tmp')) return false
+  const parts = lower.split('/')
   if (parts.some((p) => p === '' || p === '.' || p === '..')) return false
   const dirs = parts.slice(0, -1)
   if (dirs.some((d, i) => SKIP_DIRS.has(d) || (d.startsWith('.') && !(i === 0 && d === '.zenode')))) return false
@@ -70,10 +73,10 @@ export async function scanLocal(root: string, prev: SyncMemory['stat']): Promise
       const path = relative(root, full).split(sep).join('/')
       if (e.isDirectory()) {
         // Hidden folders are skipped, except Zenode's own settings.
-        if (SKIP_DIRS.has(e.name) || (e.name.startsWith('.') && path !== '.zenode')) continue
+        if (SKIP_DIRS.has(e.name.toLowerCase()) || (e.name.startsWith('.') && path.toLowerCase() !== '.zenode')) continue
         await walk(full)
       } else if (e.isFile()) {
-        if (e.name.endsWith('.zenode-tmp') || DEVICE_ONLY.has(path)) continue
+        if (e.name.endsWith('.zenode-tmp') || DEVICE_ONLY.has(path.toLowerCase())) continue
         const st = await fs.stat(full).catch(() => null)
         if (!st) continue
         if (!isTextFile(e.name) || st.size > MAX_FILE_BYTES) {
@@ -112,7 +115,13 @@ export interface PassOptions {
   localOnly?: boolean
 }
 
-export async function syncPass(root: string, remoteId: string, memory: SyncMemory, deps: EngineDeps, options: PassOptions = {}): Promise<PassResult> {
+const onlySyncable = (r: Record<string, string>): Record<string, string> => Object.fromEntries(Object.entries(r).filter(([p]) => isSyncable(p)))
+
+export async function syncPass(root: string, remoteId: string, saved: SyncMemory, deps: EngineDeps, options: PassOptions = {}): Promise<PassResult> {
+  // Memory from an older Zenode can hold paths that no longer sync (such as
+  // .zenode/workspace.json). Forgotten here, or they would look deleted on
+  // this computer and a delete would be sent for them.
+  const memory: SyncMemory = { ...saved, base: onlySyncable(saved.base), versions: onlySyncable(saved.versions) }
   const scan = await scanLocal(root, memory.stat)
   const page = options.localOnly ? { files: [], cursor: memory.cursor } : await deps.remote.changesSince(remoteId, memory.cursor)
   const incoming = page.files.filter((f) => {

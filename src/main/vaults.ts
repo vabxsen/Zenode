@@ -32,9 +32,10 @@ export async function helpVault(): Promise<string> {
   const target = join(app.getPath('userData'), 'Zenode Help')
   const stamp = join(target, '.zenode', 'help-version')
   const current = await fs.readFile(stamp, 'utf8').catch(() => '')
+  // The Help vault is the same everywhere: it syncs only if turned on by hand
+  // (also when it was made by an older Zenode that synced it automatically).
+  await skipSyncFor(target)
   if (current !== app.getVersion()) {
-    // The Help vault is the same everywhere: it syncs only if turned on by hand.
-    if (!current) await skipSyncFor(target)
     await fs.cp(bundledHelp(), target, { recursive: true, force: true })
     await fs.mkdir(join(target, '.zenode'), { recursive: true })
     await fs.writeFile(stamp, app.getVersion())

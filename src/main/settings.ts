@@ -20,7 +20,8 @@ export async function loadSettings(): Promise<Settings> {
       workspaces: parsed.workspaces && typeof parsed.workspaces === 'object' ? parsed.workspaces : {},
       updates: parsed.updates,
       sync: parsed.sync,
-      syncSkip: Array.isArray(parsed.syncSkip) ? parsed.syncSkip : undefined
+      syncSkip: Array.isArray(parsed.syncSkip) ? parsed.syncSkip : undefined,
+      syncChosen: Array.isArray(parsed.syncChosen) ? parsed.syncChosen : undefined
     }
   } catch {
     return { recentVaults: [], workspaces: {} }
@@ -48,10 +49,11 @@ export function updateSettings(change: (s: Settings) => Settings): Promise<Setti
 // How settings name a folder (Windows paths ignore case).
 export const folderKey = (root: string): string => resolve(root).toLowerCase()
 
-// Leaves a folder out of automatic sync until it is turned on by hand.
+// Leaves a folder out of automatic sync until it is turned on by hand (a
+// folder the user already chose for is left as they set it).
 export function skipSyncFor(root: string): Promise<Settings> {
   const k = folderKey(root)
-  return updateSettings((s) => ((s.syncSkip ?? []).includes(k) ? s : { ...s, syncSkip: [...(s.syncSkip ?? []), k] }))
+  return updateSettings((s) => ((s.syncSkip ?? []).includes(k) || (s.syncChosen ?? []).includes(k) ? s : { ...s, syncSkip: [...(s.syncSkip ?? []), k] }))
 }
 
 export function rememberVault(settings: Settings, root: string): Settings {

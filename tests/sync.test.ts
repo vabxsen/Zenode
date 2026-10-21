@@ -238,3 +238,40 @@ const timedOut = await googleIdToken(client, async () => undefined, new AbortCon
 await new Promise((r) => setTimeout(r, 80))
 process.off('unhandledRejection', onStray)
 eq('sign-in: failures are reported, nothing left behind', [noBrowser, timedOut, stray], ['No browser', 'Sign-in timed out. Try again.', 0])
+
+// ---------- Paths ignore case, like Windows ----------
+eq(
+  'syncable: case does not matter',
+  ['.zenode/Workspace.json', '.Obsidian/plugins/x.md', '.GIT/notes.md', '.ZENODE/app.json', 'Notes/Plan.MD'].map(isSyncable),
+  [false, false, false, true, true]
+)
+
+// ---------- Memory from an older Zenode ----------
+{
+  const dir = mkdtempSync(join(tmpdir(), 'zenode-oldmem-'))
+  const store = new FolderRemote(join(dir, 'cloud'))
+  const id = await store.createVault('Old')
+  const sent: string[] = []
+  const recording = {
+    listVaults: () => store.listVaults(),
+    createVault: (n: string) => store.createVault(n),
+    changesSince: (v: string, c: string | null) => store.changesSince(v, c),
+    put: (v: string, f: Parameters<typeof store.put>[1], d: string) => {
+      sent.push(...f.map((x) => `${x.deleted ? 'delete' : 'upload'} ${x.path}`))
+      return store.put(v, f, d)
+    }
+  }
+  mkdirSync(join(dir, 'vault', '.zenode'), { recursive: true })
+  writeFileSync(join(dir, 'vault', '.zenode', 'workspace.json'), '{}')
+  // It once synced the layout file; now it must forget it rather than delete it.
+  const old: SyncMemory = { ...emptyMemory(), base: { '.zenode/workspace.json': 'h1' }, versions: { '.zenode/workspace.json': '7' } }
+  const r = await syncPass(join(dir, 'vault'), id, old, {
+    remote: recording,
+    device: 'PC',
+    read: async (p) => readFileSync(join(dir, 'vault', p), 'utf8'),
+    write: async () => undefined,
+    trash: async () => undefined
+  })
+  eq('old memory: no delete is sent for a file that no longer syncs', [sent, r.retry, Object.keys(r.memory.base), Object.keys(r.memory.versions)], [[], false, [], []])
+  rmSync(dir, { recursive: true, force: true })
+}

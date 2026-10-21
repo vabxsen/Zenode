@@ -223,11 +223,13 @@ export async function setSyncEnabled(root: string, on: boolean): Promise<VaultSy
     const off = s.off.filter((r) => r !== key(root))
     return { ...s, off: on ? off : [...off, key(root)] }
   })
-  if (on) {
-    // Turning it on by hand also ends "only once turned on".
-    await updateSettings((s) => ({ ...s, syncSkip: (s.syncSkip ?? []).filter((r) => r !== key(root)) }))
-    void syncVault(root)
-  }
+  // A choice made by hand ends "only once turned on" and is kept from then on.
+  await updateSettings((s) => ({
+    ...s,
+    syncSkip: on ? (s.syncSkip ?? []).filter((r) => r !== key(root)) : s.syncSkip,
+    syncChosen: (s.syncChosen ?? []).includes(key(root)) ? s.syncChosen : [...(s.syncChosen ?? []), key(root)]
+  }))
+  if (on) void syncVault(root)
   else broadcast(root)
   return vaultStatus(root)
 }
