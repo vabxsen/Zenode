@@ -3,7 +3,12 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { emptyMemory, syncPass, type SyncMemory } from '../src/main/sync/engine'
+import { serial } from '../src/main/serial'
+import { emptyMemory, isSyncable, syncPass, type SyncMemory } from '../src/main/sync/engine'
+import { httpError } from '../src/main/sync/firestore'
+import { googleIdToken } from '../src/main/sync/googleAuth'
+import { RemoteChangedError } from '../src/main/sync/remote'
+import { readVaultLink, writeVaultLink } from '../src/main/sync/vaultLink'
 import { FolderRemote } from '../src/main/sync/folderRemote'
 import { conflictPath, deviceLabel, planSync } from '../src/main/sync/plan'
 import { findConflictCopies } from '../src/renderer/src/sync/conflictCopies'
@@ -137,4 +142,99 @@ const ideaCopy = 'Ideas (Zenode conflict from PC-B 2026-10-20 120000).md'
 eq('race: both PCs end with both versions', [get(a, 'Ideas.md'), get(a, ideaCopy), get(b, 'Ideas.md'), get(b, ideaCopy)], ['B idea\n', 'A idea\n', 'B idea\n', 'A idea\n'])
 eq('race: and then nothing is left to do', [await sync(a), await sync(b)].map((r) => r.uploaded + r.downloaded + r.conflicts), [0, 0])
 
+// ---------- What syncs ----------
+eq(
+  'syncable: notes, canvases and vault settings',
+  ['Home.md', 'Projects/Plan.md', 'Board.canvas', '.zenode/app.json', '.zenode/snippets/wide.css'].map(isSyncable),
+  [true, true, true, true, true]
+)
+eq(
+  'syncable: never device state, hidden folders, other apps or attachments',
+  ['.zenode/workspace.json', '.zenode/sync.json', '.zenode/help-version', '.obsidian/plugins/x/main.js', '.git/hooks/post-checkout', 'a/.git/config.json', '.trash/Old.md', 'node_modules/x/index.js', 'photo.png', '../escape.md', 'a//b.md', 'Projects/.hidden/n.md'].map(isSyncable),
+  [false, false, false, false, false, false, false, false, false, false, false, false]
+)
+
+put(a, '.zenode/workspace.json', '{"tabs":["Home.md"]}')
+await sync(a)
+const inCloud = async (): Promise<string[]> => (await cloud.changesSince(remoteId, null)).files.map((f) => f.path)
+eq('device state: the layout stays on its computer', (await inCloud()).includes('.zenode/workspace.json'), false)
+
+// Whatever the account holds, only syncable files land in the vault.
+const planted = ['.obsidian/plugins/evil/main.js', '.git/hooks/post-checkout', 'photo.png', '.zenode/workspace.json', '../escape.md']
+await cloud.put(remoteId, planted.map((path) => ({ path, hash: 'x', deleted: false, content: 'planted', expect: null })), 'elsewhere')
+await sync(b)
+eq('downloads: files Zenode does not sync are ignored', planted.map((p) => existsSync(join(b.root, p))), [false, false, false, false, false])
+
+// A quick pass after an edit uploads without asking the account; a file
+// changed elsewhere meanwhile is refused, and the next full pass handles it.
+put(a, 'Quick.md', 'one\n')
+await sync(a)
+await sync(b)
+put(a, 'Quick.md', 'A two\n')
+await sync(a)
+put(b, 'Quick.md', 'B two\n')
+const quick = await syncPass(b.root, remoteId, b.memory, {
+  remote: cloud,
+  device: b.name,
+  read: async (p) => readFileSync(join(b.root, p), 'utf8'),
+  write: async (p, c) => put(b, p, c),
+  trash: async () => undefined
+}, { localOnly: true })
+b.memory = quick.memory
+eq('quick pass: a stale upload is refused and retried', [quick.retry, (await cloud.changesSince(remoteId, null)).files.find((f) => f.path === 'Quick.md')?.content], [true, 'A two\n'])
+eq('quick pass: the full pass keeps both', [(await sync(b)).conflicts, get(b, 'Quick.md')], [1, 'B two\n'])
+
 rmSync(base, { recursive: true, force: true })
+
+// ---------- Firestore errors ----------
+const kind = (e: Error): string => (e instanceof RemoteChangedError ? 'changed' : e.message.slice(0, 24))
+eq(
+  'firestore: errors',
+  [
+    httpError(400, 'the stored version (1) does not match the required base version (2)', 'FAILED_PRECONDITION'),
+    httpError(409, 'Document already exists', 'ALREADY_EXISTS'),
+    httpError(400, 'The query requires an index. You can create it here', 'FAILED_PRECONDITION'),
+    httpError(403, 'Missing or insufficient permissions.', 'PERMISSION_DENIED'),
+    httpError(429, 'Quota exceeded.', 'RESOURCE_EXHAUSTED')
+  ].map(kind),
+  ['changed', 'changed', 'Sync failed (400): The q', 'Sync was refused by the ', 'The sync service is busy']
+)
+
+// ---------- Settings changes in turn ----------
+const inTurn = serial()
+let stored = { n: 0 }
+const bump = (): Promise<void> =>
+  inTurn(async () => {
+    const read = stored.n
+    await new Promise((r) => setTimeout(r, 5))
+    stored = { n: read + 1 }
+  })
+await Promise.all([bump(), bump(), bump()])
+eq('serial: read-change-write jobs never lose each other', stored.n, 3)
+await inTurn(async () => {
+  throw new Error('boom')
+}).catch(() => undefined)
+await bump()
+eq('serial: a failed job does not stop the next', stored.n, 4)
+
+// ---------- The vault's own link to the account ----------
+const linked = mkdtempSync(join(tmpdir(), 'zenode-link-'))
+eq('link: none yet', await readVaultLink(linked, 'u1'), null)
+await writeVaultLink(linked, 'u1', 'vault-1')
+eq('link: read back for the same account only', [await readVaultLink(linked, 'u1'), await readVaultLink(linked, 'u2')], ['vault-1', null])
+writeFileSync(join(linked, '.zenode', 'sync.json'), '{broken')
+eq('link: a broken file is no link', await readVaultLink(linked, 'u1'), null)
+rmSync(linked, { recursive: true, force: true })
+
+// ---------- Google sign-in cleans up after itself ----------
+let stray = 0
+const onStray = (): void => {
+  stray++
+}
+process.on('unhandledRejection', onStray)
+const client = { clientId: 'id', clientSecret: 'secret' }
+const noBrowser = await googleIdToken(client, async () => Promise.reject(new Error('No browser')), new AbortController().signal, 30).catch((e: Error) => e.message)
+const timedOut = await googleIdToken(client, async () => undefined, new AbortController().signal, 30).catch((e: Error) => e.message)
+await new Promise((r) => setTimeout(r, 80))
+process.off('unhandledRejection', onStray)
+eq('sign-in: failures are reported, nothing left behind', [noBrowser, timedOut, stray], ['No browser', 'Sign-in timed out. Try again.', 0])

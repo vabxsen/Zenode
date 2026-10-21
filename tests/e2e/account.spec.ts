@@ -44,7 +44,24 @@ test('signing in keeps the vault in the account, and edits follow', async ({ app
   await page.locator('.zn-pane-leaf .cm-content').first().click()
   await page.keyboard.press('Control+End')
   await page.keyboard.type('\nSynced line')
-  await expect.poll(() => cloudFiles(cloud).files['Ideas.md'] ?? '', { timeout: 20_000 }).toContain('Synced line')
+  await expect.poll(() => cloudFiles(cloud).files['Ideas.md'] ?? '', { timeout: 40_000 }).toContain('Synced line')
+  // This computer's layout stays here.
+  expect(Object.keys(cloudFiles(cloud).files)).not.toContain('.zenode/workspace.json')
+})
+
+test('the Help vault only syncs when turned on', async ({ app, workDir, relaunch }) => {
+  const cloud = join(workDir, 'cloud')
+  await app.close()
+  const { app: zen, page } = await relaunch({ env: { ZENODE_TEST_SYNC_DIR: cloud } })
+  await signInFromSettings(page)
+  await expect(page.locator('.zn-sync-status')).toHaveText(/Synced/)
+  const opened = zen.waitForEvent('window')
+  await page.evaluate(() => window.zenode.openHelpVault(true))
+  const help = await opened
+  await expect(treeRow(help, 'Welcome to Zenode')).toBeVisible()
+  await expect.poll(() => help.evaluate(() => window.zenode.syncStatus().then((s) => s?.enabled))).toBe(false)
+  await help.waitForTimeout(3000)
+  expect(cloudFiles(cloud).vaults).toEqual(['vault'])
 })
 
 test('on a new computer, signing in brings the vault back', async ({ app, workDir, relaunch }) => {

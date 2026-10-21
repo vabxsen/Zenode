@@ -49,6 +49,8 @@ export interface Resolved {
   root: string
   // The file to open, relative to the vault with forward slashes.
   file?: string
+  // The folder isn't a vault, just where the file is (it isn't synced unless asked).
+  loose?: boolean
 }
 
 const isDir = (p: string) => fs.stat(p).then((s) => s.isDirectory(), () => false)
@@ -64,13 +66,13 @@ const vaultPath = (root: string, file: string) => relative(root, file).split(/[\
 
 // The vault a file belongs to: the deepest known vault holding it, else the
 // nearest folder above it that is a vault (.zenode or .obsidian), else its own folder.
-async function vaultFor(file: string, known: string[]): Promise<string> {
+async function vaultFor(file: string, known: string[]): Promise<{ root: string; loose: boolean }> {
   const holding = known.filter((r) => isInside(r, file)).sort((a, b) => b.length - a.length)
-  if (holding[0]) return holding[0]
+  if (holding[0]) return { root: holding[0], loose: false }
   for (let dir = dirname(file); ; ) {
-    if ((await isDir(join(dir, '.zenode'))) || (await isDir(join(dir, '.obsidian')))) return dir
+    if ((await isDir(join(dir, '.zenode'))) || (await isDir(join(dir, '.obsidian')))) return { root: dir, loose: false }
     const up = dirname(dir)
-    if (up === dir) return dirname(file)
+    if (up === dir) return { root: dirname(file), loose: true }
     dir = up
   }
 }
@@ -91,6 +93,6 @@ export async function resolveTarget(t: LaunchTarget, known: string[]): Promise<R
   if (t.kind === 'link') return resolveLink(t, known)
   if (t.kind === 'folder') return (await isDir(t.path)) ? { root: t.path } : null
   if (!OPENABLE.test(t.path) || !(await isFile(t.path))) return null
-  const root = await vaultFor(t.path, known)
-  return { root, file: vaultPath(root, t.path) }
+  const { root, loose } = await vaultFor(t.path, known)
+  return { root, file: vaultPath(root, t.path), ...(loose ? { loose } : {}) }
 }

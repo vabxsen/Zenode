@@ -77,6 +77,9 @@ export interface Settings {
   updates?: UpdatePrefs
   // Which vaults sync with the signed-in account.
   sync?: SyncSettings
+  // Folders that sync only once turned on by hand (the Help vault, a folder
+  // opened just to read one file), whoever is signed in.
+  syncSkip?: string[]
 }
 
 export interface SyncSettings {

@@ -3,7 +3,7 @@ import { app } from 'electron'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { fileNameProblem } from '../shared/fileNames'
-import { loadSettings, saveSettings } from './settings'
+import { skipSyncFor, updateSettings } from './settings'
 
 // A new, empty vault folder named `name` inside `parent`. Never reuses an
 // existing folder (that would turn someone's folder into a vault by accident).
@@ -33,6 +33,8 @@ export async function helpVault(): Promise<string> {
   const stamp = join(target, '.zenode', 'help-version')
   const current = await fs.readFile(stamp, 'utf8').catch(() => '')
   if (current !== app.getVersion()) {
+    // The Help vault is the same everywhere: it syncs only if turned on by hand.
+    if (!current) await skipSyncFor(target)
     await fs.cp(bundledHelp(), target, { recursive: true, force: true })
     await fs.mkdir(join(target, '.zenode'), { recursive: true })
     await fs.writeFile(stamp, app.getVersion())
@@ -41,6 +43,5 @@ export async function helpVault(): Promise<string> {
 }
 
 export async function forgetVault(root: string): Promise<void> {
-  const s = await loadSettings()
-  await saveSettings({ ...s, recentVaults: s.recentVaults.filter((v) => v !== root), lastVault: s.lastVault === root ? undefined : s.lastVault })
+  await updateSettings((s) => ({ ...s, recentVaults: s.recentVaults.filter((v) => v !== root), lastVault: s.lastVault === root ? undefined : s.lastVault }))
 }

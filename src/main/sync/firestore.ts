@@ -23,11 +23,16 @@ const MAX_BATCH_BYTES = 4 * 1024 * 1024
 
 export const fileId = (path: string): string => createHash('sha256').update(path).digest('hex').slice(0, 40)
 
-function httpError(status: number, message: string): Error {
+// Turns a Firestore error reply into the error sync reports. `code` is the
+// gRPC status Firestore puts beside the message (FAILED_PRECONDITION, ...).
+export function httpError(status: number, message: string, code = ''): Error {
   // A write's precondition failed: another computer wrote the file first.
-  if (status === 409 || /FAILED_PRECONDITION|ALREADY_EXISTS|precondition/i.test(message)) return new RemoteChangedError()
+  if (status === 409 || code === 'FAILED_PRECONDITION' || code === 'ALREADY_EXISTS' || code === 'ABORTED') {
+    // A query that needs an index also comes back as FAILED_PRECONDITION.
+    if (!/index/i.test(message)) return new RemoteChangedError()
+  }
   if (status === 401 || status === 403) return new Error('Sync was refused by the cloud. Sign in again, or check the Firestore rules.')
-  if (status === 429 || /quota|RESOURCE_EXHAUSTED/i.test(message)) return new Error('The sync service is busy or over its daily limit. Zenode will try again later.')
+  if (status === 429 || code === 'RESOURCE_EXHAUSTED' || /quota/i.test(message)) return new Error('The sync service is busy or over its daily limit. Zenode will try again later.')
   if (status === 404 && /database/i.test(message)) return new Error('The Firestore database has not been created in the Firebase project yet.')
   return new Error(`Sync failed (${status}): ${message.slice(0, 200)}`)
 }
@@ -55,8 +60,12 @@ export class FirestoreRemote implements RemoteStore {
     }).catch(() => {
       throw new Error('Could not reach the sync service. Check your internet connection.')
     })
-    const json = (await res.json().catch(() => ({}))) as T & { error?: { message?: string } }
-    if (!res.ok) throw httpError(res.status, (json as { error?: { message?: string } }).error?.message ?? '')
+    const json = (await res.json().catch(() => ({}))) as T & { error?: { message?: string; status?: string } }
+    if (!res.ok) {
+      // runQuery and commit can answer with an array holding the error.
+      const err = (Array.isArray(json) ? (json[0] as { error?: { message?: string; status?: string } })?.error : json.error) ?? {}
+      throw httpError(res.status, err.message ?? '', err.status ?? '')
+    }
     return json
   }
 
@@ -146,7 +155,8 @@ export class FirestoreRemote implements RemoteStore {
       bytes = 0
     }
     for (const f of files) {
-      const size = f.content.length + 512
+      // Bytes as sent (UTF-8 in JSON), not characters: CJK text is three bytes a character.
+      const size = Buffer.byteLength(f.content, 'utf8') + 512
       if (batch.length >= MAX_WRITES || bytes + size > MAX_BATCH_BYTES) await flush()
       batch.push(f)
       bytes += size

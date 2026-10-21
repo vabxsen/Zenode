@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path'
 import { autoUpdater } from 'electron-updater'
 import { sanitizeUpdatePrefs, updateErrorText, type InstallKind, type UpdatePrefs, type UpdateState, type UpdateStatus } from '../shared/updates'
 import { describeError, log } from './log'
-import { loadSettings, saveSettings } from './settings'
+import { loadSettings, updateSettings } from './settings'
 
 const FIRST_CHECK_DELAY = 10_000
 const CHECK_EVERY = 6 * 60 * 60 * 1000
@@ -73,9 +73,9 @@ function schedule(): void {
 }
 
 export async function setUpdatePrefs(change: Partial<UpdatePrefs>): Promise<UpdateStatus> {
-  const settings = await loadSettings()
   prefs = sanitizeUpdatePrefs({ ...prefs, ...(change && typeof change === 'object' ? change : {}) })
-  await saveSettings({ ...settings, updates: prefs })
+  const next = prefs
+  await updateSettings((s) => ({ ...s, updates: next }))
   schedule()
   setState(state)
   return updateStatus()

@@ -2,7 +2,7 @@
 // at start-up and when Zenode is launched again while running.
 import { describeError, log } from './log'
 import { parseLaunchArgs, resolveTarget } from './launchArgs'
-import { loadSettings } from './settings'
+import { loadSettings, skipSyncFor } from './settings'
 import { VaultWindow, windowWithVault } from './windows'
 
 // `args` are a command line without the executable. Returns whether it named
@@ -16,6 +16,8 @@ export async function openLaunchTarget(args: string[], cwd: string): Promise<boo
       void log('warn', `launch: nothing to open for ${target.kind}`)
       return false
     }
+    // A folder opened just to read one file doesn't sync unless turned on.
+    if (found.loose) await skipSyncFor(found.root)
     const open = windowWithVault(found.root)
     if (open) {
       open.focus()
