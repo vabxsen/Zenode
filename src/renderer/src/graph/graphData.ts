@@ -157,11 +157,14 @@ function subset(data: GraphData, keep: Set<number>): GraphData {
 }
 
 // What an empty graph says. The local graph's centre can be any open file:
-// a note, a canvas, or an image, PDF or other attachment.
-export function emptyGraphText(local: boolean, center: string | null): string {
+// a note, a canvas, or an image, PDF or other attachment. Attachments are left
+// out unless the graph shows them, so an empty graph then says nothing about
+// what links to the file.
+export function emptyGraphText(local: boolean, center: string | null, showAttachments: boolean): string {
   if (!local) return 'No notes to show.'
   if (!center) return 'Open a note to see its local graph.'
   if (isMarkdown(center)) return 'This note has no links yet.'
   if (center.toLowerCase().endsWith('.canvas')) return 'This canvas has no links yet.'
+  if (!showAttachments) return 'Turn on Attachments in the graph settings to see what links to this file.'
   return 'No notes link to this file yet.'
 }

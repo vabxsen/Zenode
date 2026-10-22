@@ -120,8 +120,22 @@ eq('graph: resolved links become edges', edges, [
 eq('graph: degree counts', g.nodes.find((n) => n.id === 'Folder/Note C.md')?.degree, 3)
 eq(
   'graph: empty text fits what is open',
-  [emptyGraphText(false, null), emptyGraphText(true, null), emptyGraphText(true, 'Note.md'), emptyGraphText(true, 'Board.canvas'), emptyGraphText(true, 'tone.wav')],
-  ['No notes to show.', 'Open a note to see its local graph.', 'This note has no links yet.', 'This canvas has no links yet.', 'No notes link to this file yet.']
+  [
+    emptyGraphText(false, null, false),
+    emptyGraphText(true, null, false),
+    emptyGraphText(true, 'Note.md', false),
+    emptyGraphText(true, 'Board.canvas', false),
+    emptyGraphText(true, 'tone.wav', true),
+    emptyGraphText(true, 'photo.png', false)
+  ],
+  [
+    'No notes to show.',
+    'Open a note to see its local graph.',
+    'This note has no links yet.',
+    'This canvas has no links yet.',
+    'No notes link to this file yet.',
+    'Turn on Attachments in the graph settings to see what links to this file.'
+  ]
 )
 eq('graph: unresolved nodes', buildGraph(cache, { ...base, showUnresolved: true }).nodes.filter((n) => n.kind === 'unresolved').map((n) => n.label), ['Missing'])
 eq('graph: attachments', buildGraph(cache, { ...base, showAttachments: true }).nodes.filter((n) => n.kind === 'attachment').length, 1)

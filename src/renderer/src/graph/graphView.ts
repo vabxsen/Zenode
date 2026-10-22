@@ -182,7 +182,7 @@ export class GraphView extends Component {
             local ? { center: this.center!, depth: this.settings.depth } : undefined
           )
     const { nodes, links } = this.data
-    this.emptyEl.textContent = nodes.length ? '' : emptyGraphText(local, this.center)
+    this.emptyEl.textContent = nodes.length ? '' : emptyGraphText(local, this.center, this.settings.filters.showAttachments)
     this.emptyEl.style.display = nodes.length ? 'none' : ''
 
     this.neighbors = nodes.map(() => [])
