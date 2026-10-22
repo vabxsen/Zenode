@@ -5,6 +5,7 @@ import { Component, el, el as mk } from './component'
 import { hideConflictBar, openCompareDialog, renderConflictBar } from './conflictUi'
 import { createEditorState, dropNativeUndo, fromDisk, spellcheckAttrs, spellcheckSetting, syncEditorTheme } from './editor/editor'
 import { linksChanged, setSourceMode } from './editor/livePreview'
+import { dialogHasFocus } from './focusGuard'
 import { icon } from './icons'
 import { confirmLargeNote, LARGE_NOTE, noteTitle, type MovedTab, type OpenPosition, type PaneHost, type PaneState, type Tab, type TextEdit, type WorkspaceView } from './paneTypes'
 import { acceptTabDrops, renderTabBar, showTabMenu } from './tabBar'
@@ -345,7 +346,7 @@ export class Pane extends Component {
     this.host.onActiveChange(this.activePath, this.titleOf(tab))
     this.host.onLayoutChange()
     if (tab.kind === 'note') requestAnimationFrame(() => {
-      if (this.host.isActivePane()) this.focus()
+      if (this.host.isActivePane() && !dialogHasFocus()) this.focus()
     })
   }
 

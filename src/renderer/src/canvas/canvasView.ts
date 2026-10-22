@@ -8,6 +8,7 @@ import { baseName, isMarkdown } from '../paths'
 import type { WorkspaceView } from '../workspace'
 import { CanvasCamera } from './camera'
 import { CanvasDocument, snap } from './canvasDocument'
+import { dialogHasFocus } from '../focusGuard'
 import { contentKey, createNodeView, updateCardContent, type CardContext, type NodeView } from './cardContent'
 import { nearestSide, renderEdges, renderTempEdge } from './edgeLayer'
 import {
@@ -141,7 +142,7 @@ export class CanvasView extends Component implements WorkspaceView {
     this.el.style.display = ''
     if (!this.ready) void this.loadFromDisk(true)
     else this.applyCamera()
-    requestAnimationFrame(() => this.viewport.focus({ preventScroll: true }))
+    requestAnimationFrame(() => dialogHasFocus() || this.viewport.focus({ preventScroll: true }))
   }
 
   hide(): void {
