@@ -85,3 +85,29 @@ test('command palette finds and runs a command', async ({ page }) => {
   await page.keyboard.press('Control+p')
   await expect(page.locator('.zn-palette-row').first()).toContainText('Graph view: open')
 })
+
+test('typing in the command palette right after start-up stays in the palette', async ({ app, page, vaultDir, relaunch }) => {
+  // Leave several tabs open (notes and a canvas), so the next start reopens them.
+  for (const name of ['Home', 'Formatting', 'Board', 'Ideas']) {
+    await treeRow(page, name).click()
+    await page.waitForTimeout(200)
+  }
+  await expect(page.locator('.zn-pane-leaf .cm-content').first()).toBeVisible()
+  const before = read(vaultDir, 'Ideas.md')
+  await app.close()
+  // Open the palette as soon as the window is up, while the tabs are still coming back.
+  const second = await relaunch({ withVault: false })
+  await second.page.keyboard.press('Control+p')
+  await second.page.keyboard.type('Show local')
+  // The reopened tab gets ready meanwhile; the palette must keep the keyboard.
+  await second.page.waitForTimeout(500)
+  await second.page.keyboard.type(' graph')
+  const input = second.page.locator('.zn-palette input')
+  await expect(input).toBeFocused()
+  await expect(input).toHaveValue('Show local graph')
+  await second.page.keyboard.press('Escape')
+  await expect(treeRow(second.page, 'Ideas')).toBeVisible()
+  await second.page.waitForTimeout(1500)
+  // Nothing typed went into the reopened note.
+  expect(read(vaultDir, 'Ideas.md')).toBe(before)
+})

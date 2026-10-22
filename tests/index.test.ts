@@ -3,7 +3,7 @@ import { parseNote } from '../src/renderer/src/index/parser'
 import { MetadataCache, applyEdits } from '../src/renderer/src/index/metadataCache'
 import { matchNote, parseQuery } from '../src/renderer/src/search/query'
 import { fuzzyMatch } from '../src/renderer/src/fuzzy'
-import { buildGraph } from '../src/renderer/src/graph/graphData'
+import { buildGraph, emptyGraphText } from '../src/renderer/src/graph/graphData'
 import { CanvasParseError, canvasRefs, contains, facingSide, parseCanvas, serializeCanvas, stackOrder } from '../src/renderer/src/canvas/model'
 import { CommandRegistry, hotkeyFromEvent, hotkeyLabel } from '../src/renderer/src/commands'
 import { registerCoreCommands } from '../src/renderer/src/coreCommands'
@@ -118,6 +118,25 @@ eq('graph: resolved links become edges', edges, [
   'Home.md <-> Projects/Note B2.md'
 ])
 eq('graph: degree counts', g.nodes.find((n) => n.id === 'Folder/Note C.md')?.degree, 3)
+eq(
+  'graph: empty text fits what is open',
+  [
+    emptyGraphText(false, null, false),
+    emptyGraphText(true, null, false),
+    emptyGraphText(true, 'Note.md', false),
+    emptyGraphText(true, 'Board.canvas', false),
+    emptyGraphText(true, 'tone.wav', true),
+    emptyGraphText(true, 'photo.png', false)
+  ],
+  [
+    'No notes to show.',
+    'Open a note to see its local graph.',
+    'This note has no links yet.',
+    'This canvas has no links yet.',
+    'No notes link to this file yet.',
+    'Turn on Attachments in the graph settings to see what links to this file.'
+  ]
+)
 eq('graph: unresolved nodes', buildGraph(cache, { ...base, showUnresolved: true }).nodes.filter((n) => n.kind === 'unresolved').map((n) => n.label), ['Missing'])
 eq('graph: attachments', buildGraph(cache, { ...base, showAttachments: true }).nodes.filter((n) => n.kind === 'attachment').length, 1)
 const local1 = buildGraph(cache, base, { center: 'Folder/Sub/Deep.md', depth: 1 })

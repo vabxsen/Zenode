@@ -5,6 +5,8 @@ import type { LayoutNode, PaneLayout, WorkspaceState } from '../../shared/api'
 import { Component, el } from './component'
 import { Pane } from './pane'
 import type { MovedTab, OpenPosition, PaneHost, TextEdit, WorkspaceHost, WorkspaceView } from './paneTypes'
+import { dialogHasFocus } from './focusGuard'
+
 
 export { noteTitle, VIEW_PREFIX, type OpenPosition, type WorkspaceHost, type WorkspaceView } from './paneTypes'
 
@@ -380,7 +382,8 @@ export class Workspace extends Component {
     const leaves = this.leaves()
     this.setActive(leaves[Math.max(0, Math.min(activePane, leaves.length - 1))])
     this.active.pane.announce()
-    this.active.pane.focus()
+    // Restoring finishes after the window is up: leave a dialog the user opened meanwhile alone.
+    if (!dialogHasFocus()) this.active.pane.focus()
   }
 
   // ---------- The rest of the app talks to the active pane ----------

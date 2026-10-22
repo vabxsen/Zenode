@@ -2,7 +2,7 @@ import { themeColor } from '../appearance/appearance'
 import { Component, el } from '../component'
 import { icon } from '../icons'
 import type { MetadataCache } from '../index/metadataCache'
-import { buildGraph, type GraphData, type GraphFilters, type NodeKind } from './graphData'
+import { buildGraph, emptyGraphText, type GraphData, type GraphFilters, type NodeKind } from './graphData'
 import { EDGE_STRIDE, GraphRenderer, NODE_STRIDE, type Camera, type RenderLabel } from './renderer'
 import type { Forces } from './sim.worker'
 
@@ -182,13 +182,7 @@ export class GraphView extends Component {
             local ? { center: this.center!, depth: this.settings.depth } : undefined
           )
     const { nodes, links } = this.data
-    this.emptyEl.textContent = nodes.length
-      ? ''
-      : local
-        ? this.center
-          ? 'This note has no links yet.'
-          : 'Open a note to see its local graph.'
-        : 'No notes to show.'
+    this.emptyEl.textContent = nodes.length ? '' : emptyGraphText(local, this.center, this.settings.filters.showAttachments)
     this.emptyEl.style.display = nodes.length ? 'none' : ''
 
     this.neighbors = nodes.map(() => [])
