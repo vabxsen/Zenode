@@ -42,10 +42,10 @@ export function openSwitcher(opts: SwitcherOptions): void {
   wireListbox(input, list, 'Notes')
   const footer = el('div', 'zn-switcher-footer', modal)
   for (const [key, label] of [
-    ['↑↓', 'navigate'],
-    ['↵', 'open'],
-    ['shift ↵', 'create'],
-    ['esc', 'close']
+    ['↑↓', 'to navigate'],
+    ['↵', 'to open'],
+    ['shift ↵', 'to create'],
+    ['esc', 'to dismiss']
   ]) {
     const hint = el('span', 'zn-hint', footer)
     el('kbd', '', hint, key)

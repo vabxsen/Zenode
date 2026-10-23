@@ -1,118 +1,182 @@
 /* Colour themes. Every colour in the app comes from these tokens; tints are
    color-mix()es of them, so a theme (or the accent setting) only sets these.
-   <html data-theme> is "dark" or "light" (the app resolves "system"). */
+   <html data-theme> is "dark" or "light" (the app resolves "system").
+   The values follow the familiar neutral-grey look of Markdown note apps:
+   a darker writing surface, slightly lighter side panels and a violet accent. */
 
 :root {
   color-scheme: dark;
-  --zn-bg: #0b0b0f;
-  --zn-bg-panel: #0f0f15;
-  --zn-bg-raised: #16161e;
-  --zn-bg-hover: #1b1b25;
-  --zn-bg-popover: #13131a;
-  --zn-bg-deep: #101017;
-  --zn-bg-checker: #14141b;
-  --zn-border: #1e1e28;
-  --zn-border-strong: #262632;
-  --zn-border-stronger: #33333f;
-  --zn-line: #6e6e80;
-  --zn-text: #d4d4dc;
-  --zn-text-strong: #f4f4f8;
-  --zn-text-muted: #9a9aa6;
-  /* Faint text still meets WCAG AA (4.5:1) on every surface. */
-  --zn-text-faint: #868693;
-  --zn-accent: #a78bfa;
-  --zn-accent-strong: #8b5cf6;
-  --zn-accent-dim: #7c6bb5;
-  --zn-accent-soft: #c4b5fd;
+  /* Writing surface, and the alternate surface for code and setting groups. */
+  --zn-bg: #1c1c1c;
+  --zn-bg-alt: #232323;
+  /* Side panels, the ribbon, tab strips, menus and the status bar. */
+  --zn-bg-panel: #282828;
+  /* Buttons and other raised controls. */
+  --zn-bg-raised: #333333;
+  --zn-bg-raised-hover: #3f3f3f;
+  --zn-btn-shadow: inset 0 0.5px 0.5px 0.5px rgba(255, 255, 255, 0.09), 0 2px 4px 0 rgba(0, 0, 0, 0.15), 0 1px 1.5px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+  --zn-btn-shadow-hover: inset 0 0.5px 1px 0.5px rgba(255, 255, 255, 0.16), 0 2px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 1.5px 0 rgba(0, 0, 0, 0.2), 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --zn-bg-hover: color-mix(in oklch, white 6.7%, transparent);
+  --zn-guide: color-mix(in oklch, white 12%, transparent);
+  --zn-bg-popover: #282828;
+  --zn-bg-deep: #232323;
+  --zn-bg-checker: #2e2e2e;
+  --zn-field: #2e2e2e;
+  --zn-cover: rgba(10, 10, 10, 0.4);
+  --zn-border: #333333;
+  --zn-border-strong: #3f3f3f;
+  --zn-border-stronger: #555555;
+  --zn-line: #666666;
+  --zn-text: #dadada;
+  --zn-text-strong: #dadada;
+  --zn-text-muted: #b3b3b3;
+  /* Faint text stays readable (WCAG AA); --zn-mark is the fainter grey for
+     icons, bullets and Markdown marks. */
+  --zn-text-faint: #999999;
+  --zn-mark: #666666;
+  /* Interactive accent (buttons, checkboxes) and the lighter text accent (links). */
+  --zn-accent: #a68af9;
+  --zn-accent-strong: #8a5cf5;
+  --zn-accent-dim: #8a5cf5;
+  --zn-accent-soft: #b9a3fb;
   --zn-accent-deep: #7c4ff0;
   --zn-on-accent: #ffffff;
-  --zn-selection: color-mix(in srgb, var(--zn-accent-strong) 28%, transparent);
-  --zn-danger: #f87171;
-  --zn-danger-text: #fecaca;
-  --zn-danger-bg: #280e0e;
-  --zn-warning: #fbbf24;
-  --zn-warning-soft: #fcd34d;
-  --zn-warning-strong: #f59e0b;
+  /* The main-action button: the accent, deep enough for white text. */
+  --zn-cta: #7c4ff0;
+  --zn-cta-hover: #6d3ce6;
+  --zn-selection: color-mix(in oklch, var(--zn-accent-strong) 33%, transparent);
+  --zn-danger: #fb464c;
+  --zn-danger-text: #fb464c;
+  --zn-danger-bg: color-mix(in oklch, #fb464c 12%, transparent);
+  --zn-warning: #e9973f;
+  --zn-warning-soft: #e9973f;
+  --zn-warning-strong: #e9973f;
   --zn-warning-deep: #78500a;
-  --zn-highlight: #facc15;
+  --zn-success: #44cf6e;
+  --zn-highlight: #e0de71;
+  /* Named colours as "r, g, b" (callouts, tints). */
+  --zn-rgb-red: 251, 70, 76;
+  --zn-rgb-orange: 233, 151, 63;
+  --zn-rgb-yellow: 224, 222, 113;
+  --zn-rgb-green: 68, 207, 110;
+  --zn-rgb-cyan: 83, 223, 221;
+  --zn-rgb-blue: 2, 122, 255;
+  --zn-rgb-purple: 168, 130, 255;
+  --zn-rgb-pink: 250, 153, 205;
   /* Light overlays on dark surfaces (hover washes, grid dots). */
   --zn-overlay: #ffffff;
   --zn-shadow: #000000;
-  --zn-code-inline: #e2c4ff;
-  --zn-code-text: #cfcfe0;
-  --zn-syn-plain: #e6e6f0;
-  --zn-syn-comment: #6b6b7b;
-  --zn-syn-keyword: #c792ea;
-  --zn-syn-operator: #89ddff;
-  --zn-syn-string: #c3e88d;
-  --zn-syn-number: #f78c6c;
-  --zn-syn-function: #82aaff;
-  --zn-syn-type: #ffcb6b;
-  --zn-syn-tag: #f07178;
+  --zn-shadow-s: 0px 1px 2px rgba(0, 0, 0, 0.121), 0px 3.4px 6.7px rgba(0, 0, 0, 0.179), 0px 15px 30px rgba(0, 0, 0, 0.3);
+  --zn-shadow-l: 0px 1.8px 7.3px rgba(0, 0, 0, 0.071), 0px 6.3px 24.7px rgba(0, 0, 0, 0.112), 0px 30px 90px rgba(0, 0, 0, 0.2);
+  --zn-code-inline: #dadada;
+  --zn-code-text: #dadada;
+  --zn-syn-plain: #dadada;
+  --zn-syn-comment: #666666;
+  --zn-syn-keyword: #fa99cd;
+  --zn-syn-operator: #fb464c;
+  --zn-syn-string: #44cf6e;
+  --zn-syn-number: #a882ff;
+  --zn-syn-function: #e0de71;
+  --zn-syn-type: #e9973f;
+  --zn-syn-tag: #fb464c;
+  --zn-syn-property: #53dfdd;
+  --zn-syn-punctuation: #b3b3b3;
   /* Graph view (read by its WebGL renderer). */
-  --zn-graph-node: #b5b5c2;
-  --zn-graph-tag: #33d499;
-  --zn-graph-attachment: #fabf24;
-  --zn-graph-unresolved: #5c5c66;
-  --zn-graph-line: #9999b3;
-  --zn-graph-label: #dcdce8;
-  --zn-font-ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-  --zn-font-text: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-  --zn-font-mono: 'Cascadia Code', 'Cascadia Mono', Consolas, monospace;
-  --zn-titlebar-h: 38px;
+  --zn-graph-node: #b3b3b3;
+  --zn-graph-tag: #44cf6e;
+  --zn-graph-attachment: #e0de71;
+  --zn-graph-unresolved: #666666;
+  --zn-graph-line: #3f3f3f;
+  --zn-graph-label: #dadada;
+  /* The system interface font (Segoe UI on Windows) for both the app and notes. */
+  --zn-font-ui: ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Inter Variable', Inter, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+  --zn-font-text: ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Inter Variable', Inter, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+  --zn-font-mono: ui-monospace, SFMono-Regular, 'Cascadia Mono', 'Roboto Mono', 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Monaco, Consolas, 'Source Code Pro', monospace;
+  /* Interface text sizes. */
+  --zn-ui-medium: 15px;
+  --zn-ui-small: 13px;
+  --zn-ui-smaller: 12px;
+  /* The top row (tab strips, sidebar tabs) doubles as the window's title bar. */
+  --zn-header-h: 40px;
+  --zn-titlebar-h: 40px;
+  /* Room the window buttons (minimise, maximise, close) take at the top right. */
+  --zn-frame-right: 138px;
+  --zn-ribbon-w: 44px;
   /* Note text size and readable line width (Appearance settings). */
   --zn-text-size: 16px;
-  --zn-line-width: 760px;
+  --zn-line-width: 700px;
 }
 
 :root[data-theme='light'] {
   color-scheme: light;
   --zn-bg: #ffffff;
-  --zn-bg-panel: #f6f6f8;
-  --zn-bg-raised: #ececf1;
-  --zn-bg-hover: #e6e6ec;
-  --zn-bg-popover: #ffffff;
-  --zn-bg-deep: #f4f4f7;
-  --zn-bg-checker: #ebebef;
-  --zn-border: #e2e2e8;
-  --zn-border-strong: #d4d4dc;
-  --zn-border-stronger: #c2c2cc;
-  --zn-line: #9a9aab;
-  --zn-text: #2a2a32;
-  --zn-text-strong: #0e0e13;
-  --zn-text-muted: #55555f;
-  --zn-text-faint: #666672;
-  --zn-accent: #6d28d9;
-  --zn-accent-strong: #7c3aed;
-  --zn-accent-dim: #8b7cc4;
-  --zn-accent-soft: #6d28d9;
-  --zn-accent-deep: #6d28d9;
+  --zn-bg-alt: #fafafa;
+  --zn-bg-panel: #f6f6f6;
+  --zn-bg-raised: #ffffff;
+  --zn-bg-raised-hover: #fafafa;
+  --zn-btn-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 2px 0 rgba(0, 0, 0, 0.065);
+  --zn-btn-shadow-hover: inset 0 0 0 1px rgba(0, 0, 0, 0.17), 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+  --zn-bg-hover: color-mix(in oklch, black 6.7%, transparent);
+  --zn-guide: color-mix(in oklch, black 12%, transparent);
+  --zn-bg-popover: #f6f6f6;
+  --zn-bg-deep: #fafafa;
+  --zn-bg-checker: #efefef;
+  --zn-field: #ffffff;
+  --zn-cover: rgba(220, 220, 220, 0.4);
+  --zn-border: #e4e4e4;
+  --zn-border-strong: #dadada;
+  --zn-border-stronger: #bdbdbd;
+  --zn-line: #ababab;
+  --zn-text: #222222;
+  --zn-text-strong: #222222;
+  --zn-text-muted: #5c5c5c;
+  --zn-text-faint: #707070;
+  --zn-mark: #ababab;
+  /* Links: a touch deeper than the button violet so they stay readable on white. */
+  --zn-accent: #7445ec;
+  --zn-accent-strong: #9873f7;
+  --zn-accent-dim: #9873f7;
+  --zn-accent-soft: #8a5cf5;
+  --zn-accent-deep: #7c4ff0;
   --zn-on-accent: #ffffff;
-  --zn-danger: #dc2626;
-  --zn-danger-text: #991b1b;
-  --zn-danger-bg: #fef2f2;
-  --zn-warning: #d97706;
-  --zn-warning-soft: #b45309;
-  --zn-warning-strong: #b45309;
+  --zn-danger: #e93147;
+  --zn-danger-text: #e93147;
+  --zn-danger-bg: color-mix(in oklch, #e93147 10%, transparent);
+  --zn-warning: #ec7500;
+  --zn-warning-soft: #ec7500;
+  --zn-warning-strong: #ec7500;
   --zn-warning-deep: #a16207;
-  --zn-highlight: #facc15;
+  --zn-success: #08b94e;
+  --zn-highlight: #e0ac00;
+  --zn-rgb-red: 233, 49, 71;
+  --zn-rgb-orange: 236, 117, 0;
+  --zn-rgb-yellow: 224, 172, 0;
+  --zn-rgb-green: 8, 185, 78;
+  --zn-rgb-cyan: 0, 191, 188;
+  --zn-rgb-blue: 8, 109, 221;
+  --zn-rgb-purple: 120, 82, 238;
+  --zn-rgb-pink: 213, 57, 132;
   --zn-overlay: #000000;
-  --zn-shadow: #5c5c7a;
-  --zn-code-inline: #6d28d9;
-  --zn-code-text: #24292f;
-  --zn-syn-plain: #24292f;
-  --zn-syn-comment: #6e7781;
-  --zn-syn-keyword: #8250df;
-  --zn-syn-operator: #0550ae;
-  --zn-syn-string: #0a7d3e;
-  --zn-syn-number: #b35900;
-  --zn-syn-function: #0550ae;
-  --zn-syn-type: #953800;
-  --zn-syn-tag: #cf222e;
-  --zn-graph-node: #7a7a88;
-  --zn-graph-tag: #0f9f6e;
-  --zn-graph-attachment: #c98a00;
-  --zn-graph-unresolved: #b9b9c4;
-  --zn-graph-line: #8888a0;
-  --zn-graph-label: #2a2a32;
+  --zn-shadow: #000000;
+  --zn-shadow-s: 0px 1px 2px rgba(0, 0, 0, 0.028), 0px 3.4px 6.7px rgba(0, 0, 0, 0.042), 0px 15px 30px rgba(0, 0, 0, 0.07);
+  --zn-shadow-l: 0px 1.8px 7.3px rgba(0, 0, 0, 0.071), 0px 6.3px 24.7px rgba(0, 0, 0, 0.112), 0px 15px 30px rgba(0, 0, 0, 0.1);
+  --zn-code-inline: #222222;
+  --zn-code-text: #222222;
+  --zn-syn-plain: #222222;
+  --zn-syn-comment: #ababab;
+  --zn-syn-keyword: #d53984;
+  --zn-syn-operator: #e93147;
+  --zn-syn-string: #08b94e;
+  --zn-syn-number: #7852ee;
+  --zn-syn-function: #e0ac00;
+  --zn-syn-type: #ec7500;
+  --zn-syn-tag: #e93147;
+  --zn-syn-property: #00bfbc;
+  --zn-syn-punctuation: #5c5c5c;
+  --zn-graph-node: #5c5c5c;
+  --zn-graph-tag: #08b94e;
+  --zn-graph-attachment: #e0ac00;
+  --zn-graph-unresolved: #ababab;
+  --zn-graph-line: #dadada;
+  --zn-graph-label: #222222;
 }

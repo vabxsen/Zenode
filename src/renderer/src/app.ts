@@ -11,7 +11,7 @@ import type { LinkTarget } from './editor/linkCompletion'
 import type { FileTree } from './fileTree'
 import { GRAPH_ID, makeGraphTab } from './graph/graphTab'
 import type { GraphView } from './graph/graphView'
-import { logoMark } from './logo'
+import { icon } from './icons'
 import { isCanvasPath } from './index/canvasMeta'
 import { IndexSaver } from './index/indexSaver'
 import { loadIndexSnapshot } from './index/indexStore'
@@ -91,7 +91,7 @@ export class App extends Component {
   private right: RightSidebar | null = null
   private globalGraph: GraphView | null = null
   private statusEl: HTMLElement | null = null
-  private titleEl: HTMLElement | null = null
+  private backlinksEl: HTMLElement | null = null
   private treeTimer: number | null = null
   private layoutTimer: number | null = null
   private indexBuilt = false
@@ -251,26 +251,14 @@ export class App extends Component {
     this.shell = shell
     const cache = this.cache!
 
-    const titlebar = el('div', 'zn-titlebar zn-drag', this.root)
-    const brand = el('div', 'zn-titlebar-brand', titlebar)
-    brand.appendChild(logoMark(15))
-    el('span', '', brand, 'Zenode')
-    this.titleEl = el('div', 'zn-titlebar-title', titlebar)
-
     const body = el('div', 'zn-body', this.root)
-    buildRibbon(body, [
-      ['sidebar', 'Toggle left sidebar (Ctrl+\\)', () => this.commands.execute('app:toggle-left-sidebar')],
-      ['switcher', 'Quick switcher (Ctrl+O)', () => this.openQuickSwitcher()],
-      ['search', 'Search (Ctrl+Shift+F)', () => this.showSearch()],
-      ['graph', 'Graph view (Ctrl+G)', () => this.openGraph()],
-      ['filePlus', 'New note (Ctrl+N)', () => void this.files.newNote(this.currentDir())],
-      ['folderPlus', 'New folder', () => void this.files.newFolder(this.currentDir())],
+    buildRibbon(body, ['sidebar', 'Toggle left sidebar (Ctrl+\)', () => this.commands.execute('app:toggle-left-sidebar')], [
+      ['switcher', 'Open quick switcher (Ctrl+O)', () => this.openQuickSwitcher()],
+      ['graph', 'Open graph view (Ctrl+G)', () => this.openGraph()],
+      ['canvas', 'Create new canvas', () => void this.files.newCanvas(this.currentDir())],
       ['calendar', "Open today's daily note (Ctrl+Shift+D)", () => this.commands.execute('daily-notes:open-today')],
-      ['canvas', 'New canvas', () => void this.files.newCanvas(this.currentDir())],
-      'spacer',
-      ['link', 'Toggle right sidebar (Ctrl+Shift+B)', () => this.toggleRightbar()],
-      ['folderOpen', 'Open another vault (Ctrl+Shift+O)', () => void this.chooseVault()],
-      ['settings', 'Settings (Ctrl+,)', () => this.openSettings()]
+      ['templates', 'Insert template', () => this.commands.execute('templates:insert')],
+      ['palette', 'Open command palette (Ctrl+P)', () => this.commands.execute('command-palette:open')]
     ])
 
     const deps = this.sidebarDeps(shell, cache)
@@ -286,7 +274,8 @@ export class App extends Component {
       new Workspace(main, {
         onActiveChange: (path, title) => {
           this.tree?.setActive(path)
-          this.titleEl!.textContent = title
+          queueMicrotask(() => this.statusBacklinks())
+          document.title = title ? `${title} - ${this.vault!.name} - Zenode` : `${this.vault!.name} - Zenode`
           if (path) this.recent = [path, ...this.recent.filter((p) => p !== path)].slice(0, MAX_RECENT)
           this.left?.bookmarks.renderRecent()
           // Side panels keep showing the last note while a view tab (like the graph) is in front.
@@ -300,9 +289,7 @@ export class App extends Component {
         isResolved: (link, from) => !this.indexBuilt || cache.resolve(link, from) !== null,
         linkTargets: (from) => this.linkTargets(from),
         onSaved: (path, content) => this.queueIndex(() => cache.setContent(path, content)),
-        onStats: (words, chars) => {
-          this.statusEl!.textContent = words || chars ? `${words.toLocaleString()} words · ${chars.toLocaleString()} characters` : ''
-        },
+        onStats: (words, chars) => this.statusStats(words, chars),
         onLayoutChange: () => this.saveLayoutSoon(),
         onError: (msg) => this.notice(msg),
         preserve: (path, text) => this.preserve(path, text),
@@ -314,9 +301,16 @@ export class App extends Component {
         },
         readingContext: (path) => this.readingContext(cache, path),
         reopen: (path) => this.openTabPath(path),
-        revealInTree: (path) => this.revealInTree(path)
+        revealInTree: (path) => this.revealInTree(path),
+        newNote: () => void this.files.newNote(this.currentDir()),
+        renameNote: (path, name) => this.renameFromTitle(path, name)
       })
     )
+    const rightToggle = el('button', 'zn-icon-btn zn-rightbar-toggle', main)
+    rightToggle.title = 'Toggle right sidebar (Ctrl+Shift+B)'
+    rightToggle.setAttribute('aria-label', 'Toggle right sidebar')
+    rightToggle.appendChild(icon('sidebarRight', 16))
+    rightToggle.addEventListener('click', () => this.toggleRightbar())
 
     this.right = new RightSidebar(body, deps)
 
@@ -329,7 +323,7 @@ export class App extends Component {
     )
 
     const status = el('div', 'zn-statusbar', this.root)
-    el('div', 'zn-status-vault', status, this.vault!.root)
+    this.backlinksEl = el('div', 'zn-status-backlinks', status)
     shell.addChild(new SyncIndicator(status, {
       cache,
       workspace: () => this.workspace,
@@ -338,6 +332,7 @@ export class App extends Component {
     }))
     shell.addChild(new CloudStatus(status, () => this.openSettings('account')))
     this.statusEl = el('div', 'zn-status-stats', status)
+    shell.register(cache.onChange(() => this.statusBacklinks()))
     shell.addChild(new HoverPreview(this.root, { activePath: () => this.workspace?.activePath ?? null, readingContext: (p) => this.readingContext(cache, p) }))
   }
 
@@ -365,8 +360,43 @@ export class App extends Component {
       recent: () => this.recent,
       activePath: () => this.workspace?.activePath ?? null,
       linkMention: (m, target) => this.linkMention(m, target),
-      notice: (m) => this.notice(m)
+      notice: (m) => this.notice(m),
+      openVaults: () => void this.chooseVault(),
+      openHelp: () => void this.vaultActions().openHelp().catch((e: Error) => this.notice(`Could not open the Help vault: ${e.message}`)),
+      openSettings: () => this.openSettings()
     }
+  }
+
+  // ---------- Status bar ----------
+
+  private statusStats(words: number, chars: number): void {
+    const el = this.statusEl
+    if (!el) return
+    el.replaceChildren()
+    if (!words && !chars) return
+    const segment = (text: string): void => {
+      const s = document.createElement('span')
+      s.className = 'zn-status-segment'
+      s.textContent = text
+      el.appendChild(s)
+    }
+    segment(`${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}`)
+    segment(`${chars.toLocaleString()} ${chars === 1 ? 'character' : 'characters'}`)
+  }
+
+  // "N backlinks" for the open note.
+  private statusBacklinks(): void {
+    const path = this.workspace?.activePath ?? null
+    const count = path?.toLowerCase().endsWith('.md') && this.cache ? this.cache.getBacklinks(path).length : null
+    if (this.backlinksEl) this.backlinksEl.textContent = count === null ? '' : `${count} ${count === 1 ? 'backlink' : 'backlinks'}`
+  }
+
+  // The inline title was edited: rename the note (its extension stays). True if it moved.
+  private async renameFromTitle(path: string, name: string): Promise<boolean> {
+    const base = path.slice(path.lastIndexOf('/') + 1)
+    const ext = base.includes('.') ? base.slice(base.lastIndexOf('.')) : ''
+    await this.files.rename({ name: base, path, kind: 'file', ext: ext.slice(1) }, `${name}${ext}`)
+    return this.workspace?.activePath !== path
   }
 
   private showPane(pane: LeftPane): void {

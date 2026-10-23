@@ -1,9 +1,11 @@
 import { el } from './component'
+import { icon, type IconName } from './icons'
 
 export interface MenuItem {
   label: string
   action: () => void
   danger?: boolean
+  icon?: IconName
 }
 
 let openMenu: HTMLElement | null = null
@@ -22,7 +24,9 @@ export function showMenu(x: number, y: number, items: Array<MenuItem | 'separato
       el('div', 'zn-menu-sep', menu)
       continue
     }
-    const row = el('div', `zn-menu-item${item.danger ? ' is-danger' : ''}`, menu, item.label)
+    const row = el('div', `zn-menu-item${item.danger ? ' is-danger' : ''}`, menu)
+    if (item.icon) el('span', 'zn-menu-item-icon', row).appendChild(icon(item.icon, 16))
+    el('span', 'zn-menu-item-title', row, item.label)
     row.addEventListener('mousedown', (e) => e.preventDefault())
     row.addEventListener('click', () => {
       closeMenu()

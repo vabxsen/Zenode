@@ -44,7 +44,7 @@ export function applyAppearance(s: AppearanceSettings): void {
   // A CSS theme's Obsidian variables, after the built-in ones (the user's accent wins).
   mapObsidianVariables(!!s.accent)
   window.zenode.setZoom(s.zoom)
-  void window.zenode.setTitleBarColors(themeColor('--zn-bg'), themeColor('--zn-text-muted')).catch(() => undefined)
+  void window.zenode.setTitleBarColors(themeColor('--zn-bg-panel'), themeColor('--zn-text-muted')).catch(() => undefined)
   if (changedTheme) syncAllEditorThemes()
   window.dispatchEvent(new CustomEvent('zenode-appearance'))
 }

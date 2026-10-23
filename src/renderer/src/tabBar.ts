@@ -1,9 +1,39 @@
 // Draws a pane's tab bar: titles, dirty/conflict/pinned marks, close buttons,
-// drag handles and the right-click menu.
+// drag handles and the right-click menu, plus the new-tab and tab-list buttons.
 import { el } from './component'
 import { icon } from './icons'
-import { showMenu } from './menu'
+import { showMenu, type MenuItem } from './menu'
 import { TAB_DRAG_TYPE, type Tab } from './paneTypes'
+
+export interface TabStripActions {
+  // The "+" button.
+  newNote(): void
+  // The tab-list button: every tab, to pick one.
+  listTabs(x: number, y: number): void
+}
+
+// Fills a pane's bar: the tabs (returned, for renderTabBar), then "+", then a
+// tab-list button at the far end. The empty space between moves the window
+// when the bar is along the top.
+export function buildTabStrip(bar: HTMLElement, a: TabStripActions): HTMLElement {
+  const tabs = el('div', 'zn-tabs', bar)
+  const add = el('button', 'zn-icon-btn zn-tab-new', bar)
+  add.title = 'New note (Ctrl+N)'
+  add.setAttribute('aria-label', 'New note')
+  add.appendChild(icon('plus', 16))
+  add.addEventListener('click', () => a.newNote())
+  el('div', 'zn-tabbar-spacer', bar)
+  const list = el('button', 'zn-icon-btn zn-tab-list', bar)
+  list.title = 'Show all tabs'
+  list.setAttribute('aria-label', 'Show all tabs')
+  list.appendChild(icon('chevronDown', 16))
+  list.addEventListener('click', (e) => {
+    e.stopPropagation()
+    const r = list.getBoundingClientRect()
+    a.listTabs(r.left, r.bottom + 4)
+  })
+  return tabs
+}
 
 export interface TabBarHandlers {
   title(tab: Tab): string
@@ -86,22 +116,26 @@ export interface TabMenuActions {
 }
 
 export function showTabMenu(tab: Tab, x: number, y: number, a: TabMenuActions): void {
+  showMenu(x, y, tabMenuItems(tab, a))
+}
+
+export function tabMenuItems(tab: Tab, a: TabMenuActions): Array<MenuItem | 'separator'> {
   const file = tab.kind === 'note' || tab.view?.filePath !== undefined
-  showMenu(x, y, [
-    { label: 'Close', action: a.close },
+  return [
+    { label: 'Close', icon: 'close', action: a.close },
     { label: 'Close others', action: a.closeOthers },
-    { label: tab.pinned ? 'Unpin' : 'Pin', action: a.togglePin },
+    { label: tab.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: a.togglePin },
     'separator',
-    { label: 'Split right', action: () => a.split('right') },
-    { label: 'Split down', action: () => a.split('down') },
+    { label: 'Split right', icon: 'splitRight', action: () => a.split('right') },
+    { label: 'Split down', icon: 'splitDown', action: () => a.split('down') },
     ...(file
       ? [
           'separator' as const,
           { label: 'Copy path', action: () => void navigator.clipboard.writeText(tab.path) },
-          { label: 'Show in file tree', action: a.reveal }
+          { label: 'Show in file tree', icon: 'files' as const, action: a.reveal }
         ]
       : [])
-  ])
+  ]
 }
 
 // Lets tabs dragged from any pane be dropped on this tab bar; onDrop gets the

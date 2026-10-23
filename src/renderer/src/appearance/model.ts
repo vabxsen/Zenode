@@ -30,7 +30,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   fontMono: '',
   fontSize: 16,
   readableLineLength: true,
-  lineWidth: 760,
+  lineWidth: 700,
   zoom: 1,
   cssTheme: '',
   snippets: []
@@ -67,7 +67,9 @@ export function sanitizeAppearance(raw: unknown): AppearanceSettings {
 export function accentVars(accent: string, dark: boolean): Record<string, string> {
   if (!accent) return {}
   const mix = (other: string, pct: number): string => `color-mix(in srgb, ${accent} ${pct}%, ${other})`
+  // The main-action button keeps white text readable.
+  const cta = { '--zn-cta': mix('black', 85), '--zn-cta-hover': mix('black', 75) }
   return dark
-    ? { '--zn-accent-strong': accent, '--zn-accent': mix('white', 72), '--zn-accent-dim': mix('#55555f', 60), '--zn-accent-soft': mix('white', 45), '--zn-accent-deep': mix('black', 88) }
-    : { '--zn-accent-strong': accent, '--zn-accent': mix('black', 85), '--zn-accent-dim': mix('white', 70), '--zn-accent-soft': mix('black', 85), '--zn-accent-deep': mix('black', 80) }
+    ? { '--zn-accent-strong': accent, '--zn-accent': mix('white', 72), '--zn-accent-dim': mix('#55555f', 60), '--zn-accent-soft': mix('white', 45), '--zn-accent-deep': mix('black', 88), ...cta }
+    : { '--zn-accent-strong': accent, '--zn-accent': mix('black', 85), '--zn-accent-dim': mix('white', 70), '--zn-accent-soft': mix('black', 85), '--zn-accent-deep': mix('black', 80), ...cta }
 }

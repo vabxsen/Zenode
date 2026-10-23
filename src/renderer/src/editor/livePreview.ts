@@ -1,4 +1,5 @@
-import { syntaxTree } from '@codemirror/language'
+import { LanguageDescription, syntaxTree } from '@codemirror/language'
+import { languages } from '@codemirror/language-data'
 import { StateEffect, StateField, type EditorState, type Range } from '@codemirror/state'
 import {
   Decoration,
@@ -51,7 +52,8 @@ class FenceLabel extends WidgetType {
   toDOM(): HTMLElement {
     const span = document.createElement('span')
     span.className = 'zn-fence-label'
-    span.textContent = this.lang
+    // The language's proper name ("JavaScript" for js), when it's a known one.
+    span.textContent = LanguageDescription.matchLanguageName(languages, this.lang, true)?.name ?? this.lang
     return span
   }
 }
@@ -169,7 +171,7 @@ function calloutDecorations(out: Range<Decoration>[], state: EditorState, focuse
     const markerFrom = first.from + first.text.indexOf('[!')
     let markerTo = first.from + m[0].length
     if (doc.sliceString(markerTo, markerTo + 1) === ' ') markerTo++
-    out.push(hidden.range(markerFrom, markerTo))
+    out.push(Decoration.replace({ widget: calloutIcon }).range(markerFrom, markerTo))
     // A title-less callout shows its type as the title.
     if (markerTo >= first.to) {
       out.push(Decoration.widget({ widget: new CalloutTitleWidget(type), side: 1 }).range(first.to))
@@ -177,6 +179,26 @@ function calloutDecorations(out: Range<Decoration>[], state: EditorState, focuse
   }
   return true
 }
+
+// How many lists a list item's mark sits inside, less one (0 for a top-level item).
+function listDepth(mark: SyntaxNode): number {
+  let depth = -1
+  for (let n: SyntaxNode | null = mark.parent; n; n = n.parent) if (n.name === 'BulletList' || n.name === 'OrderedList') depth++
+  return Math.max(0, depth)
+}
+
+// The callout type's icon, in the place of its "[!type]" marker.
+class CalloutIconWidget extends WidgetType {
+  eq(): boolean {
+    return true
+  }
+  toDOM(): HTMLElement {
+    const span = document.createElement('span')
+    span.className = 'callout-icon zn-lp-callout-icon'
+    return span
+  }
+}
+const calloutIcon = new CalloutIconWidget()
 
 class CalloutTitleWidget extends WidgetType {
   constructor(readonly type: string) {
@@ -376,6 +398,13 @@ function buildDecorations(view: EditorView, options: LivePreviewOptions): Decora
         if (name === 'ListMark') {
           const isBullet = node.parent?.parent?.name === 'BulletList'
           const task = node.nextSibling?.name === 'Task' ? node.nextSibling : null
+          // The line is indented by its nesting depth (not its leading spaces, which are hidden).
+          const line = doc.lineAt(ref.from)
+          if (/^\s*$/.test(doc.sliceString(line.from, ref.from))) {
+            const depth = listDepth(node)
+            out.push(Decoration.line({ class: 'zn-li', attributes: { style: `--zn-li-depth: ${depth}` } }).range(line.from))
+            if (ref.from > line.from) out.push(hidden.range(line.from, ref.from))
+          }
           if (lineTouched(state, focused, ref.from)) return
           const end = doc.sliceString(ref.to, ref.to + 1) === ' ' ? ref.to + 1 : ref.to
           if (task && isBullet) out.push(hidden.range(ref.from, end))

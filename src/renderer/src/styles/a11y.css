@@ -2,8 +2,13 @@
 
 /* A ring wherever keyboard focus lands (mouse clicks don't show it). */
 :focus-visible {
-  outline: 2px solid var(--zn-accent-strong);
-  outline-offset: 1px;
+  outline: 2px solid var(--zn-border-stronger);
+  outline-offset: 0;
+}
+
+/* A prompt's search box shows its caret instead. */
+.zn-switcher-input:focus-visible {
+  outline: none;
 }
 
 .zn-tree-row:focus-visible,

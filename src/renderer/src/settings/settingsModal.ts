@@ -1,6 +1,19 @@
 // The settings screen: sections listed on the left, the chosen one on the right.
 // Every change applies and saves at once.
 import { el } from '../component'
+import { icon, type IconName } from '../icons'
+
+// Each section's icon in the list on the left.
+const SECTION_ICONS: Record<string, IconName> = {
+  general: 'user',
+  account: 'cloud',
+  editor: 'editing',
+  files: 'files',
+  appearance: 'appearance',
+  hotkeys: 'command',
+  'daily-notes': 'calendar',
+  templates: 'templates'
+}
 
 export interface SettingsSection {
   id: string
@@ -19,14 +32,15 @@ export function openSettings(sections: SettingsSection[], start = sections[0]?.i
   box.setAttribute('aria-label', 'Settings')
   const nav = el('nav', 'zn-settings-nav', box)
   nav.setAttribute('aria-label', 'Settings sections')
-  el('div', 'zn-settings-title', nav, 'Settings')
+  el('div', 'zn-settings-title', nav, 'Options')
   const list = el('div', 'zn-settings-tabs', nav)
   list.setAttribute('role', 'tablist')
   list.setAttribute('aria-orientation', 'vertical')
   const body = el('div', 'zn-settings-body', box)
   body.setAttribute('role', 'tabpanel')
   body.tabIndex = -1
-  const closeBtn = el('button', 'zn-settings-close', box, '×')
+  const closeBtn = el('button', 'zn-icon-btn zn-settings-close', box)
+  closeBtn.appendChild(icon('close', 18))
   closeBtn.setAttribute('aria-label', 'Close settings')
 
   const previousFocus = document.activeElement as HTMLElement | null
@@ -39,7 +53,9 @@ export function openSettings(sections: SettingsSection[], start = sections[0]?.i
   open = { close }
 
   const tabs = sections.map((s) => {
-    const tab = el('button', 'zn-settings-tab', list, s.name)
+    const tab = el('button', 'zn-settings-tab', list)
+    el('span', 'zn-settings-tab-icon', tab).appendChild(icon(SECTION_ICONS[s.id] ?? 'settings', 16))
+    el('span', 'zn-settings-tab-name', tab, s.name)
     tab.setAttribute('role', 'tab')
     tab.id = `zn-settings-tab-${s.id}`
     tab.addEventListener('click', () => void show(s.id))

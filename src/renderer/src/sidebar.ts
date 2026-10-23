@@ -25,13 +25,14 @@ export class Sidebar {
     private readonly isOpen: () => boolean
   ) {
     this.el = el('div', className, parent)
-    this.tabs = el('div', 'zn-sidebar-tabs', this.el)
+    // The tab row is part of the window's title bar.
+    this.tabs = el('div', 'zn-sidebar-tabs zn-drag', this.el)
     this.tabs.setAttribute('role', 'tablist')
   }
 
   // Adds a pane and returns its container.
   add(id: string, iconName: IconName, title: string, paneClass = '', onVisibility?: (visible: boolean) => void): HTMLElement {
-    const button = el('button', 'zn-sidebar-tab', this.tabs)
+    const button = el('button', 'zn-icon-btn zn-sidebar-tab', this.tabs)
     button.title = title
     button.setAttribute('aria-label', title)
     button.setAttribute('role', 'tab')

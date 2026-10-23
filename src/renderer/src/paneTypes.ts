@@ -79,6 +79,10 @@ export interface WorkspaceHost {
   importFiles(notePath: string, files: File[]): Promise<string>
   // Links, embeds and clicks for a note shown in Reading view.
   readingContext(path: string): Omit<ReadingContext, 'sourcePath' | 'onToggleTask'>
+  // The tab bar's "+" button.
+  newNote(): void
+  // Renames a note from its inline title; false if that didn't happen.
+  renameNote(path: string, name: string): Promise<boolean>
 }
 
 // What a pane needs from the workspace around it.
