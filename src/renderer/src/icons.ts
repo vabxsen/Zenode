@@ -1,39 +1,108 @@
-// Minimal stroke icons (24x24 viewBox), drawn for Zenode.
-const PATHS = {
-  files: 'M4 4h7l2 2h7v13H4z',
-  filePlus: 'M14 3H6v18h12V7zM14 3v4h4M12 11v6M9 14h6',
-  folderPlus: 'M3 6h7l2 2h9v11H3zM12 11v6M9 14h6',
-  folderOpen: 'M3 7h6l2 2h10l-2 10H3zM3 7v12',
-  chevron: 'M9 6l6 6-6 6',
-  close: 'M6 6l12 12M18 6L6 18',
-  sidebar: 'M3 4h18v16H3zM9 4v16',
-  note: 'M6 3h9l3 3v15H6zM9 10h6M9 14h6M9 18h4',
-  search: 'M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14zM20 20l-4.2-4.2',
-  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
-  switcher: 'M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3',
-  graph:
-    'M3.5 6a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M15.5 8a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M9.5 18a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M8.4 6.4l7.2 1.2M7 8.2l4 7.6M16.8 10.2l-3.8 5.8',
-  fit: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
-  plus: 'M12 5v14M5 12h14',
-  minus: 'M5 12h14',
-  canvas: 'M3 3h7v7H3zM14 14h7v7h-7zM10 6.5h4.5a2 2 0 0 1 2 2V14',
-  settings:
-    'M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
-  pin: 'M9 3h6l-1 6 3 3H7l3-3zM12 12v9',
-  sort: 'M7 4v16M4 17l3 3 3-3M14 6h7M14 11h5M14 16h3',
-  collapse: 'M7 9l5-5 5 5M7 15l5 5 5-5',
-  splitRight: 'M3 4h18v16H3zM12 4v16',
-  splitDown: 'M3 4h18v16H3zM3 12h18',
-  back: 'M15 6l-6 6 6 6',
-  calendar: 'M4 5h16v15H4zM4 10h16M8 3v4M16 3v4',
-  bookmark: 'M6 3h12v18l-6-4-6 4z',
-  tag: 'M3 12V3h9l9 9-9 9zM7.5 7.5h.01',
-  outline: 'M4 6h16M8 12h12M12 18h8',
-  outgoing: 'M7 17L17 7M9 7h8v8',
-  cloud: 'M7 18a4.5 4.5 0 0 1-.4-9A6 6 0 0 1 18 9.5a4.3 4.3 0 0 1-.5 8.5z',
-} as const
+// Stroke icons from Lucide (ISC licence, lucide.dev), drawn on a 24x24 viewBox.
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUpNarrowWide,
+  ArrowUpRight,
+  Bookmark,
+  BookOpen,
+  Calendar,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  CircleHelp,
+  CircleUser,
+  Clipboard,
+  Cloud,
+  Columns2,
+  Command,
+  EllipsisVertical,
+  File,
+  Files,
+  FileSearch,
+  FolderClosed,
+  FolderInput,
+  FolderOpen,
+  FolderPlus,
+  GitFork,
+  History,
+  LayoutDashboard,
+  Link,
+  List,
+  Maximize,
+  Minus,
+  Palette,
+  PanelLeft,
+  PanelRight,
+  Pencil,
+  PenLine,
+  Pin,
+  Plus,
+  Rows2,
+  Search,
+  Settings,
+  SquarePen,
+  SquareTerminal,
+  Tags,
+  Trash2,
+  X,
+  type IconNode
+} from 'lucide'
 
-export type IconName = keyof typeof PATHS
+const ICONS = {
+  files: FolderClosed,
+  filePlus: SquarePen,
+  folderPlus: FolderPlus,
+  folderOpen: FolderOpen,
+  chevron: ChevronRight,
+  chevronDown: ChevronDown,
+  chevronsUpDown: ChevronsUpDown,
+  close: X,
+  sidebar: PanelLeft,
+  sidebarRight: PanelRight,
+  note: File,
+  search: Search,
+  link: Link,
+  switcher: FileSearch,
+  graph: GitFork,
+  fit: Maximize,
+  plus: Plus,
+  minus: Minus,
+  canvas: LayoutDashboard,
+  settings: Settings,
+  help: CircleHelp,
+  pin: Pin,
+  sort: ArrowUpNarrowWide,
+  collapse: ChevronsDownUp,
+  splitRight: Columns2,
+  splitDown: Rows2,
+  back: ChevronLeft,
+  arrowLeft: ArrowLeft,
+  arrowRight: ArrowRight,
+  calendar: Calendar,
+  bookmark: Bookmark,
+  tag: Tags,
+  outline: List,
+  outgoing: ArrowUpRight,
+  cloud: Cloud,
+  reading: BookOpen,
+  editing: PenLine,
+  more: EllipsisVertical,
+  palette: SquareTerminal,
+  templates: Files,
+  user: CircleUser,
+  appearance: Palette,
+  command: Command,
+  rename: Pencil,
+  moveTo: FolderInput,
+  copy: Clipboard,
+  history: History,
+  trash: Trash2
+} satisfies Record<string, IconNode>
+
+export type IconName = keyof typeof ICONS
 
 export function icon(name: IconName, size = 16): SVGSVGElement {
   const ns = 'http://www.w3.org/2000/svg'
@@ -43,12 +112,16 @@ export function icon(name: IconName, size = 16): SVGSVGElement {
   svg.setAttribute('height', String(size))
   svg.setAttribute('fill', 'none')
   svg.setAttribute('stroke', 'currentColor')
-  svg.setAttribute('stroke-width', '1.8')
+  // Thinner lines on the larger sizes, so every size looks equally heavy.
+  svg.setAttribute('stroke-width', size > 16 ? '1.75' : '2')
   svg.setAttribute('stroke-linecap', 'round')
   svg.setAttribute('stroke-linejoin', 'round')
+  svg.setAttribute('aria-hidden', 'true')
   svg.classList.add('zn-icon')
-  const path = document.createElementNS(ns, 'path')
-  path.setAttribute('d', PATHS[name])
-  svg.appendChild(path)
+  for (const [tag, attrs] of ICONS[name]) {
+    const part = document.createElementNS(ns, tag)
+    for (const [k, v] of Object.entries(attrs)) if (v !== undefined) part.setAttribute(k, String(v))
+    svg.appendChild(part)
+  }
   return svg
 }

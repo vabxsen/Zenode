@@ -43,7 +43,7 @@ test('a template is inserted at the cursor with its properties on top', async ({
   writeFileSync(join(vaultDir, 'Templates/Meeting.md'), '---\ntype: meeting\ntags: [ignored]\n---\n## {{title}} notes\n')
   await expect(treeRow(page, 'Templates')).toBeVisible()
   await treeRow(page, 'Formatting').click()
-  await page.locator('.cm-content').first().click()
+  await page.locator('.cm-content').first().focus()
   await page.keyboard.press('Control+End')
   await runCommand(page, 'Insert template')
   await page.locator('.zn-switcher-input').fill('Meeting')

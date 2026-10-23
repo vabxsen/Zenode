@@ -10,7 +10,7 @@ import { crash, expect, test, treeRow } from './fixture'
 async function typeUnsaved(page: Page, file: string): Promise<void> {
   chmodSync(file, 0o444)
   await treeRow(page, 'Ideas').click()
-  await page.locator('.cm-content').first().click()
+  await page.locator('.cm-content').first().focus()
   await page.keyboard.press('Control+End')
   await page.keyboard.type('\nUNSAVED THOUGHT')
   await expect(page.locator('.zn-notice').last()).toContainText('Could not save')
@@ -52,7 +52,7 @@ test('file history keeps the version before a save and can restore it', async ({
   const file = join(vaultDir, 'Ideas.md')
   const original = readFileSync(file, 'utf8')
   await treeRow(page, 'Ideas').click()
-  await page.locator('.cm-content').first().click()
+  await page.locator('.cm-content').first().focus()
   await page.keyboard.press('Control+End')
   await page.keyboard.type('\nA REGRETTABLE EDIT')
   await expect.poll(() => readFileSync(file, 'utf8')).toContain('A REGRETTABLE EDIT')
@@ -69,7 +69,7 @@ test('file history keeps the version before a save and can restore it', async ({
 
 test('a clean quit leaves nothing to recover', async ({ app, page, relaunch }) => {
   await treeRow(page, 'Ideas').click()
-  await page.locator('.cm-content').first().click()
+  await page.locator('.cm-content').first().focus()
   await page.keyboard.type('saved normally ')
   await app.close()
   const second = await relaunch()

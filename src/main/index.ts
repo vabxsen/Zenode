@@ -19,7 +19,7 @@ import { describeError, isLogLevel, log } from './log'
 import { loadSettings } from './settings'
 import type { RecoveryJournal } from './recovery'
 import type { SnapshotStore } from './snapshots'
-import { mainWindow, vaultById, VaultWindow, windowFor, windowWithVault } from './windows'
+import { mainWindow, TITLE_BAR_HEIGHT, vaultById, VaultWindow, windowFor, windowWithVault } from './windows'
 
 
 if (!app.isPackaged) {
@@ -176,7 +176,7 @@ function registerIpc(): void {
   handle('app:titleBar', (w, color: string, symbolColor: string) => {
     const hex = /^#[0-9a-f]{6}$/i
     if (!hex.test(color) || !hex.test(symbolColor)) throw new Error('Invalid colour')
-    w.win.setTitleBarOverlay({ color, symbolColor, height: 37 })
+    w.win.setTitleBarOverlay({ color, symbolColor, height: TITLE_BAR_HEIGHT })
     w.win.setBackgroundColor(color)
   })
   handle('app:info', () => ({

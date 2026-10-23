@@ -4,7 +4,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { codeFolding, foldGutter, foldKeymap, HighlightStyle, indentOnInput, syntaxHighlighting } from '@codemirror/language'
 import { languages } from '@codemirror/language-data'
 import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search'
-import { Annotation, Compartment, EditorState, Prec, type Extension } from '@codemirror/state'
+import { Annotation, Compartment, EditorSelection, EditorState, Prec, type Extension, type TransactionSpec } from '@codemirror/state'
 import { drawSelection, dropCursor, EditorView, highlightActiveLine, keymap } from '@codemirror/view'
 import { classHighlighter, tags as t } from '@lezer/highlight'
 import { tableEditing } from './tables'
@@ -33,47 +33,48 @@ export function setSpellcheckDefault(on: boolean): void {
 export const fromDisk = Annotation.define<boolean>()
 
 const highlight = HighlightStyle.define([
-  { tag: t.heading, fontWeight: '700', color: 'var(--zn-text-strong)' },
+  { tag: t.heading, fontWeight: '700', color: 'var(--zn-text)' },
   { tag: t.emphasis, fontStyle: 'italic' },
-  { tag: t.strong, fontWeight: '700', color: 'var(--zn-text-strong)' },
+  { tag: t.strong, fontWeight: '600' },
   { tag: t.strikethrough, textDecoration: 'line-through' },
   { tag: t.link, color: 'var(--zn-accent)' },
-  { tag: t.url, color: 'var(--zn-accent-dim)' },
+  { tag: t.url, color: 'var(--zn-text-faint)' },
   { tag: t.monospace, fontFamily: 'var(--zn-font-mono)' },
-  { tag: t.quote, color: 'var(--zn-text-muted)' },
-  { tag: t.processingInstruction, color: 'var(--zn-text-faint)' },
-  { tag: t.contentSeparator, color: 'var(--zn-text-faint)' },
-  { tag: t.meta, color: 'var(--zn-text-faint)' },
-  { tag: t.labelName, color: 'var(--zn-accent-dim)' }
+  { tag: t.quote, color: 'var(--zn-text)' },
+  { tag: t.processingInstruction, color: 'var(--zn-mark)' },
+  { tag: t.contentSeparator, color: 'var(--zn-mark)' },
+  { tag: t.meta, color: 'var(--zn-mark)' },
+  { tag: t.labelName, color: 'var(--zn-mark)' }
 ])
 
 const theme = EditorView.theme(
   {
     '&': { height: '100%', backgroundColor: 'transparent', color: 'var(--zn-text)' },
-    '.cm-scroller': { fontFamily: 'var(--zn-font-text)', fontSize: 'var(--zn-text-size)', lineHeight: '1.7' },
-    '.cm-content': { padding: '32px 0 40vh', caretColor: 'var(--zn-accent)' },
+    '.cm-scroller': { fontFamily: 'var(--zn-font-text)', fontSize: 'var(--zn-text-size)', lineHeight: '1.5', position: 'relative' },
+    // Room above the text for the note's inline title (see InlineTitle).
+    '.cm-content': { padding: 'calc(32px + var(--zn-inline-title-h, 0px)) 0 50vh', caretColor: 'var(--zn-text)' },
     '.cm-line': { padding: '0 max(32px, calc((100% - var(--zn-line-width)) / 2))' },
     '&.cm-focused': { outline: 'none' },
-    '.cm-cursor': { borderLeftColor: 'var(--zn-accent)', borderLeftWidth: '2px' },
+    '.cm-cursor': { borderLeftColor: 'var(--zn-text)', borderLeftWidth: '1.5px' },
     '.cm-activeLine': { backgroundColor: 'transparent' },
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
       backgroundColor: 'var(--zn-selection) !important'
     },
     '.cm-tooltip.cm-tooltip-autocomplete': {
-      background: 'var(--zn-bg-popover)',
+      background: 'var(--zn-bg)',
       border: '1px solid var(--zn-border-strong)',
-      borderRadius: '9px',
+      borderRadius: '8px',
       padding: '4px',
-      boxShadow: '0 12px 32px color-mix(in srgb, var(--zn-shadow) 50%, transparent)'
+      boxShadow: 'var(--zn-shadow-s)'
     },
-    '.cm-tooltip-autocomplete > ul': { fontFamily: 'var(--zn-font-ui)', maxHeight: '18em' },
-    '.cm-tooltip-autocomplete > ul > li': { padding: '5px 10px !important', borderRadius: '6px' },
+    '.cm-tooltip-autocomplete > ul': { fontFamily: 'var(--zn-font-ui)', fontSize: 'var(--zn-ui-small)', maxHeight: '18em' },
+    '.cm-tooltip-autocomplete > ul > li': { padding: '6px 12px !important', borderRadius: '4px', color: 'var(--zn-text)' },
     '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
-      background: 'color-mix(in srgb, var(--zn-accent-strong) 22%, transparent) !important',
-      color: 'var(--zn-text-strong) !important'
+      background: 'var(--zn-bg-hover) !important',
+      color: 'var(--zn-text) !important'
     },
-    '.cm-completionDetail': { marginLeft: '10px', fontStyle: 'normal', color: 'var(--zn-text-faint)', fontSize: '12px' },
-    '.cm-completionMatchedText': { textDecoration: 'none', color: 'var(--zn-accent)' }
+    '.cm-completionDetail': { marginLeft: '10px', fontStyle: 'normal', color: 'var(--zn-text-faint)', fontSize: 'var(--zn-ui-smaller)' },
+    '.cm-completionMatchedText': { textDecoration: 'none', fontWeight: '600', color: 'var(--zn-accent)' }
   },
   // Colours come from the theme tokens; whether CodeMirror treats the editor as
   // dark follows the app theme (themeMode below).
@@ -123,6 +124,27 @@ export function dropNativeUndo(view: EditorView): void {
   const next = content.nextSibling
   parent.removeChild(content)
   parent.insertBefore(content, next)
+}
+
+// Selects from..to (clamped to the note) and scrolls it to the middle of the view.
+export function revealRange(view: EditorView, from: number, to = from): void {
+  const len = view.state.doc.length
+  view.dispatch({
+    selection: EditorSelection.range(Math.min(from, len), Math.min(to, len)),
+    effects: EditorView.scrollIntoView(Math.min(from, len), { y: 'center' })
+  })
+  requestAnimationFrame(() => view.focus())
+}
+
+// The change that ticks (or unticks) the task box on 0-based `line`, or null
+// when that line has none.
+export function taskToggle(state: EditorState, line: number, checked: boolean): TransactionSpec | null {
+  if (line < 0 || line >= state.doc.lines) return null
+  const text = state.doc.line(line + 1)
+  const m = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])\]/.exec(text.text)
+  if (!m) return null
+  const at = text.from + m[1].length
+  return { changes: { from: at, to: at + 1, insert: checked ? 'x' : ' ' } }
 }
 
 export function usesCrlf(text: string): boolean {

@@ -14,8 +14,8 @@ test('a folder with many files draws only the rows in view', async ({ page, vaul
   await treeRow(page, 'Many').click()
   await expect(treeRow(page, 'Item 0000')).toBeVisible()
   // The watcher can deliver the new files in more than one batch. Count once the
-  // tree has all of them (its scroll height covers every row, 28px each).
-  await expect.poll(() => page.locator('.zn-sidebar-tree').evaluate((el) => el.scrollHeight)).toBeGreaterThan(MANY * 28)
+  // tree has all of them (its scroll height covers every row, 27px each).
+  await expect.poll(() => page.locator('.zn-sidebar-tree').evaluate((el) => el.scrollHeight)).toBeGreaterThan(MANY * 27)
   expect(await page.locator('.zn-tree-row').count()).toBeLessThan(150)
 
   // Scrolling to the end draws the last rows.

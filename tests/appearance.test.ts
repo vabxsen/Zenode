@@ -3,10 +3,10 @@ import { accentVars, sanitizeAppearance } from '../src/renderer/src/appearance/m
 import { eq } from './harness'
 
 eq('appearance: defaults', sanitizeAppearance(null), {
-  theme: 'system', accent: '', fontText: '', fontMono: '', fontSize: 16, readableLineLength: true, lineWidth: 760, zoom: 1, cssTheme: '', snippets: []
+  theme: 'system', accent: '', fontText: '', fontMono: '', fontSize: 16, readableLineLength: true, lineWidth: 700, zoom: 1, cssTheme: '', snippets: []
 })
 eq('appearance: values kept', sanitizeAppearance({ theme: 'light', accent: '#10B981', fontSize: 18, zoom: 1.25, snippets: ['a', 'a', 'b'] }), {
-  theme: 'light', accent: '#10b981', fontText: '', fontMono: '', fontSize: 18, readableLineLength: true, lineWidth: 760, zoom: 1.3, cssTheme: '', snippets: ['a', 'b']
+  theme: 'light', accent: '#10b981', fontText: '', fontMono: '', fontSize: 18, readableLineLength: true, lineWidth: 700, zoom: 1.3, cssTheme: '', snippets: ['a', 'b']
 })
 eq('appearance: out of range clamps', [sanitizeAppearance({ fontSize: 99 }).fontSize, sanitizeAppearance({ zoom: 0.1 }).zoom, sanitizeAppearance({ lineWidth: 5 }).lineWidth], [30, 0.5, 480])
 eq('appearance: fonts that could break CSS are dropped', [sanitizeAppearance({ fontText: 'Georgia, serif' }).fontText, sanitizeAppearance({ fontText: 'x; } body { display: none' }).fontText], ['Georgia, serif', ''])

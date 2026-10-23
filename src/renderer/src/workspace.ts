@@ -298,6 +298,19 @@ export class Workspace extends Component {
   private renderTree(): void {
     this.container.replaceChildren(this.build(this.root))
     for (const leaf of this.leaves()) leaf.el.classList.toggle('is-active-pane', leaf === this.active && this.paneCount > 1)
+    this.markEdges(this.root, true, true)
+  }
+
+  // Panes along the top carry the window's title bar in their tab bars; the
+  // top right one leaves room for the window buttons.
+  private markEdges(node: TreeNode, top: boolean, right: boolean): void {
+    if (node.kind === 'leaf') {
+      node.el.classList.toggle('is-top', top)
+      node.el.classList.toggle('is-top-right', top && right)
+      return
+    }
+    const last = node.children.length - 1
+    node.children.forEach((c, i) => this.markEdges(c, node.dir === 'column' ? top && i === 0 : top, node.dir === 'row' ? right && i === last : right))
   }
 
   private build(node: TreeNode): HTMLElement {

@@ -8,7 +8,7 @@
 
 .cm-editor .cm-panels-top {
   border-bottom: 1px solid var(--zn-border);
-  background: var(--zn-bg-deep);
+  background: var(--zn-bg-panel);
 }
 
 .cm-editor .cm-search {
@@ -27,27 +27,28 @@
 }
 
 .cm-editor .cm-search .cm-textfield {
-  height: 28px;
+  height: 30px;
   min-width: 200px;
-  padding: 0 9px;
+  padding: 4px 8px;
   border: 1px solid var(--zn-border);
-  border-radius: 7px;
-  background: var(--zn-bg);
-  color: var(--zn-text-strong);
+  border-radius: 5px;
+  background: var(--zn-field);
+  color: var(--zn-text);
   font: inherit;
   outline: none;
 }
 
 .cm-editor .cm-search .cm-textfield:focus {
-  border-color: var(--zn-accent-strong);
+  border-color: var(--zn-border-stronger);
 }
 
 .cm-editor .cm-search .cm-button {
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--zn-border);
-  border-radius: 7px;
+  height: 30px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 5px;
   background: var(--zn-bg-raised);
+  box-shadow: var(--zn-btn-shadow);
   background-image: none;
   color: var(--zn-text);
   font: inherit;
@@ -55,8 +56,7 @@
 }
 
 .cm-editor .cm-search .cm-button:hover {
-  color: var(--zn-text-strong);
-  border-color: var(--zn-border-stronger);
+  background: var(--zn-bg-raised-hover);
 }
 
 .cm-editor .cm-search label {
@@ -92,18 +92,23 @@
   background: color-mix(in srgb, var(--zn-accent-strong) 18%, transparent);
 }
 
-/* Fold gutter: arrows appear on hover beside foldable headings and lists. */
+/* Fold gutter: arrows appear on hover in the margin left of foldable headings
+   and lists; the gutter is taken out of the flow so the text column doesn't move. */
 .cm-editor .cm-gutters {
+  position: absolute !important;
+  top: 0;
+  left: calc(max(32px, (100% - var(--zn-line-width)) / 2) - 22px) !important;
   border: none;
   background: transparent;
 }
 
 .cm-editor .cm-foldGutter .cm-gutterElement {
-  width: 18px;
-  padding-left: 6px;
-  color: var(--zn-text-faint);
+  width: 20px;
+  padding-right: 5px;
+  color: var(--zn-mark);
   font-size: 14px;
   line-height: inherit;
+  text-align: right;
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.12s ease;
@@ -115,14 +120,14 @@
 }
 
 .cm-editor .cm-foldGutter .cm-gutterElement:hover {
-  color: var(--zn-accent);
+  color: var(--zn-text-muted);
 }
 
 .cm-editor .cm-foldPlaceholder {
   margin: 0 4px;
   padding: 0 6px;
-  border: 1px solid var(--zn-border);
-  border-radius: 6px;
-  background: var(--zn-bg-raised);
+  border: none;
+  border-radius: 4px;
+  background: var(--zn-bg-hover);
   color: var(--zn-text-muted);
 }

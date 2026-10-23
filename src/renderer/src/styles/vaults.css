@@ -1,103 +1,167 @@
-/* Choosing a vault (welcome screen and the Vaults dialog), and text prompts. */
+/* Choosing a vault (welcome screen and the Vaults dialog), and text prompts.
+   Recent vaults on the left; Zenode's name and the ways to open a vault on the right. */
 
-.zn-vault-actions {
+.zn-starter {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  height: 100%;
+}
+
+.zn-starter-recent {
+  flex: none;
+  width: 280px;
+  padding: 32px 8px 8px;
+  overflow: auto;
+  background: var(--zn-bg-panel);
+  border-right: 1px solid var(--zn-border);
+}
+
+.zn-starter-recent.is-empty {
+  display: none;
+}
+
+.zn-starter-main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: min(460px, 90vw);
+  align-items: center;
+  padding: 36px 36px 24px;
+  overflow: auto;
+  background: var(--zn-bg);
+}
+
+.zn-starter-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 0 32px;
+}
+
+.zn-starter-name {
+  margin: 4px 0 0;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--zn-text);
+}
+
+.zn-starter-version {
+  min-height: 17px;
+  font-size: var(--zn-ui-small);
+  color: var(--zn-text-muted);
+}
+
+/* The options: one rounded group like a settings section. */
+.zn-vault-actions {
+  width: min(448px, 100%);
+  border-radius: 12px;
+  background: var(--zn-bg-alt);
 }
 
 .zn-vault-action {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 16px;
-  border: 1px solid var(--zn-border);
-  border-radius: 10px;
-  background: var(--zn-bg-panel);
-  color: var(--zn-text-muted);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
+  gap: 16px;
+  margin: 0 20px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--zn-border);
+  cursor: default;
 }
 
-.zn-vault-action:hover {
-  border-color: var(--zn-border-strong);
-  background: var(--zn-bg-hover);
-}
-
-.zn-vault-action.is-primary {
-  border-color: color-mix(in srgb, var(--zn-accent-strong) 55%, transparent);
-  background: color-mix(in srgb, var(--zn-accent-strong) 12%, var(--zn-bg-panel));
-  color: var(--zn-accent);
+.zn-vault-action:last-child {
+  border-bottom: none;
 }
 
 .zn-vault-action-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex: 1;
   min-width: 0;
 }
 
 .zn-vault-action-title {
-  color: var(--zn-text-strong);
-  font-weight: 600;
+  color: var(--zn-text);
+  font-size: var(--zn-ui-small);
 }
 
 .zn-vault-action-desc {
+  margin-top: 4px;
   color: var(--zn-text-muted);
-  font-size: 12.5px;
+  font-size: var(--zn-ui-smaller);
+  line-height: 1.3;
+}
+
+.zn-vault-action .zn-btn {
+  min-width: 100px;
+}
+
+.zn-recent {
+  display: flex;
+  flex-direction: column;
 }
 
 .zn-recent-item {
+  position: relative;
   display: flex;
-  align-items: stretch;
-  gap: 4px;
+  align-items: flex-start;
 }
 
-.zn-recent-item .zn-recent-row {
+.zn-recent-row {
   flex: 1;
   min-width: 0;
-  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 32px 8px 12px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
   color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.zn-recent-row:hover {
+  background: var(--zn-bg-hover);
 }
 
 .zn-recent-row.is-current {
-  border-color: color-mix(in srgb, var(--zn-accent-strong) 45%, transparent);
+  background: var(--zn-bg-hover);
+}
+
+.zn-recent-name {
+  color: var(--zn-text);
+  font-size: var(--zn-ui-medium);
+}
+
+.zn-recent-path {
+  color: var(--zn-text-muted);
+  font-size: var(--zn-ui-smaller);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .zn-recent-forget {
-  flex: none;
-  width: 34px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--zn-text-faint);
-  font-size: 18px;
-  cursor: pointer;
+  position: absolute;
+  top: 8px;
+  right: 4px;
+  opacity: 0;
 }
 
-.zn-recent-forget:hover {
-  border-color: var(--zn-border);
-  background: var(--zn-bg-hover);
-  color: var(--zn-text);
+.zn-recent-item:hover .zn-recent-forget,
+.zn-recent-forget:focus-visible {
+  opacity: 1;
 }
 
-.zn-vault-manager {
-  width: min(540px, calc(100vw - 48px));
-}
-
-.zn-vault-manager .zn-dialog-body {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  max-height: 70vh;
-  overflow: auto;
-}
-
-.zn-vault-manager .zn-vault-actions,
-.zn-vault-manager .zn-recent {
-  width: 100%;
+/* The Vaults dialog is the same chooser, in a window-sized box. */
+.zn-dialog.zn-vault-manager {
+  width: min(800px, calc(100vw - 48px));
+  height: min(652px, calc(100vh - 48px));
+  padding: 0;
+  overflow: hidden;
 }
 
 .zn-prompt {
@@ -116,11 +180,6 @@
   min-height: 1.2em;
   color: var(--zn-danger);
   font-size: 12.5px;
-}
-
-.zn-btn {
-  color: var(--zn-text);
-  font: inherit;
 }
 
 .zn-btn:disabled {

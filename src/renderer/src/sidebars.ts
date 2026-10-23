@@ -1,8 +1,9 @@
 // The left sidebar (files, search, bookmarks, tags) and the right sidebar
 // (backlinks, outgoing links, outline, local graph), with their panels.
 import { BacklinksPanel } from './backlinks'
-import type { Component } from './component'
+import { el, type Component } from './component'
 import { FileTree, type FileTreeHandlers } from './fileTree'
+import { icon, type IconName } from './icons'
 import { GraphView } from './graph/graphView'
 import type { MetadataCache } from './index/metadataCache'
 import { BookmarksPanel } from './panels/bookmarks'
@@ -31,6 +32,10 @@ export interface SidebarDeps {
   activePath(): string | null
   linkMention(mention: Mention, target: string): Promise<void>
   notice(message: string): void
+  // The buttons at the foot of the left sidebar.
+  openVaults(): void
+  openHelp(): void
+  openSettings(): void
 }
 
 export class LeftSidebar {
@@ -69,11 +74,32 @@ export class LeftSidebar {
     )
     d.shell.addChild(new TagsPanel(tags, d.cache, (tag) => d.showSearch(`tag:${tag}`)))
     this.bar.restore('files')
+    vaultProfile(this.bar.el, d)
   }
 
   show(pane: LeftPane): void {
     this.bar.show(pane)
   }
+}
+
+// The vault's name (click to switch vaults), then Help and Settings.
+function vaultProfile(parent: HTMLElement, d: SidebarDeps): void {
+  const row = el('div', 'zn-vault-profile', parent)
+  const switcher = el('button', 'zn-vault-switcher', row)
+  switcher.title = 'Manage vaults (Ctrl+Shift+O)'
+  switcher.setAttribute('aria-label', `Vault: ${d.vaultName}. Manage vaults`)
+  switcher.appendChild(icon('chevronsUpDown', 16))
+  el('span', 'zn-vault-name', switcher, d.vaultName)
+  switcher.addEventListener('click', () => d.openVaults())
+  const button = (name: IconName, label: string, action: () => void): void => {
+    const b = el('button', 'zn-icon-btn', row)
+    b.title = label
+    b.setAttribute('aria-label', label)
+    b.appendChild(icon(name, 16))
+    b.addEventListener('click', action)
+  }
+  button('help', 'Help', () => d.openHelp())
+  button('settings', 'Settings (Ctrl+,)', () => d.openSettings())
 }
 
 export class RightSidebar {
