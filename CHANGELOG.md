@@ -6,14 +6,23 @@ Each release's notes on GitHub are taken from its section below, so write entrie
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-23
+
 ### Added
 
-- **Zenode account:** sign in with Google, and every vault you open is kept in your account.
-  - Notes, canvases and vault settings sync between computers within seconds.
-  - On a new or reset computer, "Restore from your account" brings a vault back.
+- **Zenode account:** sign in with Google (Settings → Account & sync), and the vaults you open are kept in your account.
+  - Notes, canvases and vault settings sync between computers within seconds; each computer keeps its own tabs and layout.
+  - On a new or reset computer, "Restore from your account" on the welcome screen brings a vault back.
   - When two computers change the same note, the other version is kept beside it as a conflict copy to compare and merge.
+  - The Help vault, and folders opened just to read one file, sync only if you turn them on.
   - Images and other attachments don't sync yet.
 - A new app icon and logo: the Ribbon Z.
+
+### Fixed
+
+- Typing right after Zenode starts no longer lands in a reopened note instead of the command palette or another dialog.
+- The file tree keeps keyboard focus when it redraws.
+- The local graph of an image or other attachment explains how to show what links to it.
 
 ## [0.5.0] - 2026-10-19
 
@@ -62,5 +71,6 @@ The first public build.
   - Portable and zip copies say when a new version is out.
 - **Downloads:** an installer (per user, no admin rights needed), a portable `.exe`, and a `.zip`.
 
-[Unreleased]: https://github.com/vabxsen/Zenode/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/vabxsen/Zenode/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/vabxsen/Zenode/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/vabxsen/Zenode/releases/tag/v0.5.0
