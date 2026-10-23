@@ -153,6 +153,9 @@ export function acceptTabDrops(bar: HTMLElement, onDrop: (data: string, index: n
     const data = e.dataTransfer?.getData(TAB_DRAG_TYPE)
     if (!data) return
     e.preventDefault()
+    // Handled here: the pane around must not also treat it as a drop on its edge
+    // (the tab under the pointer is redrawn, so it can't tell where it landed).
+    e.stopPropagation()
     const tabs = [...bar.querySelectorAll<HTMLElement>('.zn-tab')]
     const i = tabs.findIndex((t) => {
       const r = t.getBoundingClientRect()
