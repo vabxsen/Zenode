@@ -6,6 +6,17 @@ Each release's notes on GitHub are taken from its section below, so write entrie
 
 ## [Unreleased]
 
+### Security
+
+- Updated Electron to 44.9.3, which distrusts the compromised eMudhra intermediate certificates (GHSA-jr5w-w6x2-84p9).
+- Hardened file access:
+  - The vault folder itself can no longer be renamed, moved or deleted from inside Zenode.
+  - Vault settings, themes and snippets are only read and written inside the vault, even when `.zenode` is a link to another folder.
+  - Snippet and theme names can't contain path separators.
+- Zenode only opens vaults from your vault list by name; a new folder always goes through the folder picker.
+- Synced files whose names contain a backslash are ignored.
+- Installed copies never load the development address.
+
 ## [0.6.0] - 2026-10-23
 
 ### Added

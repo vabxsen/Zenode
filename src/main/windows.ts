@@ -90,7 +90,8 @@ export class VaultWindow {
   static async create(root?: string): Promise<VaultWindow> {
     const w = new VaultWindow()
     if (root) await w.openVault(root)
-    if (process.env.ELECTRON_RENDERER_URL) void w.win.loadURL(process.env.ELECTRON_RENDERER_URL)
+    // The dev server's address is only ever used by development builds.
+    if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) void w.win.loadURL(process.env.ELECTRON_RENDERER_URL)
     else void w.win.loadFile(join(__dirname, '../renderer/index.html'))
     return w
   }

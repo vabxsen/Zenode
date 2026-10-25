@@ -245,6 +245,11 @@ eq(
   ['.zenode/Workspace.json', '.Obsidian/plugins/x.md', '.GIT/notes.md', '.ZENODE/app.json', 'Notes/Plan.MD'].map(isSyncable),
   [false, false, false, true, true]
 )
+eq(
+  'syncable: a Windows separator never comes from the account',
+  [String.raw`notes\.obsidian\plugins\x\data.json`, String.raw`a\..\..\escape.md`, String.raw`.git\config.md`, String.raw`Plain\Note.md`].map(isSyncable),
+  [false, false, false, false]
+)
 
 // ---------- Memory from an older Zenode ----------
 {
