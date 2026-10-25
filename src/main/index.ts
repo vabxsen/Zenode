@@ -9,6 +9,7 @@ import { trashFile } from './trash'
 import { accountState, cancelSignIn, signIn, signOut } from './sync/account'
 import { remoteVaults, restoreVault, setSyncEnabled, startSync, syncVault, vaultStatus } from './sync/manager'
 import { openLaunchTarget } from './launch'
+import { knownVault } from './launchArgs'
 import type { UpdatePrefs } from '../shared/updates'
 import { checkForUpdates, installUpdate, setUpdatePrefs, startUpdates, updateStatus } from './updates'
 import { hardenSessions, isAppFrame, isAppOrigin } from './hardening'
@@ -105,6 +106,13 @@ async function openVaultIn(w: VaultWindow, root: string): Promise<VaultInfo | nu
   return w.openVault(root)
 }
 
+// A vault the page names must be one the user already opened (from the vault list).
+async function requireKnownVault(root: unknown): Promise<string> {
+  const known = knownVault(root, (await loadSettings()).recentVaults)
+  if (!known) throw new Error('That folder is not in your list of vaults. Use "Open folder as vault" to add it.')
+  return known
+}
+
 async function chooseFolder(w: VaultWindow): Promise<string | null> {
   const result = await dialog.showOpenDialog(w.win, {
     title: 'Open folder as vault',
@@ -133,10 +141,10 @@ function registerIpc(): void {
     const root = await chooseFolder(w)
     return root ? openVaultIn(w, root) : null
   })
-  handle('vault:open', (w, root: string) => openVaultIn(w, root))
+  handle('vault:open', async (w, root: unknown) => openVaultIn(w, await requireKnownVault(root)))
   // Another vault in a new window (a folder picker when no root is given).
-  handle('vault:openInNewWindow', async (w, root?: string) => {
-    const folder = root ?? (await chooseFolder(w))
+  handle('vault:openInNewWindow', async (w, root?: unknown) => {
+    const folder = root === undefined || root === null ? await chooseFolder(w) : await requireKnownVault(root)
     if (!folder) return
     const open = windowWithVault(folder)
     if (open) open.focus()

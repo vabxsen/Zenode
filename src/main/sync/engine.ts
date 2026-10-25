@@ -28,6 +28,8 @@ const isTextFile = (name: string): boolean => TEXT_EXT.has(extname(name).slice(1
 export function isSyncable(path: string): boolean {
   const lower = path.toLowerCase()
   if (!path || DEVICE_ONLY.has(lower) || lower.endsWith('.zenode-tmp')) return false
+  // Vault paths use "/" only: a "\" (also a separator on Windows) could hide a folder from the checks below.
+  if (path.includes('\\')) return false
   const parts = lower.split('/')
   if (parts.some((p) => p === '' || p === '.' || p === '..')) return false
   const dirs = parts.slice(0, -1)

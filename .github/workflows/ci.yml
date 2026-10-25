@@ -78,6 +78,10 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
+      # Electron is a devDependency but ships with the app: its advisories block too.
+      - name: Audit the Electron runtime
+        run: node scripts/audit-runtime.mjs
+
       # Development tools: reported, not blocking.
       - name: Audit all dependencies
         run: npm audit --audit-level=high

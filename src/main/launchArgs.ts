@@ -62,6 +62,13 @@ export function isInside(root: string, p: string): boolean {
   return back !== '' && !back.startsWith('..') && !isAbsolute(back)
 }
 
+// `root` as stored when it is one of the `known` vaults (in any spelling), else null.
+// The page can only open vaults this way; a new folder needs the folder picker.
+export function knownVault(root: unknown, known: string[]): string | null {
+  if (typeof root !== 'string' || !root || !isAbsolute(root)) return null
+  return known.find((r) => sameName(resolve(r), resolve(root))) ?? null
+}
+
 const vaultPath = (root: string, file: string) => relative(root, file).split(/[\\/]/).join('/')
 
 // The vault a file belongs to: the deepest known vault holding it, else the
