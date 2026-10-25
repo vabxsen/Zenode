@@ -6,6 +6,19 @@ Each release's notes on GitHub are taken from its section below, so write entrie
 
 ## [Unreleased]
 
+### Changed
+
+- **A new look, closer to the Markdown note apps you may know:** neutral grey surfaces, the system font, and Lucide icons.
+  - The tab strip is now the window's title bar; each note has a bar with back/forward, its folder path, a reading/editing switch and a menu.
+  - The note's name shows as a large title above its text; edit it to rename the note.
+  - The file tree, side panels, menus, command palette, settings and the vault chooser were restyled to match.
+  - Vault switching, Help and Settings moved to the foot of the left sidebar; the status bar sits in the bottom-right corner and shows backlinks.
+  - Small grey text stays readable (WCAG AA contrast) in both themes.
+
+### Fixed
+
+- Dropping a tab onto another tab no longer also adds an empty pane.
+
 ### Security
 
 - Updated Electron to 44.9.3, which distrusts the compromised eMudhra intermediate certificates (GHSA-jr5w-w6x2-84p9).

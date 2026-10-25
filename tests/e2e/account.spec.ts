@@ -41,7 +41,7 @@ test('signing in keeps the vault in the account, and edits follow', async ({ app
 
   // An edit reaches the account a few seconds later.
   await treeRow(page, 'Ideas').click()
-  await page.locator('.zn-pane-leaf .cm-content').first().click()
+  await page.locator('.zn-pane-leaf .cm-content').first().focus()
   await page.keyboard.press('Control+End')
   await page.keyboard.type('\nSynced line')
   await expect.poll(() => cloudFiles(cloud).files['Ideas.md'] ?? '', { timeout: 40_000 }).toContain('Synced line')

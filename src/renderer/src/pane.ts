@@ -1,21 +1,21 @@
-import { EditorSelection } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { contentHash } from '../../shared/hash'
 import { Component, el, el as mk } from './component'
 import { hideConflictBar, openCompareDialog, renderConflictBar } from './conflictUi'
-import { createEditorState, dropNativeUndo, fromDisk, spellcheckAttrs, spellcheckSetting, syncEditorTheme } from './editor/editor'
+import { createEditorState, dropNativeUndo, fromDisk, revealRange, spellcheckAttrs, spellcheckSetting, syncEditorTheme, taskToggle } from './editor/editor'
 import { linksChanged, setSourceMode } from './editor/livePreview'
 import { dialogHasFocus } from './focusGuard'
 import { icon } from './icons'
 import { confirmLargeNote, LARGE_NOTE, noteTitle, type MovedTab, type OpenPosition, type PaneHost, type PaneState, type Tab, type TextEdit, type WorkspaceView } from './paneTypes'
-import { acceptTabDrops, renderTabBar, showTabMenu } from './tabBar'
+import { acceptTabDrops, buildTabStrip, renderTabBar, showTabMenu, tabMenuItems, type TabMenuActions } from './tabBar'
 import { TabHistory } from './tabHistory'
 import { renderInto } from './render/reading'
+import { InlineTitle } from './inlineTitle'
+import { showMenu } from './menu'
+import { PaneHeader } from './paneHeader'
+import { scheduleJournal, unjournal, writeJournal } from './paneJournal'
 
 const SAVE_DELAY = 600
-// Unsaved text still unsaved after this long goes to the crash-recovery journal
-// (continuous typing keeps postponing autosave, so this bounds what a crash can lose).
-const JOURNAL_DELAY = 1500
 
 // One group of tabs with its own editor. The Workspace arranges panes in splits.
 export class Pane extends Component {
@@ -26,6 +26,9 @@ export class Pane extends Component {
   private navigating = false
   private readonly view: EditorView
   private readonly tabbarEl: HTMLElement
+  private readonly tabsEl: HTMLElement
+  private readonly header: PaneHeader
+  private readonly inlineTitle: InlineTitle
   private readonly conflictEl: HTMLElement
   private readonly editorEl: HTMLElement
   private readonly readingEl: HTMLElement
@@ -43,7 +46,14 @@ export class Pane extends Component {
     container.addEventListener('mousedown', () => this.host.onFocus(), true)
     container.addEventListener('focusin', () => this.host.onFocus())
     this.tabbarEl = mk('div', 'zn-tabbar', container)
+    this.tabsEl = buildTabStrip(this.tabbarEl, { newNote: () => this.host.newNote(), listTabs: (x, y) => this.listTabs(x, y) })
     acceptTabDrops(this.tabbarEl, (data, index) => this.host.onDropTab(data, index))
+    this.header = new PaneHeader(container, {
+      go: (step) => void this.go(step),
+      toggleReading: () => this.toggleReading(),
+      toggleSource: () => this.toggleSource(),
+      tabMenu: () => (this.active ? tabMenuItems(this.active, this.tabActions(this.active)) : [])
+    })
     this.conflictEl = mk('div', 'zn-conflict', container)
     this.conflictEl.style.display = 'none'
     this.editorEl = mk('div', 'zn-editor', container)
@@ -56,10 +66,19 @@ export class Pane extends Component {
     mk('div', 'zn-empty-title', inner, 'No note open')
     mk('div', 'zn-empty-hint', inner, 'Pick a note on the left, or press Ctrl+N to start a new one.')
     this.view = new EditorView({ parent: this.editorEl })
+    this.inlineTitle = new InlineTitle(
+      (name) => (this.active?.kind === 'note' ? this.host.renameNote(this.active.path, name) : Promise.resolve(false)),
+      () => this.focus(),
+      (height) => {
+        this.view.scrollDOM.style.setProperty('--zn-inline-title-h', `${height}px`)
+        this.view.requestMeasure()
+      }
+    )
     this.render()
   }
 
   onunload(): void {
+    this.inlineTitle.destroy()
     this.view.destroy()
   }
 
@@ -134,18 +153,15 @@ export class Pane extends Component {
     })
     if (tab !== this.active || !tab.reading) return
     this.readingEl.replaceChildren(body)
+    this.inlineTitle.show(this.titleOf(tab), body)
     this.readingEl.scrollTop = top
   }
 
   // A task checkbox clicked in Reading view: flip "[ ]" / "[x]" on that line.
   private toggleTask(tab: Tab, line: number, checked: boolean): void {
     const state = tab === this.active ? this.view.state : tab.state!
-    if (line < 0 || line >= state.doc.lines) return
-    const text = state.doc.line(line + 1)
-    const m = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])\]/.exec(text.text)
-    if (!m) return
-    const at = text.from + m[1].length
-    const spec = { changes: { from: at, to: at + 1, insert: checked ? 'x' : ' ' } }
+    const spec = taskToggle(state, line, checked)
+    if (!spec) return
     if (tab === this.active) this.view.dispatch(spec)
     else tab.state = state.update(spec).state
     void this.renderReading(tab)
@@ -281,40 +297,14 @@ export class Pane extends Component {
 
   // ---------- Crash-recovery journal ----------
 
-  private scheduleJournal(tab: Tab): void {
-    if (tab.journalTimer !== null) window.clearTimeout(tab.journalTimer)
-    tab.journalTimer = window.setTimeout(() => this.journal(tab), JOURNAL_DELAY)
-  }
-
   private journal(tab: Tab): void {
-    if (tab.journalTimer !== null) window.clearTimeout(tab.journalTimer)
-    tab.journalTimer = null
-    if (!this.tabs.includes(tab) || tab.kind !== 'note') return
-    const text = this.docOf(tab)
-    if (text === tab.lastSaved) return
-    tab.journaled = true
-    window.zenode.journalPut(tab.path, text, contentHash(tab.lastSaved)).catch((e: Error) => this.host.onError(`Could not keep a recovery copy: ${e.message}`))
-  }
-
-  private unjournal(tab: Tab): void {
-    if (tab.journalTimer !== null) window.clearTimeout(tab.journalTimer)
-    tab.journalTimer = null
-    if (!tab.journaled) return
-    tab.journaled = false
-    void window.zenode.journalRemove(tab.path).catch(() => undefined)
+    // A closed tab's entry stays on disk for recovery.
+    if (this.tabs.includes(tab) && tab.kind === 'note') writeJournal(tab, this.docOf(tab), (m) => this.host.onError(m))
   }
 
   // Select a range in the active note and scroll it to the middle of the view.
   private reveal(pos: OpenPosition): void {
-    if (this.active?.kind !== 'note') return
-    const len = this.view.state.doc.length
-    const from = Math.min(pos.from, len)
-    const to = Math.min(pos.to ?? pos.from, len)
-    this.view.dispatch({
-      selection: EditorSelection.range(from, to),
-      effects: EditorView.scrollIntoView(from, { y: 'center' })
-    })
-    requestAnimationFrame(() => this.view.focus())
+    if (this.active?.kind === 'note') revealRange(this.view, pos.from, pos.to ?? pos.from)
   }
 
   // Re-run link styling after the vault's links changed (e.g. a missing note was created).
@@ -514,7 +504,7 @@ export class Pane extends Component {
     }
     if (tab.timer !== null) window.clearTimeout(tab.timer)
     tab.timer = window.setTimeout(() => void this.save(tab), SAVE_DELAY)
-    this.scheduleJournal(tab)
+    scheduleJournal(tab, (t) => this.journal(t))
     if (tab === this.active) this.updateStats()
   }
 
@@ -569,7 +559,7 @@ export class Pane extends Component {
     this.host.onSaved(tab.path, content)
     if (this.docOf(tab) === content) {
       tab.dirty = false
-      this.unjournal(tab)
+      unjournal(tab)
     }
     this.render()
   }
@@ -649,7 +639,7 @@ export class Pane extends Component {
     tab.lastSaved = disk
     this.setDoc(tab, disk, true)
     tab.dirty = false
-    this.unjournal(tab)
+    unjournal(tab)
     this.clearConflict(tab)
   }
 
@@ -665,7 +655,7 @@ export class Pane extends Component {
   private discardTab(tab: Tab): void {
     this.host.preserve(tab.path, this.docOf(tab))
     tab.conflict = null
-    this.unjournal(tab)
+    unjournal(tab)
     this.dispose(tab)
   }
 
@@ -684,7 +674,7 @@ export class Pane extends Component {
       if (next === null) continue
       // Move a recovery entry to the new path.
       if (tab.journaled) {
-        this.unjournal(tab)
+        unjournal(tab)
         tab.path = next
         this.journal(tab)
       }
@@ -773,28 +763,38 @@ export class Pane extends Component {
     })
   }
 
+  private tabActions(tab: Tab): TabMenuActions {
+    return {
+      close: () => void this.close(tab),
+      closeOthers: () => void this.closeOthers(tab),
+      togglePin: () => this.togglePin(tab),
+      split: (dir) => this.host.splitWith(tab.path, dir),
+      reveal: () => this.host.revealInTree(tab.path)
+    }
+  }
+
+  private listTabs(x: number, y: number): void {
+    showMenu(x, y, this.tabs.map((t) => ({ label: this.titleOf(t), action: () => this.activate(t) })))
+  }
+
   private render(): void {
-    renderTabBar(this.tabbarEl, this.tabs, this.active, {
+    renderTabBar(this.tabsEl, this.tabs, this.active, {
       title: (tab) => this.titleOf(tab),
       dragData: (path) => this.host.dragData(path),
-      onMenu: (tab, x, y) =>
-        showTabMenu(tab, x, y, {
-          close: () => void this.close(tab),
-          closeOthers: () => void this.closeOthers(tab),
-          togglePin: () => this.togglePin(tab),
-          split: (dir) => this.host.splitWith(tab.path, dir),
-          reveal: () => this.host.revealInTree(tab.path)
-        }),
+      onMenu: (tab, x, y) => showTabMenu(tab, x, y, this.tabActions(tab)),
       onClose: (tab) => void this.close(tab),
       onActivate: (tab) => this.activate(tab)
     })
     this.renderConflict()
-    const kind = this.active?.kind
-    const reading = kind === 'note' && this.active!.reading
+    const tab = this.active
+    const kind = tab?.kind ?? null
+    const reading = kind === 'note' && tab!.reading
     this.editorEl.style.display = kind === 'note' && !reading ? '' : 'none'
     this.readingEl.style.display = reading ? '' : 'none'
     this.viewsEl.style.display = kind === 'view' ? '' : 'none'
     this.emptyEl.style.display = kind ? 'none' : ''
-    this.tabbarEl.classList.toggle('is-empty', this.tabs.length === 0)
+    const title = tab ? this.titleOf(tab) : ''
+    this.header.update({ kind, path: tab?.path ?? '', title, mode: this.activeMode(), canBack: this.history.canStep(-1), canForward: this.history.canStep(1) })
+    if (!reading) this.inlineTitle.show(kind === 'note' ? title : null, this.view.scrollDOM)
   }
 }

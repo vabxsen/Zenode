@@ -13,7 +13,9 @@ import { rememberVault, updateSettings } from './settings'
 import { SnapshotStore } from './snapshots'
 import { Vault } from './vault'
 
-const BG = '#0b0b0f'
+const BG = '#282828'
+// The window buttons' height: the page's top row (40px) less its 1px bottom border.
+export const TITLE_BAR_HEIGHT = 39
 // How long a closing window waits for the page to save before closing anyway.
 const CLOSE_TIMEOUT = 3000
 const CASCADE = 28
@@ -50,8 +52,8 @@ export class VaultWindow {
       backgroundColor: BG,
       title: 'Zenode',
       titleBarStyle: 'hidden',
-      // One pixel shorter than the title bar so its bottom border stays visible.
-      titleBarOverlay: { color: BG, symbolColor: '#a1a1aa', height: 37 },
+      // One pixel shorter than the top row so its bottom border stays visible.
+      titleBarOverlay: { color: BG, symbolColor: '#b3b3b3', height: TITLE_BAR_HEIGHT },
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,

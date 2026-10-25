@@ -43,42 +43,20 @@ button {
   display: flex;
   flex-direction: column;
   height: 100%;
+  font-size: var(--zn-ui-medium);
+  line-height: 1.3;
 }
 
+/* The top row is the window's title bar: its empty parts move the window.
+   Anything clickable in it opts out. */
 .zn-drag {
   -webkit-app-region: drag;
 }
-
-.zn-titlebar {
-  height: var(--zn-titlebar-h);
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 0 150px 0 14px;
-  border-bottom: 1px solid var(--zn-border);
-  background: var(--zn-bg);
-}
-
-.zn-titlebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--zn-text-strong);
-  font-size: 13px;
-}
-
-
-.zn-titlebar-title {
-  flex: 1;
-  text-align: center;
-  color: var(--zn-text-muted);
-  font-size: 12.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.zn-drag button,
+.zn-drag [role='tab'],
+.zn-drag [role='button'],
+.zn-drag input {
+  -webkit-app-region: no-drag;
 }
 
 .zn-body {
@@ -87,45 +65,75 @@ button {
   min-height: 0;
 }
 
-/* ---------- Ribbon ---------- */
-
-.zn-ribbon {
-  width: 44px;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 0;
-  border-right: 1px solid var(--zn-border);
-  background: var(--zn-bg);
-}
-
-.zn-ribbon-spacer {
-  flex: 1;
-}
-
-.zn-ribbon-btn {
-  width: 32px;
-  height: 32px;
-  display: grid;
+/* A small square icon button (ribbon, sidebar tabs, pane headers, toolbars). */
+.zn-icon-btn {
+  height: 24px;
+  min-width: 28px;
+  display: inline-grid;
   place-items: center;
+  flex: none;
+  padding: 4px 6px;
   border: none;
-  border-radius: 7px;
+  border-radius: 4px;
   background: transparent;
   color: var(--zn-text-muted);
   cursor: pointer;
 }
-
-.zn-ribbon-btn:hover {
+.zn-icon-btn .zn-icon {
+  opacity: 0.85;
+}
+.zn-icon-btn:hover {
   background: var(--zn-bg-hover);
-  color: var(--zn-text-strong);
+  color: var(--zn-text);
+}
+.zn-icon-btn:hover .zn-icon,
+.zn-icon-btn.is-active .zn-icon {
+  opacity: 1;
+}
+.zn-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: transparent;
+}
+
+/* ---------- Ribbon ---------- */
+
+.zn-ribbon {
+  width: var(--zn-ribbon-w);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--zn-bg-panel);
+}
+
+.zn-ribbon-top {
+  height: var(--zn-header-h);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 1px;
+}
+
+.zn-ribbon-actions {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px 12px;
+  border-right: 1px solid var(--zn-border);
+}
+
+.zn-ribbon-btn {
+  height: 24px;
+  width: 28px;
 }
 
 /* ---------- Sidebar ---------- */
 
 .zn-sidebar {
-  width: 260px;
+  width: 300px;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -138,31 +146,71 @@ button {
   display: none;
 }
 
+/* Centred action buttons above the file tree. */
 .zn-sidebar-header {
-  padding: 12px 14px 8px;
+  height: var(--zn-header-h);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
 }
 
-.zn-sidebar-title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--zn-text-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.zn-tree-tools {
+  display: flex;
+  gap: 2px;
 }
 
 .zn-sidebar-tree {
   flex: 1;
   overflow: auto;
-  padding: 2px 6px 16px;
+  padding: 4px 12px 24px;
+}
+
+/* The vault switcher, help and settings at the foot of the left sidebar. */
+.zn-vault-profile {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border-top: 1px solid var(--zn-border);
+}
+
+.zn-vault-switcher {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--zn-text);
+  cursor: pointer;
+  text-align: left;
+}
+.zn-vault-switcher:hover {
+  background: var(--zn-bg-hover);
+}
+.zn-vault-switcher .zn-icon {
+  flex: none;
+  color: var(--zn-mark);
+}
+
+.zn-vault-name {
+  font-size: var(--zn-ui-small);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .zn-resizer {
   width: 5px;
-  margin-left: -2px;
-  margin-right: -3px;
+  margin-left: -3px;
+  margin-right: -2px;
   flex: none;
   cursor: col-resize;
   position: relative;
@@ -180,6 +228,8 @@ button {
 }
 
 .zn-resizer:hover::after {
+  left: 1px;
+  width: 3px;
   background: var(--zn-accent-strong);
 }
 
@@ -188,14 +238,29 @@ button {
 .zn-tree-row {
   display: flex;
   align-items: center;
-  gap: 2px;
-  height: 28px;
-  padding-right: 8px;
-  border-radius: 6px;
+  position: relative;
+  height: 25px;
+  margin-bottom: 2px;
+  padding: 4px 8px 4px 24px;
+  border-radius: 8px;
+  font-size: var(--zn-ui-small);
+  line-height: 1.3;
   color: var(--zn-text-muted);
-  cursor: pointer;
+  cursor: default;
   user-select: none;
-  white-space: nowrap;
+  white-space: pre;
+}
+
+/* Indentation guides, one per level, in the space left of a nested row. */
+.zn-tree-row[data-depth]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: -2px;
+  right: 100%;
+  width: calc(var(--depth) * 17px);
+  background: repeating-linear-gradient(to right, transparent 0 12px, var(--zn-guide) 12px 13px, transparent 13px 17px);
+  pointer-events: none;
 }
 
 .zn-tree-row:hover {
@@ -204,24 +269,31 @@ button {
 }
 
 .zn-tree-row.is-active {
-  background: color-mix(in srgb, var(--zn-accent-strong) 14%, transparent);
-  color: var(--zn-text-strong);
+  background: var(--zn-bg-hover);
+  color: var(--zn-text);
 }
 
-.zn-tree-row.is-other {
-  color: var(--zn-text-faint);
+.zn-tree-row.is-selected:not(.is-active) {
+  background: color-mix(in oklch, var(--zn-accent-strong) 15%, transparent);
+  color: var(--zn-text);
 }
 
 .zn-tree-twisty {
+  position: absolute;
+  left: 4px;
+  top: 4px;
   width: 16px;
-  flex: none;
+  height: 17px;
   display: grid;
   place-items: center;
-  color: var(--zn-text-faint);
-  transition: transform 0.12s ease;
+  color: var(--zn-mark);
 }
 
-.zn-tree-twisty.is-open {
+.zn-tree-twisty .zn-icon {
+  transition: transform 0.1s ease;
+}
+
+.zn-tree-twisty.is-open .zn-icon {
   transform: rotate(90deg);
 }
 
@@ -231,24 +303,27 @@ button {
 }
 
 .zn-tree-ext {
-  margin-left: 6px;
-  padding: 0 5px;
+  margin-left: auto;
+  padding: 0 4px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  line-height: 1.5;
   text-transform: uppercase;
-  background: var(--zn-bg-raised);
   color: var(--zn-text-faint);
 }
 
 .zn-tree-rename {
   flex: 1;
   min-width: 0;
-  height: 22px;
-  padding: 0 6px;
+  height: 20px;
+  margin: -2px 0;
+  padding: 0 4px;
   border: 1px solid var(--zn-accent-strong);
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--zn-bg);
-  color: var(--zn-text-strong);
+  color: var(--zn-text);
   font: inherit;
   outline: none;
 }
@@ -256,7 +331,7 @@ button {
 .zn-tree-empty {
   padding: 16px 10px;
   color: var(--zn-text-faint);
-  font-size: 12.5px;
+  font-size: var(--zn-ui-small);
   line-height: 1.6;
 }
 
@@ -268,90 +343,172 @@ button {
   display: flex;
   flex-direction: column;
   position: relative;
+  background: var(--zn-bg);
 }
 
 .zn-tabbar {
-  height: 38px;
+  height: var(--zn-header-h);
   flex: none;
   display: flex;
-  align-items: flex-end;
-  gap: 2px;
+  align-items: stretch;
   padding: 0 8px;
+  background: var(--zn-bg-panel);
   border-bottom: 1px solid var(--zn-border);
-  overflow-x: auto;
-  overflow-y: hidden;
 }
 
-.zn-tabbar.is-empty {
-  display: none;
+.zn-tabs {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  overflow: hidden;
+  padding-top: 6px;
 }
 
 .zn-tab {
-  height: 30px;
-  max-width: 220px;
-  min-width: 90px;
+  height: 34px;
+  width: 200px;
+  min-width: 60px;
+  flex: 0 1 200px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 6px 0 12px;
-  border-radius: 7px 7px 0 0;
-  color: var(--zn-text-muted);
-  cursor: pointer;
-  user-select: none;
+  gap: 4px;
+  padding: 1px 4px 4px;
   position: relative;
+  color: var(--zn-text-muted);
+  cursor: default;
+  user-select: none;
 }
 
-.zn-tab:hover {
-  background: var(--zn-bg-hover);
-}
-
-.zn-tab.is-active {
-  background: var(--zn-bg-raised);
-  color: var(--zn-text-strong);
-}
-
-.zn-tab.is-active::after {
+/* The pill drawn inside each tab (hover wash), and dividers between inactive tabs. */
+.zn-tab::before {
   content: '';
   position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--zn-accent-strong);
+  inset: 1px 4px 4px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+.zn-tab:not(.is-active):hover::before {
+  background: var(--zn-bg-hover);
+}
+.zn-tab:not(.is-active) + .zn-tab:not(.is-active)::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  height: 16px;
+  width: 1px;
+  background: var(--zn-border-strong);
+}
+
+/* The active tab joins the note below it. */
+.zn-tab.is-active {
+  background: var(--zn-bg);
+  border-radius: 10px 10px 0 0;
+  box-shadow: 0 0 0 1px var(--zn-border);
+  clip-path: inset(-1px -1px 0 -1px);
+  z-index: 1;
+}
+.zn-tab.is-active {
+  color: var(--zn-text);
 }
 
 .zn-tab-title {
   flex: 1;
+  min-width: 0;
+  padding-left: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--zn-ui-small);
+  position: relative;
 }
 
 .zn-tab.is-dirty .zn-tab-title::after {
   content: ' •';
-  color: var(--zn-accent);
+  color: var(--zn-text-faint);
 }
 
-.zn-tab-close {
-  width: 18px;
-  height: 18px;
+.zn-tab-close,
+.zn-tab-pin {
+  width: 20px;
+  height: 20px;
+  flex: none;
   display: grid;
   place-items: center;
-  border-radius: 4px;
-  color: var(--zn-text-faint);
-  opacity: 0;
-}
-
-.zn-tab:hover .zn-tab-close,
-.zn-tab.is-active .zn-tab-close {
-  opacity: 1;
+  padding: 2px;
+  border-radius: 8px;
+  color: var(--zn-text-muted);
+  position: relative;
+  margin-right: 2px;
 }
 
 .zn-tab-close:hover {
   background: var(--zn-bg-hover);
-  color: var(--zn-text-strong);
+  color: var(--zn-text);
+}
+
+.zn-tab-new {
+  align-self: center;
+  margin: 0 4px 0 8px;
+}
+
+.zn-tab-list {
+  align-self: center;
+  margin-right: 2px;
+}
+
+.zn-tabbar-spacer {
+  flex: 1;
+}
+
+/* Shows the right sidebar; sits at the top right of the notes area. */
+.zn-rightbar-toggle {
+  position: absolute;
+  top: 8px;
+  right: calc(8px + var(--zn-frame-right));
+  z-index: 3;
+}
+.zn-app:not(.is-rightbar-hidden) .zn-rightbar-toggle {
+  right: 8px;
+}
+
+/* The bar above a note: back and forward, the note's path, and view actions. */
+.zn-view-header {
+  height: 38px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: var(--zn-bg);
+}
+
+.zn-view-header-nav,
+.zn-view-actions {
+  display: flex;
+  align-items: center;
+}
+
+.zn-view-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  font-size: var(--zn-ui-small);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.zn-view-title-parent,
+.zn-view-title-sep {
+  color: var(--zn-text-faint);
+}
+.zn-view-title-sep {
+  margin: 0 4px;
+}
+.zn-view-title-name {
+  color: var(--zn-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .zn-editor {
@@ -382,85 +539,141 @@ button {
 
 .zn-empty-hint {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: var(--zn-ui-small);
 }
 
 /* ---------- Status bar ---------- */
 
+/* Floats over the bottom right corner, like a tab on the window's edge. */
 .zn-statusbar {
-  height: 26px;
-  flex: none;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  z-index: 15;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 12px;
-  border-top: 1px solid var(--zn-border);
-  font-size: 11.5px;
-  color: var(--zn-text-faint);
+  padding: 4px 8px 4px 4px;
+  border: solid var(--zn-border);
+  border-width: 1px 0 0 1px;
+  border-radius: 8px 0 0 0;
+  background: var(--zn-bg-panel);
+  font-size: var(--zn-ui-smaller);
+  line-height: 1;
+  color: var(--zn-text-muted);
+  user-select: none;
 }
 
-.zn-status-vault {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.zn-statusbar > * {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  border-radius: 4px;
   white-space: nowrap;
+}
+
+.zn-statusbar > :empty {
+  display: none;
+}
+
+.zn-status-segment + .zn-status-segment {
+  margin-left: 8px;
 }
 
 /* ---------- Live Preview ---------- */
 
-.cm-editor .zn-h {
+/* The note's name above its text (InlineTitle); in the editor it sits in the
+   space the text leaves at the top. */
+.zn-inline-title {
+  font-size: 1.618em;
   font-weight: 700;
-  color: var(--zn-text-strong);
-  line-height: 1.35;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  padding-bottom: 0.5em;
+  color: var(--zn-text);
+  outline: none;
+  cursor: text;
+  overflow-wrap: anywhere;
+}
+.cm-scroller > .zn-inline-title {
+  position: absolute;
+  top: 32px;
+  left: max(32px, calc((100% - var(--zn-line-width)) / 2));
+  right: max(32px, calc((100% - var(--zn-line-width)) / 2));
+  font-size: calc(var(--zn-text-size) * 1.618);
+  z-index: 1;
+}
+
+.cm-editor .zn-h {
+  color: var(--zn-text);
+  padding-top: 16px !important;
 }
 .cm-editor .zn-h1 {
-  font-size: 1.9em;
-  padding-top: 0.6em !important;
-  padding-bottom: 0.15em !important;
+  font-size: 1.618em;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
 }
 .cm-editor .zn-h2 {
-  font-size: 1.5em;
-  padding-top: 0.5em !important;
+  font-size: 1.462em;
+  font-weight: 680;
+  line-height: 1.2;
+  letter-spacing: -0.011em;
 }
 .cm-editor .zn-h3 {
-  font-size: 1.25em;
-  padding-top: 0.4em !important;
+  font-size: 1.318em;
+  font-weight: 660;
+  line-height: 1.3;
+  letter-spacing: -0.008em;
 }
 .cm-editor .zn-h4 {
-  font-size: 1.1em;
+  font-size: 1.188em;
+  font-weight: 640;
+  line-height: 1.4;
+  letter-spacing: -0.005em;
 }
-.cm-editor .zn-h5,
+.cm-editor .zn-h5 {
+  font-size: 1.076em;
+  font-weight: 620;
+  line-height: 1.5;
+  letter-spacing: -0.002em;
+}
 .cm-editor .zn-h6 {
   font-size: 1em;
-  color: var(--zn-text-muted);
+  font-weight: 600;
+  line-height: 1.5;
+}
+.cm-editor .zn-h .tok-heading,
+.cm-editor .zn-h span {
+  font-weight: inherit;
 }
 
 .zn-em {
   font-style: italic;
 }
 .zn-strong {
-  font-weight: 700;
-  color: var(--zn-text-strong);
+  font-weight: 600;
 }
 .zn-strike {
   text-decoration: line-through;
-  color: var(--zn-text-muted);
 }
 .zn-code {
   font-family: var(--zn-font-mono);
-  font-size: 0.9em;
-  padding: 0.1em 0.35em;
-  border-radius: 5px;
-  background: var(--zn-bg-raised);
+  font-size: 0.875em;
+  padding: 0.15em 0.3em;
+  border-radius: 4px;
+  background: var(--zn-bg-alt);
   color: var(--zn-code-inline);
 }
 
 .zn-link {
   color: var(--zn-accent);
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--zn-accent) 40%, transparent);
-  text-underline-offset: 3px;
+  text-decoration-thickness: auto;
   cursor: pointer;
+}
+.zn-link:hover {
+  color: var(--zn-accent-soft);
 }
 .zn-link.is-raw {
   text-decoration: none;
@@ -469,8 +682,7 @@ button {
 
 .cm-editor .zn-quote {
   position: relative;
-  padding-left: calc(max(32px, (100% - var(--zn-line-width)) / 2) + 16px) !important;
-  color: var(--zn-text-muted);
+  padding-left: calc(max(32px, (100% - var(--zn-line-width)) / 2) + 15px) !important;
 }
 .cm-editor .zn-quote::before {
   content: '';
@@ -478,27 +690,43 @@ button {
   top: 0;
   bottom: 0;
   left: max(32px, (100% - var(--zn-line-width)) / 2);
-  width: 3px;
+  width: 2px;
   background: var(--zn-accent-strong);
 }
 
+/* A small round bullet in the list marker's place. */
 .zn-bullet {
-  color: var(--zn-accent);
   display: inline-block;
-  width: 0.9em;
-  font-weight: 700;
+  position: relative;
+  width: 11px;
+  color: transparent;
+  overflow: hidden;
+  vertical-align: top;
+}
+.zn-bullet::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc(50% - 2.5px);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--zn-mark);
 }
 
 .zn-task-box {
   appearance: none;
-  width: 15px;
-  height: 15px;
-  margin: 0 6px 0 0;
+  width: 16px;
+  height: 16px;
+  margin: 0 6px 0 2px;
   vertical-align: -2px;
-  border: 1.5px solid var(--zn-text-faint);
+  border: 1px solid var(--zn-mark);
   border-radius: 4px;
   cursor: pointer;
   position: relative;
+}
+.zn-task-box:hover {
+  border-color: var(--zn-text-muted);
 }
 .zn-task-box:checked {
   background: var(--zn-accent-strong);
@@ -507,8 +735,8 @@ button {
 .zn-task-box:checked::after {
   content: '';
   position: absolute;
-  left: 4px;
-  top: 1px;
+  left: 4.5px;
+  top: 1.5px;
   width: 4px;
   height: 8px;
   border: solid var(--zn-on-accent);
@@ -516,14 +744,14 @@ button {
   transform: rotate(45deg);
 }
 .cm-editor .zn-task-done {
-  color: var(--zn-text-faint);
+  color: var(--zn-text-muted);
   text-decoration: line-through;
 }
 
 .zn-hr {
   display: inline-block;
   width: 100%;
-  height: 1px;
+  height: 2px;
   vertical-align: middle;
   background: var(--zn-border);
 }
@@ -534,10 +762,11 @@ button {
   position: relative;
   isolation: isolate;
   font-family: var(--zn-font-mono);
-  font-size: 0.9em;
+  font-size: 0.875em;
+  line-height: 1.5;
   color: var(--zn-code-text);
-  padding-left: calc(max(32px, (100% - var(--zn-line-width)) / 2) + 14px) !important;
-  padding-right: calc(max(32px, (100% - var(--zn-line-width)) / 2) + 14px) !important;
+  padding-left: calc(max(32px, (100% - var(--zn-line-width)) / 2) + 16px) !important;
+  padding-right: calc(max(32px, (100% - var(--zn-line-width)) / 2) + 16px) !important;
 }
 .cm-editor .zn-codeblock::before {
   content: '';
@@ -547,129 +776,75 @@ button {
   bottom: 0;
   left: max(32px, (100% - var(--zn-line-width)) / 2);
   right: max(32px, (100% - var(--zn-line-width)) / 2);
-  background: color-mix(in srgb, var(--zn-overlay) 3.5%, transparent);
+  background: var(--zn-bg-alt);
 }
 .cm-editor .zn-codeblock-first::before {
-  border-radius: 8px 8px 0 0;
+  border-radius: 4px 4px 0 0;
 }
 .cm-editor .zn-codeblock-last::before {
-  border-radius: 0 0 8px 8px;
+  border-radius: 0 0 4px 4px;
 }
 .cm-editor .zn-codeblock-first.zn-codeblock-last::before {
-  border-radius: 8px;
+  border-radius: 4px;
 }
 .zn-fence-label {
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--zn-text-faint);
+  float: right;
+  padding: 0 8px;
+  font-family: var(--zn-font-ui);
+  font-size: var(--zn-ui-smaller);
+  color: var(--zn-text-muted);
 }
 
 /* ---------- Welcome ---------- */
 
-.is-welcome .zn-titlebar {
-  border-bottom: none;
-}
-
 .zn-welcome {
   flex: 1;
+  min-height: 0;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  padding: 24px;
-  margin-top: -6vh;
 }
 
-.zn-welcome-brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  color: var(--zn-accent);
+/* An invisible strip along the top edge that moves the window. */
+.zn-welcome-drag {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: var(--zn-frame-right);
+  height: 32px;
 }
 
-.zn-welcome-name {
-  font-size: 40px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--zn-text-strong);
-}
-
-.zn-welcome-tag {
-  color: var(--zn-text-muted);
-  margin-bottom: 14px;
-}
-
+/* Buttons: raised grey, or the accent colour for the main action. */
 .zn-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  height: 38px;
-  padding: 0 18px;
-  border-radius: 9px;
-  border: 1px solid var(--zn-border);
+  height: 30px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 5px;
   background: var(--zn-bg-raised);
-  cursor: pointer;
+  box-shadow: var(--zn-btn-shadow);
+  color: var(--zn-text);
+  font: inherit;
+  font-size: var(--zn-ui-small);
+  font-weight: 400;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.zn-btn:hover {
+  background: var(--zn-bg-raised-hover);
+  box-shadow: var(--zn-btn-shadow-hover);
 }
 
 .zn-btn-primary {
-  border-color: transparent;
-  background: var(--zn-accent-strong);
+  background: var(--zn-cta);
   color: var(--zn-on-accent);
-  font-weight: 600;
 }
 
 .zn-btn-primary:hover {
-  background: var(--zn-accent-deep);
-}
-
-.zn-welcome-section {
-  margin-top: 22px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--zn-text-faint);
-}
-
-.zn-recent {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: min(460px, 90vw);
-}
-
-.zn-recent-row {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 9px 14px;
-  border: 1px solid var(--zn-border);
-  border-radius: 9px;
-  background: var(--zn-bg-panel);
-  cursor: pointer;
-  text-align: left;
-}
-
-.zn-recent-row:hover {
-  border-color: var(--zn-border-strong);
-  background: var(--zn-bg-hover);
-}
-
-.zn-recent-name {
-  color: var(--zn-text-strong);
-  font-weight: 600;
-}
-
-.zn-recent-path {
-  color: var(--zn-text-faint);
-  font-size: 12px;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: var(--zn-cta-hover);
 }
 
 /* ---------- Menus & notices ---------- */
@@ -677,56 +852,71 @@ button {
 .zn-menu {
   position: fixed;
   z-index: 100;
-  min-width: 190px;
-  padding: 5px;
+  min-width: 150px;
+  padding: 6px;
   border: 1px solid var(--zn-border-strong);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--zn-bg-popover);
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--zn-shadow) 50%, transparent);
+  box-shadow: var(--zn-shadow-s);
 }
 
 .zn-menu-item {
-  padding: 7px 10px;
-  border-radius: 6px;
-  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: default;
   color: var(--zn-text);
-  font-size: 13px;
+  font-size: var(--zn-ui-small);
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .zn-menu-item:hover {
   background: var(--zn-bg-hover);
-  color: var(--zn-text-strong);
 }
 
-.zn-menu-item.is-danger {
+.zn-menu-item-icon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--zn-text-muted);
+}
+
+.zn-menu-item.is-danger,
+.zn-menu-item.is-danger .zn-menu-item-icon {
   color: var(--zn-danger);
 }
 
 .zn-menu-sep {
-  height: 1px;
-  margin: 4px 6px;
-  background: var(--zn-border);
+  height: 0;
+  margin: 6px -6px;
+  border-bottom: 1px solid var(--zn-border);
 }
 
 .zn-notices {
   position: fixed;
-  right: 16px;
-  bottom: 40px;
+  top: 52px;
+  right: 12px;
   z-index: 200;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 8px;
 }
 
 .zn-notice {
   max-width: 380px;
-  padding: 10px 14px;
+  padding: 10px 16px;
   border: 1px solid var(--zn-border-strong);
-  border-left: 3px solid var(--zn-accent-strong);
   border-radius: 8px;
-  background: var(--zn-bg-popover);
-  font-size: 13px;
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--zn-shadow) 45%, transparent);
+  background: var(--zn-bg-panel);
+  color: var(--zn-text);
+  font-size: var(--zn-ui-medium);
+  line-height: 1.3;
+  box-shadow: var(--zn-shadow-s);
   transition: opacity 0.3s ease;
 }
 
@@ -739,34 +929,31 @@ button {
   margin-top: 8px;
 }
 
-/* ---------- Phase 2: sidebar tabs & panes ---------- */
+/* ---------- Sidebar tabs & panes ---------- */
 
+/* The icon tabs along a sidebar's top, in the title bar row. */
 .zn-sidebar-tabs {
+  height: var(--zn-header-h);
+  flex: none;
   display: flex;
-  gap: 2px;
-  padding: 8px 8px 0;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 7px 8px 0;
+  border-bottom: 1px solid var(--zn-border);
+}
+
+.zn-rightbar .zn-sidebar-tabs {
+  padding-right: calc(8px + var(--zn-frame-right));
 }
 
 .zn-sidebar-tab {
-  width: 30px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--zn-text-faint);
-  cursor: pointer;
-}
-
-.zn-sidebar-tab:hover {
-  background: var(--zn-bg-hover);
-  color: var(--zn-text);
+  height: 25px;
+  padding: 0 6px;
 }
 
 .zn-sidebar-tab.is-active {
-  background: var(--zn-bg-raised);
-  color: var(--zn-accent);
+  background: var(--zn-bg-hover);
+  color: var(--zn-text);
 }
 
 .zn-pane {
@@ -779,57 +966,70 @@ button {
 /* ---------- Search ---------- */
 
 .zn-search-box {
-  padding: 10px 10px 6px;
+  margin: 12px 12px 8px;
 }
 
 .zn-search-input,
 .zn-switcher-input {
   width: 100%;
-  height: 32px;
-  padding: 0 10px;
+  height: 30px;
+  padding: 4px 8px;
   border: 1px solid var(--zn-border);
-  border-radius: 7px;
-  background: var(--zn-bg);
-  color: var(--zn-text-strong);
+  border-radius: 5px;
+  background: var(--zn-field);
+  color: var(--zn-text);
   font: inherit;
+  font-size: var(--zn-ui-small);
   outline: none;
 }
 
 .zn-search-input:focus,
 .zn-switcher-input:focus {
-  border-color: var(--zn-accent-strong);
+  border-color: var(--zn-border-stronger);
+  box-shadow: 0 0 0 1px var(--zn-border-stronger);
+}
+
+.zn-search-input::placeholder,
+.zn-switcher-input::placeholder {
+  color: var(--zn-text-faint);
 }
 
 .zn-search-help {
   margin-top: 6px;
-  font-size: 11px;
-  color: var(--zn-text-faint);
+  font-size: var(--zn-ui-smaller);
+  color: var(--zn-text-muted);
 }
 
 .zn-search-summary {
-  padding: 2px 12px 6px;
-  font-size: 11.5px;
-  color: var(--zn-text-faint);
+  padding: 0 12px 8px 18px;
+  border-bottom: 1px solid var(--zn-border);
+  font-size: var(--zn-ui-smaller);
+  color: var(--zn-text-muted);
 }
 
 .zn-search-results {
   flex: 1;
   overflow: auto;
-  padding: 0 6px 16px;
+  padding: 12px;
 }
 
 .zn-search-note {
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
+/* A result's file name: a row like the file tree's. */
 .zn-search-note-header,
 .zn-backlink-header {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 5px 8px;
-  border-radius: 6px;
-  cursor: pointer;
+  margin-bottom: 2px;
+  padding: 4px 8px 4px 24px;
+  border-radius: 8px;
+  color: var(--zn-text);
+  font-size: var(--zn-ui-small);
+  line-height: 1.3;
+  cursor: default;
   white-space: nowrap;
   overflow: hidden;
 }
@@ -841,8 +1041,7 @@ button {
 
 .zn-search-note-title,
 .zn-backlink-title {
-  color: var(--zn-text-strong);
-  font-weight: 600;
+  font-weight: 400;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -850,53 +1049,57 @@ button {
 .zn-search-note-folder,
 .zn-backlink-folder {
   color: var(--zn-text-faint);
-  font-size: 11.5px;
+  font-size: var(--zn-ui-smaller);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .zn-search-note-count {
   margin-left: auto;
-  padding: 0 6px;
-  border-radius: 8px;
-  background: var(--zn-bg-raised);
-  color: var(--zn-text-muted);
-  font-size: 11px;
+  color: var(--zn-text-faint);
+  font-size: var(--zn-ui-smaller);
 }
 
+/* Matching lines: cards on the writing surface. */
 .zn-search-line,
 .zn-backlink-line {
-  margin: 1px 0 1px 10px;
-  padding: 5px 8px;
-  border-left: 2px solid var(--zn-border);
-  border-radius: 0 6px 6px 0;
+  margin: 4px 0 8px;
+  padding: 8px 20px 8px 12px;
+  border-radius: 4px;
+  background: var(--zn-bg);
+  box-shadow: 0 0 0 1px var(--zn-border);
   color: var(--zn-text-muted);
-  font-size: 12.5px;
-  line-height: 1.5;
-  cursor: pointer;
+  font-size: var(--zn-ui-smaller);
+  line-height: 1.3;
+  cursor: default;
   word-break: break-word;
+}
+
+.zn-search-line + .zn-search-line,
+.zn-backlink-line + .zn-backlink-line {
+  margin-top: -8px;
+  border-top: 1px solid var(--zn-border);
+  border-radius: 0 0 4px 4px;
 }
 
 .zn-search-line:hover,
 .zn-backlink-line:hover {
-  background: var(--zn-bg-hover);
-  border-left-color: var(--zn-accent-strong);
   color: var(--zn-text);
+  background: color-mix(in oklch, var(--zn-bg) 100%, transparent);
+  box-shadow: 0 0 0 1px var(--zn-border-strong);
 }
 
 .zn-search-line mark,
 .zn-backlink-line mark,
 .zn-switcher-title mark {
-  background: color-mix(in srgb, var(--zn-accent-strong) 30%, transparent);
-  color: var(--zn-text-strong);
-  border-radius: 3px;
-  padding: 0 1px;
+  background: color-mix(in oklch, var(--zn-highlight) 30%, transparent);
+  color: var(--zn-text);
 }
 
 .zn-search-more {
-  margin-left: 20px;
+  margin-left: 24px;
   padding: 3px 0;
-  font-size: 11.5px;
+  font-size: var(--zn-ui-smaller);
   color: var(--zn-text-faint);
 }
 
@@ -916,28 +1119,27 @@ button {
   display: none;
 }
 
+/* A panel's heading: a row like a tree item, with a count at the end. */
 .zn-panel-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 14px 8px;
+  margin: 4px 12px 2px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: var(--zn-ui-small);
+  line-height: 1.3;
 }
 
 .zn-panel-title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--zn-text-faint);
+  font-weight: 500;
+  color: var(--zn-text);
 }
 
 .zn-panel-count {
-  padding: 0 6px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--zn-accent-strong) 18%, transparent);
-  color: var(--zn-accent);
-  font-size: 11px;
-  font-weight: 600;
+  margin-left: auto;
+  color: var(--zn-text-faint);
+  font-size: var(--zn-ui-smaller);
 }
 
 .zn-panel-count:empty {
@@ -947,17 +1149,17 @@ button {
 .zn-backlinks {
   flex: 1;
   overflow: auto;
-  padding: 0 6px 16px;
+  padding: 4px 13px 16px;
 }
 
 .zn-backlink-note {
-  margin-bottom: 8px;
+  margin-bottom: 2px;
 }
 
 .zn-panel-empty {
-  padding: 8px 14px;
-  font-size: 12.5px;
-  color: var(--zn-text-faint);
+  padding: 4px 20px;
+  font-size: var(--zn-ui-small);
+  color: var(--zn-text-muted);
 }
 
 /* ---------- Internal links ---------- */
@@ -967,9 +1169,8 @@ button {
 }
 
 .zn-link.is-unresolved {
-  color: var(--zn-accent-dim);
-  opacity: 0.75;
-  text-decoration-style: dashed;
+  opacity: 0.7;
+  text-decoration-color: color-mix(in oklch, var(--zn-accent-strong) 30%, transparent);
 }
 
 .zn-embed {
@@ -978,7 +1179,7 @@ button {
   background: color-mix(in srgb, var(--zn-accent-strong) 10%, transparent);
 }
 
-/* ---------- Quick switcher ---------- */
+/* ---------- Quick switcher, command palette and other prompts ---------- */
 
 .zn-modal-bg {
   position: fixed;
@@ -987,80 +1188,95 @@ button {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding-top: 12vh;
-  background: color-mix(in srgb, var(--zn-shadow) 45%, transparent);
+  padding-top: 15vh;
+  background: color-mix(in oklch, var(--zn-cover) 85%, transparent);
 }
 
 .zn-switcher {
-  width: min(620px, 92vw);
+  width: min(700px, 80vw);
+  max-height: 70vh;
   display: flex;
   flex-direction: column;
-  padding: 10px;
   border: 1px solid var(--zn-border-strong);
   border-radius: 12px;
-  background: var(--zn-bg-popover);
-  box-shadow: 0 24px 64px color-mix(in srgb, var(--zn-shadow) 60%, transparent);
+  background: var(--zn-bg);
+  box-shadow: var(--zn-shadow-l);
+  overflow: hidden;
 }
 
-.zn-switcher-input {
-  height: 40px;
-  font-size: 15px;
+.zn-switcher .zn-switcher-input {
+  flex: none;
+  height: 49px;
+  padding: 0 48px 0 24px;
+  border: none;
+  border-bottom: 1px solid var(--zn-bg-panel);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--zn-ui-medium);
+}
+
+.zn-switcher .zn-switcher-input:focus {
+  border-color: var(--zn-bg-panel);
+  box-shadow: none;
 }
 
 .zn-switcher-list {
-  max-height: 52vh;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
-  margin-top: 8px;
+  padding: 12px;
 }
 
 .zn-switcher-row {
-  padding: 7px 10px;
-  border-radius: 7px;
-  cursor: pointer;
+  margin-bottom: 1px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: var(--zn-ui-medium);
+  line-height: 1.3;
+  cursor: default;
 }
 
 .zn-switcher-row.is-selected {
-  background: color-mix(in srgb, var(--zn-accent-strong) 18%, transparent);
+  background: var(--zn-bg-hover);
 }
 
 .zn-switcher-title {
-  color: var(--zn-text-strong);
+  color: var(--zn-text);
 }
 
 .zn-switcher-alias {
-  color: var(--zn-text-faint);
+  color: var(--zn-text-muted);
 }
 
 .zn-switcher-folder {
-  margin-top: 1px;
-  font-size: 11.5px;
-  color: var(--zn-text-faint);
+  margin-top: 2px;
+  font-size: var(--zn-ui-small);
+  color: var(--zn-text-muted);
 }
 
 .zn-switcher-empty {
-  padding: 12px 10px;
-  color: var(--zn-text-faint);
+  padding: 6px 12px;
+  color: var(--zn-text);
+  text-align: center;
 }
 
 .zn-switcher-footer {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
-  padding: 10px 6px 2px;
-  border-top: 1px solid var(--zn-border);
-  margin-top: 8px;
-  font-size: 11.5px;
-  color: var(--zn-text-faint);
+  justify-content: center;
+  gap: 4px 12px;
+  padding: 8px;
+  font-size: var(--zn-ui-smaller);
+  color: var(--zn-text-muted);
 }
 
 .zn-hint kbd {
-  margin-right: 5px;
-  padding: 1px 5px;
-  border: 1px solid var(--zn-border-strong);
-  border-radius: 4px;
-  background: var(--zn-bg-raised);
+  margin-right: 4px;
   font-family: var(--zn-font-ui);
-  font-size: 10.5px;
+  font-size: var(--zn-ui-smaller);
+  font-weight: 600;
   color: var(--zn-text-muted);
 }
 
@@ -1093,11 +1309,11 @@ button {
 }
 
 .zn-tag {
-  padding: 0.05em 0.45em;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--zn-accent-strong) 14%, transparent);
+  padding: 0.25em 0.65em;
+  border-radius: 2em;
+  background: color-mix(in oklch, var(--zn-accent-strong) 10%, transparent);
   color: var(--zn-accent);
-  font-size: 0.92em;
+  font-size: 0.875em;
   cursor: pointer;
 }
 
@@ -1246,10 +1462,11 @@ button {
 
 .zn-switch {
   appearance: none;
-  width: 30px;
-  height: 17px;
+  flex: none;
+  width: 40px;
+  height: 22px;
   margin: 0;
-  border-radius: 999px;
+  border-radius: 18px;
   background: var(--zn-border-strong);
   position: relative;
   cursor: pointer;
@@ -1261,10 +1478,11 @@ button {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 13px;
-  height: 13px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  background: var(--zn-text);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   transition: transform 0.15s ease;
 }
 
@@ -1273,12 +1491,7 @@ button {
 }
 
 .zn-switch:checked::after {
-  transform: translateX(13px);
-  background: var(--zn-on-accent);
-}
-
-.zn-tab.is-view .zn-tab-title {
-  color: var(--zn-accent);
+  transform: translateX(18px);
 }
 
 /* ---------- Phase 4: canvas ---------- */
@@ -1867,25 +2080,18 @@ button {
 
 /* ---------- Dialogs ---------- */
 
-.zn-btn {
-  color: var(--zn-text);
-  font: inherit;
-  font-size: 13px;
-}
-
-.zn-btn:hover {
-  border-color: var(--zn-border-stronger);
-  color: var(--zn-text-strong);
-}
-
 .zn-btn:focus-visible {
-  outline: 2px solid var(--zn-accent);
-  outline-offset: 2px;
+  outline: 2px solid var(--zn-border-stronger);
+  outline-offset: 1px;
+}
+
+.zn-btn-danger {
+  background: var(--zn-danger);
+  color: #ffffff;
 }
 
 .zn-btn-danger:hover {
-  border-color: color-mix(in srgb, var(--zn-danger) 50%, transparent);
-  color: var(--zn-danger);
+  background: color-mix(in oklch, var(--zn-danger) 88%, white);
 }
 
 .zn-dialog-bg {
@@ -1894,29 +2100,31 @@ button {
 }
 
 .zn-dialog {
-  width: min(520px, 92vw);
-  max-height: 84vh;
+  width: min(560px, 90vw);
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
+  padding: 16px;
   border: 1px solid var(--zn-border-strong);
   border-radius: 12px;
-  background: var(--zn-bg-popover);
-  box-shadow: 0 24px 64px color-mix(in srgb, var(--zn-shadow) 60%, transparent);
+  background: var(--zn-bg);
+  box-shadow: var(--zn-shadow-l);
 }
 
 .zn-dialog-title {
-  padding: 18px 20px 6px;
-  color: var(--zn-text-strong);
-  font-size: 16px;
+  padding: 8px 8px 12px;
+  color: var(--zn-text);
+  font-size: 20px;
   font-weight: 600;
+  line-height: 1.3;
 }
 
 .zn-dialog-body {
-  padding: 6px 20px 8px;
+  padding: 0 8px;
   overflow: auto;
   color: var(--zn-text);
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: var(--zn-ui-medium);
+  line-height: 1.5;
 }
 
 .zn-dialog-body p {
@@ -1925,19 +2133,14 @@ button {
 
 .zn-dialog-hint {
   color: var(--zn-text-muted);
-  font-size: 12.5px;
+  font-size: var(--zn-ui-small);
 }
 
 .zn-dialog-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 20px 18px;
-}
-
-.zn-dialog-footer .zn-btn {
-  height: 34px;
-  padding: 0 14px;
+  padding: 20px 8px 8px;
 }
 
 .zn-recovery-list {

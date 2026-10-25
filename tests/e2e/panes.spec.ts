@@ -79,7 +79,7 @@ test('Alt+Left and Alt+Right move through recently shown tabs', async ({ page })
 test('the same note in two panes stays in step after a save', async ({ page }) => {
   await treeRow(page, 'Ideas').click()
   await runCommand(page, 'Split right')
-  await panes(page).nth(1).locator('.cm-content').click()
+  await panes(page).nth(1).locator('.cm-content').focus()
   await page.keyboard.press('Control+End')
   await page.keyboard.type('\nTyped in the right pane')
   await page.keyboard.press('Control+s')

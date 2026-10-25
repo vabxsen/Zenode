@@ -19,18 +19,17 @@
 }
 
 .zn-palette-meta kbd {
-  padding: 1px 6px;
-  border: 1px solid var(--zn-border-strong);
-  border-radius: 4px;
-  background: var(--zn-bg-raised);
-  color: var(--zn-text-muted);
+  padding: 2px 6px;
+  border-radius: 24px;
+  background: var(--zn-bg-hover);
+  color: var(--zn-text);
   font-family: var(--zn-font-ui);
-  font-size: 11px;
+  font-size: var(--zn-ui-smaller);
 }
 
 .zn-palette-recent {
   color: var(--zn-text-faint);
-  font-size: 11px;
+  font-size: var(--zn-ui-smaller);
 }
 
 /* ---------- Split panes ---------- */
@@ -97,16 +96,29 @@ body.is-resizing {
 }
 
 /* With several panes, inactive panes' current tab is quieter. */
-.zn-pane-leaf:not(.is-active-pane) .zn-tab.is-active::after {
-  background: var(--zn-border);
-}
-
 .zn-split .zn-pane-leaf:not(.is-active-pane) .zn-tab.is-active {
   color: var(--zn-text-muted);
 }
 
+/* Tab bars along the top of the window double as its title bar. */
+.zn-pane-leaf.is-top > .zn-tabbar {
+  -webkit-app-region: drag;
+}
+.zn-pane-leaf.is-top > .zn-tabbar .zn-tab,
+.zn-pane-leaf.is-top > .zn-tabbar button {
+  -webkit-app-region: no-drag;
+}
+
+/* Room for the window buttons (and the right sidebar's toggle) at the top right. */
+.zn-pane-leaf.is-top-right > .zn-tabbar {
+  padding-right: calc(36px + var(--zn-frame-right));
+}
+.zn-app:not(.is-rightbar-hidden) .zn-pane-leaf.is-top-right > .zn-tabbar {
+  padding-right: 36px;
+}
+
 .zn-tabbar.is-drop-target {
-  background: color-mix(in srgb, var(--zn-accent-strong) 8%, transparent);
+  background: color-mix(in oklch, var(--zn-accent-strong) 8%, var(--zn-bg-panel));
 }
 
 .zn-tab.is-pinned {
@@ -115,12 +127,7 @@ body.is-resizing {
 }
 
 .zn-tab-pin {
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  color: var(--zn-accent);
-  flex: none;
+  color: var(--zn-text-muted);
 }
 
 /* Where a dragged tab will land: an edge (new pane) or the whole pane. */
@@ -134,76 +141,32 @@ body.is-resizing {
 }
 
 .zn-drop-overlay.is-center {
-  inset: 38px 4px 4px;
+  inset: 78px 4px 4px;
 }
 
 .zn-drop-overlay.is-left {
-  inset: 38px 50% 4px 4px;
+  inset: 78px 50% 4px 4px;
 }
 
 .zn-drop-overlay.is-right {
-  inset: 38px 4px 4px 50%;
+  inset: 78px 4px 4px 50%;
 }
 
 .zn-drop-overlay.is-up {
-  inset: 38px 4px 50% 4px;
+  inset: 78px 4px 50% 4px;
 }
 
 .zn-drop-overlay.is-down {
   inset: 50% 4px 4px;
 }
 
-/* ---------- File tree: header tools, selection, drag and drop ---------- */
-
-.zn-pane > .zn-sidebar-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.zn-pane > .zn-sidebar-header .zn-sidebar-title {
-  flex: 1;
-  min-width: 0;
-}
-
-.zn-tree-tools {
-  display: flex;
-  gap: 1px;
-  opacity: 0.55;
-  transition: opacity 0.12s ease;
-}
-
-.zn-pane:hover .zn-tree-tools {
-  opacity: 1;
-}
-
-.zn-tree-tool {
-  width: 24px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--zn-text-muted);
-  cursor: pointer;
-}
-
-.zn-tree-tool:hover {
-  background: var(--zn-bg-hover);
-  color: var(--zn-text-strong);
-}
-
-.zn-tree-row.is-selected:not(.is-active) {
-  background: color-mix(in srgb, var(--zn-accent-strong) 9%, transparent);
-  color: var(--zn-text);
-}
+/* ---------- File tree: drag and drop ---------- */
 
 .zn-tree-row.is-drop-target,
 .zn-tree.is-drop-target {
   outline: 1px dashed var(--zn-accent-strong);
   outline-offset: -1px;
-  background: color-mix(in srgb, var(--zn-accent-strong) 12%, transparent);
+  background: color-mix(in oklch, var(--zn-accent-strong) 12%, transparent);
 }
 
 .zn-tree {

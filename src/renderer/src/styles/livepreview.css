@@ -38,7 +38,7 @@
 }
 
 .cm-editor .zn-math-src {
-  color: var(--zn-accent-soft);
+  color: var(--zn-text);
   font-family: var(--zn-font-mono);
   font-size: 0.92em;
 }
@@ -50,10 +50,11 @@
 
 /* Callout lines (Live Preview): a tinted box built from the quote's lines. */
 .cm-editor .cm-line.zn-callout {
-  --callout: 96, 165, 250;
+  --callout: var(--zn-rgb-blue);
   position: relative;
   isolation: isolate;
-  padding-left: calc(max(32px, (100% - var(--zn-line-width)) / 2) + 16px) !important;
+  padding-left: calc(max(32px, (100% - var(--zn-line-width)) / 2) + 24px) !important;
+  padding-right: calc(max(32px, (100% - var(--zn-line-width)) / 2) + 12px) !important;
 }
 
 .cm-editor .cm-line.zn-callout::before {
@@ -64,28 +65,33 @@
   bottom: 0;
   left: max(32px, calc((100% - var(--zn-line-width)) / 2));
   right: max(32px, calc((100% - var(--zn-line-width)) / 2));
-  border-left: 3px solid rgb(var(--callout));
-  background: rgba(var(--callout), 0.09);
+  background: rgba(var(--callout), 0.1);
 }
 
 .cm-editor .cm-line.zn-callout-title {
-  padding-top: 6px;
+  padding-top: 12px;
   color: rgb(var(--callout));
-  font-weight: 650;
+  font-weight: 600;
+}
+
+.cm-editor .zn-lp-callout-icon {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 8px;
 }
 
 .cm-editor .cm-line.zn-callout-title::before {
-  border-top-right-radius: 8px;
-  top: 2px;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
 }
 
 .cm-editor .cm-line.zn-callout-last {
-  padding-bottom: 6px;
+  padding-bottom: 12px;
 }
 
 .cm-editor .cm-line.zn-callout-last::before {
-  border-bottom-right-radius: 8px;
-  bottom: 2px;
+  border-bottom-left-radius: 4px;
+  border-bottom-right-radius: 4px;
 }
 
 .cm-editor .cm-line.zn-callout[data-callout="abstract"],
@@ -94,12 +100,12 @@
 .cm-editor .cm-line.zn-callout[data-callout="tip"],
 .cm-editor .cm-line.zn-callout[data-callout="hint"],
 .cm-editor .cm-line.zn-callout[data-callout="important"] {
-  --callout: 34, 211, 238;
+  --callout: var(--zn-rgb-cyan);
 }
 .cm-editor .cm-line.zn-callout[data-callout="success"],
 .cm-editor .cm-line.zn-callout[data-callout="check"],
 .cm-editor .cm-line.zn-callout[data-callout="done"] {
-  --callout: 74, 222, 128;
+  --callout: var(--zn-rgb-green);
 }
 .cm-editor .cm-line.zn-callout[data-callout="question"],
 .cm-editor .cm-line.zn-callout[data-callout="help"],
@@ -107,7 +113,7 @@
 .cm-editor .cm-line.zn-callout[data-callout="warning"],
 .cm-editor .cm-line.zn-callout[data-callout="caution"],
 .cm-editor .cm-line.zn-callout[data-callout="attention"] {
-  --callout: 251, 146, 60;
+  --callout: var(--zn-rgb-orange);
 }
 .cm-editor .cm-line.zn-callout[data-callout="failure"],
 .cm-editor .cm-line.zn-callout[data-callout="fail"],
@@ -115,18 +121,52 @@
 .cm-editor .cm-line.zn-callout[data-callout="danger"],
 .cm-editor .cm-line.zn-callout[data-callout="error"],
 .cm-editor .cm-line.zn-callout[data-callout="bug"] {
-  --callout: 248, 113, 113;
+  --callout: var(--zn-rgb-red);
 }
 .cm-editor .cm-line.zn-callout[data-callout="example"] {
-  --callout: 167, 139, 250;
+  --callout: var(--zn-rgb-purple);
 }
 .cm-editor .cm-line.zn-callout[data-callout="quote"],
 .cm-editor .cm-line.zn-callout[data-callout="cite"] {
-  --callout: 160, 160, 176;
+  --callout: 158, 158, 158;
 }
 
 .cm-editor .zn-footnote-ref {
-  color: var(--zn-accent-dim);
+  color: var(--zn-accent);
   font-size: 0.75em;
   vertical-align: super;
+}
+
+/* Markdown marks (#, list numbers, link brackets) shown while editing a line are faint. */
+.cm-editor .cm-line:not(.zn-codeblock) .tok-meta,
+.cm-editor .cm-line:not(.zn-codeblock) .tok-punctuation {
+  color: var(--zn-mark);
+}
+
+.cm-editor .zn-tag,
+.cm-editor .zn-tag * {
+  color: var(--zn-accent) !important;
+}
+
+/* List lines start a little in from the text column, like rendered lists,
+   36px further per level, with a guide line down from each parent's bullet. */
+.cm-editor .cm-line.zn-li {
+  --zn-col: max(32px, (100% - var(--zn-line-width)) / 2);
+  padding-left: calc(var(--zn-col) + 12px + var(--zn-li-depth, 0) * 36px) !important;
+  padding-top: 0.075em;
+  padding-bottom: 0.075em;
+  background: repeating-linear-gradient(to right, var(--zn-guide) 0 1px, transparent 1px 36px) no-repeat calc(var(--zn-col) + 14px) 0 / calc(var(--zn-li-depth, 0) * 36px) 100%;
+}
+
+/* Web links get a small "opens outside" arrow. */
+.zn-link[data-zn-href^='http']::after,
+.zn-rendered a.zn-external::after {
+  content: '';
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-left: 2px;
+  vertical-align: 0.1em;
+  background: var(--zn-mark);
+  -webkit-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 3h6v6'/><path d='M10 14 21 3'/><path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'/></svg>") center / contain no-repeat;
 }

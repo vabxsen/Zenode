@@ -23,10 +23,11 @@ export interface FileTreeHandlers {
   onToggleBookmark(path: string): void
 }
 
-const INDENT = 14
-// Every row is this tall (see .zn-tree-row), which lets long trees draw only
-// the rows in view.
-const ROW_HEIGHT = 28
+// Each level of nesting moves a row this far right (see .zn-tree-row's guides).
+const INDENT = 17
+// Every row is this tall, gap included (see .zn-tree-row), which lets long
+// trees draw only the rows in view.
+const ROW_HEIGHT = 27
 // Trees up to this many visible rows are drawn whole.
 const VIRTUAL_FROM = 300
 const OVERSCAN = 20
@@ -94,13 +95,13 @@ export class FileTree extends Component {
   ) {
     super()
     const header = el('div', 'zn-sidebar-header', container)
-    el('div', 'zn-sidebar-title', header, title)
+    header.setAttribute('aria-label', title)
     const tools = el('div', 'zn-tree-tools', header)
     const tool = (name: IconName, label: string, action: (e: MouseEvent) => void): void => {
-      const b = el('button', 'zn-tree-tool', tools)
+      const b = el('button', 'zn-icon-btn zn-tree-tool', tools)
       b.title = label
       b.setAttribute('aria-label', label)
-      b.appendChild(icon(name, 15))
+      b.appendChild(icon(name, 16))
       b.addEventListener('click', action)
     }
     tool('filePlus', 'New note', () => this.handlers.onNewNote(''))
@@ -293,7 +294,11 @@ export class FileTree extends Component {
   private renderRow(entry: TreeEntry, depth: number): void {
     const isFolder = entry.kind === 'folder'
     const row = el('div', 'zn-tree-row', this.listEl)
-    row.style.paddingLeft = `${8 + depth * INDENT}px`
+    if (depth) {
+      row.style.marginLeft = `${depth * INDENT}px`
+      row.style.setProperty('--depth', String(depth))
+      row.dataset.depth = String(depth)
+    }
     row.dataset.path = entry.path
     row.setAttribute('role', 'treeitem')
     row.setAttribute('aria-level', String(depth + 1))
@@ -306,7 +311,7 @@ export class FileTree extends Component {
 
     const twisty = el('span', 'zn-tree-twisty', row)
     if (isFolder) {
-      twisty.appendChild(icon('chevron', 14))
+      twisty.appendChild(icon('chevron', 12))
       if (this.expanded.has(entry.path)) twisty.classList.add('is-open')
     }
 
@@ -467,36 +472,37 @@ export class FileTree extends Component {
     if (paths.length > 1) {
       const entries = paths.map((p) => this.find(p)).filter((e): e is TreeEntry => !!e)
       showMenu(x, y, [
-        { label: `Move ${paths.length} items to…`, action: () => this.handlers.onMoveTo(paths) },
-        { label: 'Copy paths', action: () => void navigator.clipboard.writeText(paths.join('\n')) },
+        { label: `Move ${paths.length} items to…`, icon: 'moveTo', action: () => this.handlers.onMoveTo(paths) },
+        { label: 'Copy paths', icon: 'copy', action: () => void navigator.clipboard.writeText(paths.join('\n')) },
         'separator',
-        { label: `Delete ${paths.length} items`, danger: true, action: () => this.handlers.onDelete(entries) }
+        { label: `Delete ${paths.length} items`, icon: 'trash', danger: true, action: () => this.handlers.onDelete(entries) }
       ])
       return
     }
     const isFolder = entry.kind === 'folder'
     const dir = isFolder ? entry.path : parentDir(entry.path)
     const items: Array<MenuItem | 'separator'> = [
-      ...(isFolder ? [] : [{ label: 'Open', action: () => this.handlers.onOpen(entry) }]),
-      { label: 'New note', action: () => this.handlers.onNewNote(dir) },
-      { label: 'New folder', action: () => this.handlers.onNewFolder(dir) },
-      { label: 'New canvas', action: () => this.handlers.onNewCanvas(dir) },
+      ...(isFolder ? [] : [{ label: 'Open', icon: 'note' as const, action: () => this.handlers.onOpen(entry) }]),
+      { label: 'New note', icon: 'filePlus', action: () => this.handlers.onNewNote(dir) },
+      { label: 'New folder', icon: 'folderPlus', action: () => this.handlers.onNewFolder(dir) },
+      { label: 'New canvas', icon: 'canvas', action: () => this.handlers.onNewCanvas(dir) },
       'separator',
-      { label: 'Rename', action: () => this.startRename(entry.path) },
-      { label: 'Move to…', action: () => this.handlers.onMoveTo([entry.path]) },
-      { label: 'Copy path', action: () => void navigator.clipboard.writeText(entry.path) },
-      { label: 'Show in Explorer', action: () => this.handlers.onReveal(entry.path) },
+      { label: 'Rename', icon: 'rename', action: () => this.startRename(entry.path) },
+      { label: 'Move to…', icon: 'moveTo', action: () => this.handlers.onMoveTo([entry.path]) },
+      { label: 'Copy path', icon: 'copy', action: () => void navigator.clipboard.writeText(entry.path) },
+      { label: 'Show in Explorer', icon: 'outgoing', action: () => this.handlers.onReveal(entry.path) },
       ...(isFolder
         ? []
         : [
-            { label: 'Show file history', action: () => this.handlers.onHistory(entry.path) },
+            { label: 'Show file history', icon: 'history' as const, action: () => this.handlers.onHistory(entry.path) },
             {
               label: this.handlers.isBookmarked(entry.path) ? 'Remove bookmark' : 'Bookmark',
+              icon: 'bookmark' as const,
               action: () => this.handlers.onToggleBookmark(entry.path)
             }
           ]),
       'separator',
-      { label: 'Delete', danger: true, action: () => this.handlers.onDelete([entry]) }
+      { label: 'Delete', icon: 'trash', danger: true, action: () => this.handlers.onDelete([entry]) }
     ]
     showMenu(x, y, items)
   }

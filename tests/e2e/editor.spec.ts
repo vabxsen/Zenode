@@ -40,7 +40,7 @@ test('Live Preview renders embeds, math, tables and diagrams in place', async ({
 
 test('pasting an image saves it and inserts an embed', async ({ page, vaultDir }) => {
   await treeRow(page, 'Home').click()
-  await page.locator('.zn-editor .cm-content').click()
+  await page.locator('.zn-editor .cm-content').focus()
   await page.keyboard.press('Control+End')
   await page.evaluate(() => {
     const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
@@ -56,7 +56,7 @@ test('pasting an image saves it and inserts an embed', async ({ page, vaultDir }
 
 test('find and replace changes the note', async ({ page, vaultDir }) => {
   await treeRow(page, 'Home').click()
-  await page.locator('.zn-editor .cm-content').click()
+  await page.locator('.zn-editor .cm-content').focus()
   await page.keyboard.press('Control+h')
   await page.locator('.cm-search input[name="search"]').fill('zephyr')
   await page.locator('.cm-search input[name="replace"]').fill('breeze')
@@ -89,7 +89,7 @@ test('attachments go to the configured folder', async ({ page, vaultDir }) => {
   await page.waitForSelector('.zn-tree-row')
   await treeRow(page, 'Projects').click()
   await treeRow(page, 'Roadmap').click()
-  await page.locator('.zn-editor .cm-content').click()
+  await page.locator('.zn-editor .cm-content').focus()
   await page.evaluate(() => {
     const data = new DataTransfer()
     data.items.add(new File([new Uint8Array([1, 2, 3])], 'notes.pdf', { type: 'application/pdf' }))

@@ -36,7 +36,7 @@ test('editing a CRLF note keeps its line endings', async ({ page, vaultDir }) =>
   const file = join(vaultDir, 'Windows note.md')
   writeFileSync(file, '# From Notepad\r\n\r\nLine one\r\n')
   await treeRow(page, 'Windows note').click()
-  await page.locator('.cm-content').first().click()
+  await page.locator('.cm-content').first().focus()
   await page.keyboard.press('Control+End')
   await page.keyboard.type('Line two')
   await page.keyboard.press('Enter')

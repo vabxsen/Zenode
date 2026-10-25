@@ -68,9 +68,9 @@ export function openCommandPalette(registry: CommandRegistry): void {
   wireListbox(input, list, 'Commands')
   const footer = el('div', 'zn-switcher-footer', modal)
   for (const [key, label] of [
-    ['↑↓', 'navigate'],
-    ['↵', 'run'],
-    ['esc', 'close']
+    ['↑↓', 'to navigate'],
+    ['↵', 'to use'],
+    ['esc', 'to dismiss']
   ]) {
     const hint = el('span', 'zn-hint', footer)
     el('kbd', '', hint, key)

@@ -34,7 +34,7 @@ export class BacklinksPanel extends Component {
   ) {
     super()
     const header = el('div', 'zn-panel-header', container)
-    el('span', 'zn-panel-title', header, 'Backlinks')
+    el('span', 'zn-panel-title', header, 'Linked mentions')
     this.countEl = el('span', 'zn-panel-count', header)
     this.listEl = el('div', 'zn-backlinks', container)
     this.mentionsEl = el('div', 'zn-mentions', container)
@@ -132,7 +132,7 @@ export class BacklinksPanel extends Component {
     const total = backlinks.reduce((n, b) => n + b.refs.length, 0)
     this.countEl.textContent = total ? String(total) : ''
     if (!backlinks.length) {
-      el('div', 'zn-panel-empty', this.listEl, 'No notes link here yet.')
+      el('div', 'zn-panel-empty', this.listEl, 'No backlinks found.')
       return
     }
     // A note many others link to shows them a page at a time.
