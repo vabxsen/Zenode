@@ -118,7 +118,7 @@
     "@types/d3-force": "^3.0.10",
     "@types/markdown-it-footnote": "^3.0.4",
     "@types/node": "^26.6.5",
-    "electron": "^44.9.0",
+    "electron": "^44.9.3",
     "electron-builder": "^26.15.3",
     "electron-vite": "^6.0.0",
     "esbuild": "^0.28.2",

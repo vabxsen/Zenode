@@ -1,6 +1,6 @@
 // Several vaults in their own windows, and one Zenode process.
 import { spawn } from 'node:child_process'
-import { cpSync, existsSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import electronPath from 'electron'
 import { expect, test, treeRow } from './fixture'
@@ -11,6 +11,13 @@ test('another vault opens in its own window and edits go to that vault', async (
   const second = join(workDir, 'second')
   cpSync(join(ROOT, 'tests/fixtures/vault'), second, { recursive: true })
   writeFileSync(join(second, 'Only here.md'), '# Only here\n')
+
+  // The page can only open vaults from the vault list (new folders go through the folder picker).
+  await expect(page.evaluate((root) => window.zenode.openVaultInNewWindow(root), second)).rejects.toThrow('not in your list of vaults')
+  expect(app.windows()).toHaveLength(1)
+  const settingsFile = join(workDir, 'userdata', 'zenode-settings.json')
+  const settings = JSON.parse(readFileSync(settingsFile, 'utf8')) as { recentVaults: string[] }
+  writeFileSync(settingsFile, JSON.stringify({ ...settings, recentVaults: [...settings.recentVaults, second] }))
 
   const opened = app.waitForEvent('window')
   await page.evaluate((root) => window.zenode.openVaultInNewWindow(root), second)

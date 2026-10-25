@@ -2,7 +2,9 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { readConfig, readCss, writeConfig } from '../src/main/config'
 import { isFileUrlOf } from '../src/main/fileUrl'
+import { knownVault } from '../src/main/launchArgs'
 import { Vault } from '../src/main/vault'
 import { hasScheme, isRunnable, safeExternalUrl } from '../src/shared/linkSafety'
 import { eq } from './harness'
@@ -53,7 +55,46 @@ eq('vault: bulk reads skip it', Object.entries(await vault.readMany(['note.md', 
 eq('vault: alternate data stream refused', await refused(() => vault.read('note.md:hidden')), 'Not a usable file name')
 eq('vault: device names refused', await refused(() => vault.write('NUL.md', 'x')), 'Not a usable file name')
 eq('vault: new folders inside are fine', await refused(() => vault.createAt('new/sub/a.md', 'x')), 'allowed')
+// The vault folder itself can't be renamed, moved or thrown away from inside.
+eq(
+  'vault: its own folder is not an entry',
+  [await refused(() => vault.rename('', 'gone')), await refused(() => vault.move('', 'new')), await refused(() => vault.moveToVaultTrash('')), await refused(() => vault.realEntry('.'))],
+  Array(4).fill("The vault folder itself can't be changed from inside the vault")
+)
+eq('vault: entries inside still are', await refused(() => vault.realEntry('note.md')), 'allowed')
+
+// Config, themes and snippets stay in the vault's own .zenode folder.
+mkdirSync(join(outside, 'snippets'))
+writeFileSync(join(outside, 'snippets', 'evil.css'), 'body{}')
+writeFileSync(join(outside, 'x.css'), 'body{}')
+eq(
+  'css: names with path separators refused',
+  [await refused(() => readCss(root, 'snippet', String.raw`..\..\outside\x`)), await refused(() => readCss(root, 'snippet', String.raw`a\..\..\..\outside\x`)), await refused(() => readCss(root, 'snippet', 'a/b'))],
+  ['Invalid snippet name', 'Invalid snippet name', 'Invalid snippet name']
+)
+const linked = join(base, 'linked')
+mkdirSync(linked)
+symlinkSync(outside, join(linked, '.zenode'), 'junction')
+writeFileSync(join(outside, 'app.json'), '{"secret":true}')
+eq('config: a .zenode that links elsewhere is not read', await readConfig(linked, 'app'), null)
+eq('config: nor written', await refused(() => writeConfig(linked, 'app', {})), 'Path leads outside the vault through a link')
+eq('css: nor its snippets', await refused(() => readCss(linked, 'snippet', 'evil')), 'Path leads outside the vault through a link')
+await writeConfig(root, 'app', { ok: 1 })
+eq("config: the vault's own still works", await readConfig(root, 'app'), { ok: 1 })
 rmSync(base, { recursive: true, force: true })
+
+// The page opens vaults by name only from the vault list.
+const known = [String.raw`C:\Notes\Work`, String.raw`D:\Vaults\Home`]
+eq(
+  'known vault: same folder in any spelling',
+  [knownVault(String.raw`c:\notes\work`, known), knownVault(String.raw`C:\Notes\Work\ `.trim(), known), knownVault('C:/Notes/Work', known), knownVault(String.raw`D:\Vaults\Home`, known)],
+  [String.raw`C:\Notes\Work`, String.raw`C:\Notes\Work`, String.raw`C:\Notes\Work`, String.raw`D:\Vaults\Home`]
+)
+eq(
+  'known vault: anything else refused',
+  [knownVault(String.raw`C:\Windows`, known), knownVault(String.raw`C:\Notes`, known), knownVault(String.raw`C:\Notes\Work\..\..\Windows`, known), knownVault('Work', known), knownVault('', known), knownVault(42, known)],
+  [null, null, null, null, null, null]
+)
 
 // The app page's file:// URL, however Chromium spells it.
 const page = String.raw`C:\Users\RUNNER~1\AppData\Local\Programs\zenode\resources\app.asar\out\renderer\index.html`

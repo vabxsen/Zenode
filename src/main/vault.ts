@@ -69,6 +69,14 @@ export class Vault {
     return target
   }
 
+  // realAbs() for a file or folder in the vault, never the vault folder itself
+  // (which can't be renamed, moved or deleted from inside).
+  async realEntry(rel: string): Promise<string> {
+    const target = await this.realAbs(rel)
+    if (target === resolve(this.root)) throw new Error("The vault folder itself can't be changed from inside the vault")
+    return target
+  }
+
   // A folder's real location (cached briefly; bulk reads share folders). A folder
   // that doesn't exist yet is placed under its nearest existing parent.
   private async realDir(dir: string): Promise<string> {
@@ -172,7 +180,7 @@ export class Vault {
   // Moves a file or folder into the vault's .trash folder (hidden from the tree),
   // under a unique name. Returns its new vault-relative path.
   async moveToVaultTrash(rel: string): Promise<string> {
-    const from = await this.realAbs(rel)
+    const from = await this.realEntry(rel)
     const dir = join(this.root, TRASH_DIR)
     await fs.mkdir(dir, { recursive: true })
     const name = basename(from)
@@ -233,7 +241,7 @@ export class Vault {
   async rename(rel: string, newName: string): Promise<string> {
     const name = newName.trim()
     checkName(name)
-    const from = await this.realAbs(rel)
+    const from = await this.realEntry(rel)
     const to = await this.realAbs(join(dirname(rel), name))
     if (from === to) return rel
     // Windows paths are case-insensitive: "note" -> "Note" is a rename of the same file.
@@ -245,7 +253,7 @@ export class Vault {
 
   // Moves a file or folder into another folder ('' = vault root), keeping its name.
   async move(rel: string, destDirRel: string): Promise<string> {
-    const from = await this.realAbs(rel)
+    const from = await this.realEntry(rel)
     const destDir = await this.realAbs(destDirRel)
     const stat = await fs.stat(destDir).catch(() => null)
     if (!stat?.isDirectory()) throw new Error(`"${destDirRel || 'the vault root'}" is not a folder`)

@@ -12,7 +12,7 @@ import type { Vault } from './vault'
 const testTrash = app.isPackaged ? undefined : process.env.ZENODE_TEST_TRASH
 
 export async function trashFile(vault: Vault, path: string): Promise<TrashResult> {
-  const file = await vault.realAbs(path)
+  const file = await vault.realEntry(path)
   const config = (await readConfig(vault.root, 'app')) as { trashOption?: unknown } | null
   if (config?.trashOption === 'local') return { where: 'vault', path: await vault.moveToVaultTrash(path) }
   if (testTrash) {
