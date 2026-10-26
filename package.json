@@ -1,7 +1,7 @@
 {
   "name": "zenode",
   "productName": "Zenode",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A fast, local-first Markdown knowledge base.",
   "main": "./out/main/index.js",
   "author": "Vaibhav Sen",

@@ -6,6 +6,8 @@ Each release's notes on GitHub are taken from its section below, so write entrie
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-26
+
 ### Changed
 
 - **A new look, closer to the Markdown note apps you may know:** neutral grey surfaces, the system font, and Lucide icons.
@@ -95,6 +97,7 @@ The first public build.
   - Portable and zip copies say when a new version is out.
 - **Downloads:** an installer (per user, no admin rights needed), a portable `.exe`, and a `.zip`.
 
-[Unreleased]: https://github.com/vabxsen/Zenode/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/vabxsen/Zenode/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/vabxsen/Zenode/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/vabxsen/Zenode/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/vabxsen/Zenode/releases/tag/v0.5.0
