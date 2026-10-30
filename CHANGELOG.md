@@ -6,6 +6,11 @@ Each release's notes on GitHub are taken from its section below, so write entrie
 
 ## [Unreleased]
 
+### Added
+
+- Zenode can be built as a Microsoft Store package. Store copies are signed by Microsoft, so Windows' Smart App Control lets them run, and the Store keeps them up to date.
+- A privacy policy (`PRIVACY.md`).
+
 ## [0.7.0] - 2026-10-26
 
 ### Changed

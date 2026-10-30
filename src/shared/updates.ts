@@ -9,8 +9,9 @@ export interface UpdatePrefs {
   channel: UpdateChannel
 }
 
-// How this copy of Zenode was installed: only installed copies update themselves.
-export type InstallKind = 'installed' | 'portable' | 'zip' | 'dev'
+// How this copy of Zenode was installed: only installed copies update themselves,
+// and the Microsoft Store updates its own copies.
+export type InstallKind = 'installed' | 'portable' | 'zip' | 'store' | 'dev'
 
 export type UpdateState =
   | { status: 'idle' }
@@ -41,6 +42,7 @@ export function sanitizeUpdatePrefs(raw: unknown): UpdatePrefs {
 // One line for Settings.
 export function describeUpdate(s: UpdateStatus): string {
   if (s.kind === 'dev') return 'Updates are off in development builds.'
+  if (s.kind === 'store') return 'The Microsoft Store keeps this copy of Zenode up to date.'
   const st = s.state
   switch (st.status) {
     case 'idle':

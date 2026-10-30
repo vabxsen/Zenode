@@ -22,6 +22,8 @@ const testFeed = app.isPackaged ? undefined : process.env.ZENODE_TEST_UPDATE_FEE
 export function installKind(): InstallKind {
   if (testFeed) return 'zip'
   if (!app.isPackaged) return 'dev'
+  // Electron sets this in a Microsoft Store (MSIX) package.
+  if (process.windowsStore) return 'store'
   if (process.env.PORTABLE_EXECUTABLE_DIR) return 'portable'
   return existsSync(join(dirname(process.execPath), 'Uninstall Zenode.exe')) ? 'installed' : 'zip'
 }
@@ -52,7 +54,7 @@ function configure(): void {
 }
 
 export async function checkForUpdates(): Promise<UpdateStatus> {
-  if (installKind() === 'dev' || state.status === 'checking' || state.status === 'downloading' || state.status === 'ready') return updateStatus()
+  if (installKind() === 'dev' || installKind() === 'store' || state.status === 'checking' || state.status === 'downloading' || state.status === 'ready') return updateStatus()
   setState({ status: 'checking' })
   try {
     configure()
@@ -68,7 +70,7 @@ export async function checkForUpdates(): Promise<UpdateStatus> {
 function schedule(): void {
   if (timer) clearInterval(timer)
   timer = null
-  if (!prefs.autoCheck || installKind() === 'dev') return
+  if (!prefs.autoCheck || installKind() === 'dev' || installKind() === 'store') return
   timer = setInterval(() => void checkForUpdates(), CHECK_EVERY)
 }
 
@@ -98,7 +100,8 @@ export function installUpdate(): void {
 
 export async function startUpdates(): Promise<void> {
   prefs = sanitizeUpdatePrefs((await loadSettings()).updates)
-  if (installKind() === 'dev') return
+  // Development builds don't update; the Store updates its own copies.
+  if (installKind() === 'dev' || installKind() === 'store') return
   autoUpdater.logger = {
     info: (m: unknown) => void log('info', `update: ${String(m)}`),
     warn: (m: unknown) => void log('warn', `update: ${String(m)}`),
