@@ -5,7 +5,7 @@ import { dropdown, heading, settingRow, toggle } from './controls'
 
 const api = window.zenode
 
-// The button's job in each state (development builds have no button).
+// The button's job in each state (development and Store copies have no button).
 function action(s: UpdateStatus): { label: string; run: () => Promise<unknown> } {
   const st = s.state.status
   if (st === 'ready') return { label: 'Restart to update', run: () => api.installUpdate() }
@@ -20,7 +20,9 @@ export async function renderUpdates(c: HTMLElement): Promise<void> {
   const desc = row.querySelector<HTMLElement>('.zn-set-desc')!
   desc.setAttribute('aria-live', 'polite')
   desc.classList.add('zn-update-status')
-  const btn = first.kind === 'dev' ? null : el('button', 'zn-btn zn-set-button', control)
+  // Development copies don't update, and the Store updates its own.
+  const managed = first.kind === 'dev' || first.kind === 'store'
+  const btn = managed ? null : el('button', 'zn-btn zn-set-button', control)
   let current = first
   btn?.addEventListener('click', () => void action(current).run())
 
@@ -35,7 +37,7 @@ export async function renderUpdates(c: HTMLElement): Promise<void> {
   // Follows the updater while this page is showing.
   const stop = api.onUpdateStatus((s) => (desc.isConnected ? show(s) : stop()))
 
-  if (first.kind === 'dev') return
+  if (managed) return
   toggle(c, 'Check automatically', 'Asks GitHub for new versions when Zenode starts and every few hours. Nothing else is sent.', first.prefs.autoCheck, (v) => void api.setUpdatePrefs({ autoCheck: v }))
   dropdown<UpdateChannel>(
     c,

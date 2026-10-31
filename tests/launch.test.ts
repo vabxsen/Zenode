@@ -63,6 +63,7 @@ eq(
   'updates: status text',
   [
     status('dev', { status: 'idle' }),
+    status('store', { status: 'idle' }),
     status('installed', { status: 'none' }),
     status('installed', { status: 'available', version: '0.6.0' }),
     status('zip', { status: 'available', version: '0.6.0' }),
@@ -71,6 +72,7 @@ eq(
   ].map(describeUpdate),
   [
     'Updates are off in development builds.',
+    'The Microsoft Store keeps this copy of Zenode up to date.',
     'Zenode 0.5.0 is the latest version.',
     'Zenode 0.6.0 is available.',
     'Zenode 0.6.0 is available to download.',
