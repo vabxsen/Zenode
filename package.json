@@ -139,11 +139,11 @@
     "@types/markdown-it-footnote": "^3.0.4",
     "@types/node": "^26.6.5",
     "electron": "^44.9.3",
-    "electron-builder": "^26.15.3",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "vite": "^8.3.5"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
